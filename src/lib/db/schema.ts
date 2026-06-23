@@ -10,10 +10,12 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
-const idColumn = () =>
-  text("id").primaryKey().$defaultFn(() => randomUUID());
+import { ROLES } from "../permissions/roles";
+
+const idColumn = () => text("id").primaryKey().$defaultFn(() => randomUUID());
 
 const createdAt = timestamp("created_at", { mode: "date", precision: 3 })
   .notNull()
@@ -26,11 +28,7 @@ const updatedAt = timestamp("updated_at", { mode: "date", precision: 3 })
 
 const deletedAt = timestamp("deleted_at", { mode: "date", precision: 3 });
 
-export const userRoleEnum = pgEnum("user_role", [
-  "sale",
-  "accountant",
-  "admin",
-]);
+export const userRoleEnum = pgEnum("user_role", ROLES);
 
 export const shippingModeEnum = pgEnum("shipping_mode", [
   "domestic_truck",
@@ -75,19 +73,95 @@ export const exportStatusEnum = pgEnum("export_status", [
   "failed",
 ]);
 
-export const users = pgTable(
-  "users",
+export const users = pgTable("users", {
+  id: idColumn(),
+  email: text("email").notNull().unique(),
+  name: text("name").notNull(),
+  image: text("image"),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  role: userRoleEnum("role").notNull().default("sale"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt,
+  updatedAt,
+  deletedAt,
+});
+
+export const sessions = pgTable(
+  "sessions",
   {
     id: idColumn(),
-    email: text("email").notNull().unique(),
-    name: text("name").notNull(),
-    role: userRoleEnum("role").notNull().default("sale"),
-    isActive: boolean("is_active").notNull().default(true),
     createdAt,
     updatedAt,
-    deletedAt,
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { mode: "date", precision: 3 }).notNull(),
+    token: text("token").notNull().unique(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
   },
+  (table) => [
+    index("sessions_user_id_idx").on(table.userId),
+    index("sessions_token_idx").on(table.token),
+  ],
 );
+
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: idColumn(),
+    createdAt,
+    updatedAt,
+    providerId: text("provider_id").notNull(),
+    accountId: text("account_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", {
+      mode: "date",
+      precision: 3,
+    }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", {
+      mode: "date",
+      precision: 3,
+    }),
+    scope: text("scope"),
+    password: text("password"),
+  },
+  (table) => [
+    index("accounts_user_id_idx").on(table.userId),
+    uniqueIndex("accounts_provider_account_uidx").on(
+      table.providerId,
+      table.accountId,
+    ),
+  ],
+);
+
+export const verifications = pgTable(
+  "verifications",
+  {
+    id: idColumn(),
+    createdAt,
+    updatedAt,
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at", { mode: "date", precision: 3 }).notNull(),
+    identifier: text("identifier").notNull(),
+  },
+  (table) => [
+    index("verifications_identifier_idx").on(table.identifier),
+    uniqueIndex("verifications_value_uidx").on(table.value),
+  ],
+);
+
+export const authSchema = {
+  users,
+  sessions,
+  accounts,
+  verifications,
+} as const;
 
 export const shippingNotes = pgTable(
   "shipping_notes",
@@ -115,9 +189,7 @@ export const shippingNotes = pgTable(
     })
       .notNull()
       .default("1"),
-    status: shippingNoteStatusEnum("status")
-      .notNull()
-      .default("draft"),
+    status: shippingNoteStatusEnum("status").notNull().default("draft"),
     createdById: text("created_by_id").references(() => users.id, {
       onDelete: "set null",
     }),
@@ -180,7 +252,11 @@ export const shippingNoteCharges = pgTable(
     updatedAt,
     deletedAt,
   },
-  (table) => [index("shipping_note_charges_shipping_note_id_idx").on(table.shippingNoteId)],
+  (table) => [
+    index("shipping_note_charges_shipping_note_id_idx").on(
+      table.shippingNoteId,
+    ),
+  ],
 );
 
 export const shippingNoteExports = pgTable(
@@ -206,7 +282,9 @@ export const shippingNoteExports = pgTable(
     updatedAt,
   },
   (table) => [
-    index("shipping_note_exports_shipping_note_id_idx").on(table.shippingNoteId),
+    index("shipping_note_exports_shipping_note_id_idx").on(
+      table.shippingNoteId,
+    ),
   ],
 );
 
@@ -261,6 +339,15 @@ export const taxRules = pgTable(
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+
+export type Session = typeof sessions.$inferSelect;
+export type NewSession = typeof sessions.$inferInsert;
+
+export type Account = typeof accounts.$inferSelect;
+export type NewAccount = typeof accounts.$inferInsert;
+
+export type Verification = typeof verifications.$inferSelect;
+export type NewVerification = typeof verifications.$inferInsert;
 
 export type ShippingNote = typeof shippingNotes.$inferSelect;
 export type NewShippingNote = typeof shippingNotes.$inferInsert;
