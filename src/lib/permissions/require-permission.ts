@@ -12,7 +12,7 @@ export class AuthorizationError extends Error {
   }
 }
 
-export function requirePermission(
+export function requireAnyPermission(
   role: Role | null | undefined,
   required: Permission | readonly Permission[],
 ): void {
@@ -27,4 +27,29 @@ export function requirePermission(
   }
 
   throw new AuthorizationError();
+}
+
+export function requireAllPermissions(
+  role: Role | null | undefined,
+  required: Permission | readonly Permission[],
+): void {
+  if (!role) {
+    throw new AuthorizationError();
+  }
+
+  const requiredPermissions = Array.isArray(required) ? required : [required];
+
+  if (requiredPermissions.every((permission) => hasPermission(role, permission))) {
+    return;
+  }
+
+  throw new AuthorizationError();
+}
+
+// Backward-compatible alias. Arrays passed here use OR semantics.
+export function requirePermission(
+  role: Role | null | undefined,
+  required: Permission | readonly Permission[],
+): void {
+  requireAnyPermission(role, required);
 }

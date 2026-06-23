@@ -1,9 +1,10 @@
 import "server-only";
 
-import { betterAuth } from "better-auth";
+import { APIError, BASE_ERROR_CODES, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { eq } from "drizzle-orm";
 
-import { authSchema } from "@/lib/db/schema";
+import { authSchema, users } from "@/lib/db/schema";
 import { db } from "@/lib/db/client";
 import { env } from "@/lib/env";
 
@@ -19,6 +20,25 @@ export const auth = betterAuth({
     schema: authSchema,
     usePlural: true,
   }),
+  databaseHooks: {
+    session: {
+      create: {
+        async before(session) {
+          const user = await db.query.users.findFirst({
+            columns: {
+              isActive: true,
+              deletedAt: true,
+            },
+            where: eq(users.id, session.userId),
+          });
+
+          if (!user || !user.isActive || user.deletedAt) {
+            throw APIError.from("UNAUTHORIZED", BASE_ERROR_CODES.INVALID_EMAIL_OR_PASSWORD);
+          }
+        },
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     disableSignUp: !allowDevBootstrapSignUp,
