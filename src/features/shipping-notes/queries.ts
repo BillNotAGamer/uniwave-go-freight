@@ -1,0 +1,144 @@
+import "server-only";
+
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
+
+import { db } from "@/lib/db/client";
+import {
+  shippingNotes,
+  shippingNoteCharges,
+  type User as DbUser,
+} from "@/lib/db/schema";
+
+import type {
+  SellingChargeDetail,
+  ShippingNoteDetail,
+  ShippingNoteListItem,
+} from "./types";
+
+function getShippingNoteAccessConditions(user: DbUser) {
+  const conditions = [isNull(shippingNotes.deletedAt)];
+
+  if (user.role === "sale") {
+    conditions.push(eq(shippingNotes.createdById, user.id));
+  }
+
+  return conditions;
+}
+
+const shippingNoteListColumns = {
+  id: shippingNotes.id,
+  jobsheetNo: shippingNotes.jobsheetNo,
+  shippingMode: shippingNotes.shippingMode,
+  shipperText: shippingNotes.shipperText,
+  consigneeText: shippingNotes.consigneeText,
+  status: shippingNotes.status,
+  createdAt: shippingNotes.createdAt,
+} as const;
+
+const shippingNoteDetailColumns = {
+  ...shippingNoteListColumns,
+  mawbHawbNo: shippingNotes.mawbHawbNo,
+  customerText: shippingNotes.customerText,
+  agentText: shippingNotes.agentText,
+  aol: shippingNotes.aol,
+  aod: shippingNotes.aod,
+  finalDestination: shippingNotes.finalDestination,
+  etd: shippingNotes.etd,
+  eta: shippingNotes.eta,
+  volumeValue: shippingNotes.volumeValue,
+  volumeUnit: shippingNotes.volumeUnit,
+  exchangeRate: shippingNotes.exchangeRate,
+  createdById: shippingNotes.createdById,
+  submittedAt: shippingNotes.submittedAt,
+  updatedAt: shippingNotes.updatedAt,
+} as const;
+
+export async function listShippingNotesForUser(
+  user: DbUser,
+): Promise<ShippingNoteListItem[]> {
+  const conditions = getShippingNoteAccessConditions(user);
+
+  return db
+    .select(shippingNoteListColumns)
+    .from(shippingNotes)
+    .where(and(...conditions))
+    .orderBy(desc(shippingNotes.createdAt));
+}
+
+export async function getShippingNoteForUser(
+  id: string,
+  user: DbUser,
+): Promise<ShippingNoteDetail | null> {
+  const conditions = [...getShippingNoteAccessConditions(user), eq(shippingNotes.id, id)];
+
+  const [note] = await db
+    .select(shippingNoteDetailColumns)
+    .from(shippingNotes)
+    .where(and(...conditions))
+    .limit(1);
+
+  return note ?? null;
+}
+
+export async function getShippingNoteById(
+  id: string,
+): Promise<ShippingNoteDetail | null> {
+  const [note] = await db
+    .select(shippingNoteDetailColumns)
+    .from(shippingNotes)
+    .where(and(eq(shippingNotes.id, id), isNull(shippingNotes.deletedAt)))
+    .limit(1);
+
+  return note ?? null;
+}
+
+export const shippingNoteDetailSelect = shippingNoteDetailColumns;
+
+// ---------------------------------------------------------------------------
+// Selling charge queries
+// ---------------------------------------------------------------------------
+
+/** Safe columns returned for selling charges — no override, tax, audit, or buying fields. */
+const sellingChargeColumns = {
+  id: shippingNoteCharges.id,
+  shippingNoteId: shippingNoteCharges.shippingNoteId,
+  chargeName: shippingNoteCharges.chargeName,
+  description: shippingNoteCharges.description,
+  quantity: shippingNoteCharges.quantity,
+  unit: shippingNoteCharges.unit,
+  unitPrice: shippingNoteCharges.unitPrice,
+  currency: shippingNoteCharges.currency,
+  exchangeRate: shippingNoteCharges.exchangeRate,
+  amountOriginal: shippingNoteCharges.amountOriginal,
+  amountVnd: shippingNoteCharges.amountVnd,
+  createdAt: shippingNoteCharges.createdAt,
+  updatedAt: shippingNoteCharges.updatedAt,
+} as const;
+
+/**
+ * Returns selling charges for a shipping note the user can access.
+ * Never returns buying charges or deleted charges.
+ */
+export async function listSellingChargesForNoteForUser(
+  noteId: string,
+  user: DbUser,
+): Promise<SellingChargeDetail[]> {
+  // First verify the user can access the parent note.
+  const note = await getShippingNoteForUser(noteId, user);
+
+  if (!note) {
+    return [];
+  }
+
+  return db
+    .select(sellingChargeColumns)
+    .from(shippingNoteCharges)
+    .where(
+      and(
+        eq(shippingNoteCharges.shippingNoteId, noteId),
+        eq(shippingNoteCharges.section, "selling"),
+        isNull(shippingNoteCharges.deletedAt),
+      ),
+    )
+    .orderBy(asc(shippingNoteCharges.createdAt));
+}

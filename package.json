@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "admin:create-first": "node --conditions=react-server --import tsx scripts/create-first-admin.ts",
+    "dev:user:create": "node --conditions=react-server --import tsx scripts/create-dev-user.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
