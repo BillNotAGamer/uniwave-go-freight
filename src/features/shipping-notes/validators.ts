@@ -122,27 +122,47 @@ export type SubmitShippingNoteInput = z.infer<typeof submitShippingNoteInputSche
 
 const currencySchema = z.enum(CURRENCY_CODES);
 
-export const createSellingChargeInputSchema = z.object({
-  shippingNoteId: z.string().trim().min(1),
-  chargeName: z.string().trim().min(1),
-  description: optionalTrimmedText().optional(),
-  quantity: requiredPositiveNumber(),
-  unit: z.string().trim().min(1),
-  unitPrice: requiredNonNegativeNumber(),
-  currency: currencySchema,
-  exchangeRate: optionalPositiveNumber().optional(),
-});
+export const createSellingChargeInputSchema = z
+  .object({
+    shippingNoteId: z.string().trim().min(1),
+    chargeName: z.string().trim().min(1),
+    description: optionalTrimmedText().optional(),
+    quantity: requiredPositiveNumber(),
+    unit: z.string().trim().min(1),
+    unitPrice: requiredNonNegativeNumber(),
+    currency: currencySchema,
+    exchangeRate: optionalPositiveNumber().optional(),
+  })
+  .refine(
+    (data) =>
+      data.currency !== "USD" ||
+      (data.exchangeRate !== undefined && data.exchangeRate > 0),
+    {
+      message: "Exchange rate is required and must be positive for USD charges.",
+      path: ["exchangeRate"],
+    },
+  );
 
-export const updateSellingChargeInputSchema = z.object({
-  id: z.string().trim().min(1),
-  chargeName: z.string().trim().min(1),
-  description: optionalTrimmedText().optional(),
-  quantity: requiredPositiveNumber(),
-  unit: z.string().trim().min(1),
-  unitPrice: requiredNonNegativeNumber(),
-  currency: currencySchema,
-  exchangeRate: optionalPositiveNumber().optional(),
-});
+export const updateSellingChargeInputSchema = z
+  .object({
+    id: z.string().trim().min(1),
+    chargeName: z.string().trim().min(1),
+    description: optionalTrimmedText().optional(),
+    quantity: requiredPositiveNumber(),
+    unit: z.string().trim().min(1),
+    unitPrice: requiredNonNegativeNumber(),
+    currency: currencySchema,
+    exchangeRate: optionalPositiveNumber().optional(),
+  })
+  .refine(
+    (data) =>
+      data.currency !== "USD" ||
+      (data.exchangeRate !== undefined && data.exchangeRate > 0),
+    {
+      message: "Exchange rate is required and must be positive for USD charges.",
+      path: ["exchangeRate"],
+    },
+  );
 
 export const deleteSellingChargeInputSchema = z.object({
   id: z.string().trim().min(1),

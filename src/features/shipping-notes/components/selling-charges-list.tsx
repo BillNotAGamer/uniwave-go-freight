@@ -147,7 +147,7 @@ function EditChargeRow({ charge, shippingNoteId, onCancel }: EditChargeRowProps)
             </label>
 
             <label className="block text-sm font-medium text-slate-700">
-              Exchange Rate
+              Exchange Rate (Req. for USD)
               <input
                 className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
                 name="exchangeRate"

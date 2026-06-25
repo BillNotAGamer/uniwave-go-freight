@@ -24,6 +24,7 @@ import {
 } from "./validators";
 import type { SellingChargeDetail, ShippingNoteDetail } from "./types";
 import { getShippingNoteById, shippingNoteDetailSelect } from "./queries";
+import { calculateChargeAmounts } from "@/lib/calculations/money";
 
 function normalizeOptionalDate(value: Date | undefined): Date | null {
   return value ?? null;
@@ -263,26 +264,6 @@ const chargeReturnColumns = {
 } as const;
 
 /**
- * Compute charge amounts server-side.
- * amountOriginal = quantity * unitPrice
- * amountVnd = amountOriginal * exchangeRate (for USD) or amountOriginal (for VND)
- */
-function computeChargeAmounts(
-  quantity: number,
-  unitPrice: number,
-  currency: "VND" | "USD",
-  exchangeRate: number,
-): { amountOriginal: string; amountVnd: string } {
-  const amountOriginal = quantity * unitPrice;
-  const amountVnd = currency === "VND" ? amountOriginal : amountOriginal * exchangeRate;
-
-  return {
-    amountOriginal: amountOriginal.toFixed(4),
-    amountVnd: amountVnd.toFixed(2),
-  };
-}
-
-/**
  * Ensures the user can mutate selling charges on the given draft note.
  * Only sale (own draft) and admin (any draft) are allowed.
  * Accountant is denied.
@@ -320,8 +301,12 @@ export async function createSellingChargeForNote(
     user,
   );
 
-  const exchangeRate = input.currency === "VND" ? 1 : (input.exchangeRate ?? 1);
-  const amounts = computeChargeAmounts(input.quantity, input.unitPrice, input.currency, exchangeRate);
+  const amounts = calculateChargeAmounts({
+    quantity: input.quantity,
+    unitPrice: input.unitPrice,
+    currency: input.currency,
+    exchangeRate: input.exchangeRate ?? 1,
+  });
 
   try {
     return await db.transaction(async (tx) => {
@@ -332,11 +317,11 @@ export async function createSellingChargeForNote(
           section: "selling",
           chargeName: input.chargeName,
           description: normalizeOptionalText(input.description),
-          quantity: input.quantity.toString(),
+          quantity: amounts.quantity,
           unit: input.unit,
-          unitPrice: input.unitPrice.toString(),
+          unitPrice: amounts.unitPrice,
           currency: input.currency,
-          exchangeRate: exchangeRate.toString(),
+          exchangeRate: amounts.exchangeRate,
           amountOriginal: amounts.amountOriginal,
           amountVnd: amounts.amountVnd,
           vatPercent: "0",
@@ -413,8 +398,12 @@ export async function updateSellingCharge(
     user,
   );
 
-  const exchangeRate = input.currency === "VND" ? 1 : (input.exchangeRate ?? 1);
-  const amounts = computeChargeAmounts(input.quantity, input.unitPrice, input.currency, exchangeRate);
+  const amounts = calculateChargeAmounts({
+    quantity: input.quantity,
+    unitPrice: input.unitPrice,
+    currency: input.currency,
+    exchangeRate: input.exchangeRate ?? 1,
+  });
 
   try {
     return await db.transaction(async (tx) => {
@@ -423,11 +412,11 @@ export async function updateSellingCharge(
         .set({
           chargeName: input.chargeName,
           description: normalizeOptionalText(input.description),
-          quantity: input.quantity.toString(),
+          quantity: amounts.quantity,
           unit: input.unit,
-          unitPrice: input.unitPrice.toString(),
+          unitPrice: amounts.unitPrice,
           currency: input.currency,
-          exchangeRate: exchangeRate.toString(),
+          exchangeRate: amounts.exchangeRate,
           amountOriginal: amounts.amountOriginal,
           amountVnd: amounts.amountVnd,
         })

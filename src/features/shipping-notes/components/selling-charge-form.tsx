@@ -108,7 +108,7 @@ export function SellingChargeForm({ shippingNoteId }: SellingChargeFormProps) {
         </label>
 
         <label className={labelClassName()} htmlFor="exchangeRate">
-          Exchange Rate
+          Exchange Rate (Required for USD)
           <input
             className={inputClassName()}
             id="exchangeRate"
