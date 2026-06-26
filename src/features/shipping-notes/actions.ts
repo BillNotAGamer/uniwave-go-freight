@@ -6,21 +6,28 @@ import { redirect } from "next/navigation";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 
 import {
+  createBuyingChargeForNote,
   createShippingNoteDraft,
+  softDeleteBuyingCharge,
   submitShippingNote,
+  updateBuyingCharge,
   updateShippingNoteDraft,
   createSellingChargeForNote,
   updateSellingCharge,
   softDeleteSellingCharge,
 } from "./mutations";
 import {
+  createBuyingChargeInputSchema,
   createShippingNoteDraftInputSchema,
-  submitShippingNoteInputSchema,
-  updateShippingNoteDraftInputSchema,
+  deleteBuyingChargeInputSchema,
   createSellingChargeInputSchema,
-  updateSellingChargeInputSchema,
   deleteSellingChargeInputSchema,
+  submitShippingNoteInputSchema,
+  updateBuyingChargeInputSchema,
+  updateShippingNoteDraftInputSchema,
+  updateSellingChargeInputSchema,
 } from "./validators";
+import type { BuyingChargeActionState } from "./types";
 
 export type ShippingNoteActionResult =
   | { ok: true }
@@ -260,5 +267,114 @@ export async function softDeleteSellingChargeAction(
   }
 
   revalidatePath(`/shipping-notes/${parsed.data.shippingNoteId}`);
+  return { ok: true };
+}
+
+export async function createBuyingChargeAction(
+  _state: BuyingChargeActionState,
+  formData: FormData,
+): Promise<BuyingChargeActionState> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = createBuyingChargeInputSchema.safeParse({
+    shippingNoteId: readString(formData, "shippingNoteId"),
+    chargeName: readString(formData, "chargeName"),
+    description: readString(formData, "description"),
+    quantity: readString(formData, "quantity"),
+    unit: readString(formData, "unit"),
+    unitPrice: readString(formData, "unitPrice"),
+    currency: readString(formData, "currency"),
+    exchangeRate: readString(formData, "exchangeRate"),
+    vendorOrAgentText: readString(formData, "vendorOrAgentText"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid buying charge data.",
+    };
+  }
+
+  let shippingNoteId = "";
+
+  try {
+    const charge = await createBuyingChargeForNote(
+      parsed.data.shippingNoteId,
+      parsed.data,
+      session.user,
+    );
+    shippingNoteId = charge.shippingNoteId;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath(`/shipping-notes/${shippingNoteId}`);
+  return { ok: true };
+}
+
+export async function updateBuyingChargeAction(
+  _state: BuyingChargeActionState,
+  formData: FormData,
+): Promise<BuyingChargeActionState> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = updateBuyingChargeInputSchema.safeParse({
+    id: readString(formData, "id"),
+    chargeName: readString(formData, "chargeName"),
+    description: readString(formData, "description"),
+    quantity: readString(formData, "quantity"),
+    unit: readString(formData, "unit"),
+    unitPrice: readString(formData, "unitPrice"),
+    currency: readString(formData, "currency"),
+    exchangeRate: readString(formData, "exchangeRate"),
+    vendorOrAgentText: readString(formData, "vendorOrAgentText"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid buying charge data.",
+    };
+  }
+
+  let shippingNoteId = "";
+
+  try {
+    const charge = await updateBuyingCharge(parsed.data.id, parsed.data, session.user);
+    shippingNoteId = charge.shippingNoteId;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath(`/shipping-notes/${shippingNoteId}`);
+  return { ok: true };
+}
+
+export async function softDeleteBuyingChargeAction(
+  _state: BuyingChargeActionState,
+  formData: FormData,
+): Promise<BuyingChargeActionState> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = deleteBuyingChargeInputSchema.safeParse({
+    id: readString(formData, "id"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid buying charge selection.",
+    };
+  }
+
+  let shippingNoteId = "";
+
+  try {
+    shippingNoteId = await softDeleteBuyingCharge(parsed.data.id, session.user);
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath(`/shipping-notes/${shippingNoteId}`);
   return { ok: true };
 }

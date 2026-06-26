@@ -53,6 +53,24 @@ export type SellingChargeDetail = {
   updatedAt: Date;
 };
 
+/** Safe buying charge fields returned by accountant/admin queries. */
+export type BuyingChargeDetail = {
+  id: string;
+  shippingNoteId: string;
+  chargeName: string;
+  description: string | null;
+  quantity: string;
+  unit: string | null;
+  unitPrice: string;
+  currency: CurrencyCode;
+  exchangeRate: string;
+  amountOriginal: string;
+  amountVnd: string;
+  vendorOrAgentText: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type SellingChargeSummary = {
   chargeCount: number;
   totalVnd: string;
@@ -61,3 +79,18 @@ export type SellingChargeSummary = {
     amountOriginal: string;
   }>;
 };
+
+export type BuyingChargeInput = {
+  chargeName: string;
+  description?: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  currency: CurrencyCode;
+  exchangeRate?: number;
+  vendorOrAgentText?: string;
+};
+
+export type BuyingChargeActionState =
+  | { ok: true }
+  | { ok: false; error: string };

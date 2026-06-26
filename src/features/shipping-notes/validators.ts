@@ -17,6 +17,17 @@ function optionalTrimmedText() {
   }, z.string().trim().min(1));
 }
 
+function optionalTrimmedTextWithMax(maxLength: number) {
+  return z.preprocess((value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }, z.string().trim().min(1).max(maxLength));
+}
+
 function optionalDatetime() {
   return z.preprocess((value) => {
     if (value === undefined || value === null || value === "") {
@@ -172,3 +183,46 @@ export const deleteSellingChargeInputSchema = z.object({
 export type CreateSellingChargeInput = z.infer<typeof createSellingChargeInputSchema>;
 export type UpdateSellingChargeInput = z.infer<typeof updateSellingChargeInputSchema>;
 export type DeleteSellingChargeInput = z.infer<typeof deleteSellingChargeInputSchema>;
+
+// ---------------------------------------------------------------------------
+// Buying charge validators
+// ---------------------------------------------------------------------------
+
+const vendorOrAgentTextSchema = optionalTrimmedTextWithMax(200).optional();
+
+const buyingChargeBaseInputSchema = z
+  .object({
+    chargeName: z.string().trim().min(1),
+    description: optionalTrimmedText().optional(),
+    quantity: requiredPositiveNumber(),
+    unit: z.string().trim().min(1),
+    unitPrice: requiredNonNegativeNumber(),
+    currency: currencySchema,
+    exchangeRate: optionalPositiveNumber().optional(),
+    vendorOrAgentText: vendorOrAgentTextSchema,
+  })
+  .refine(
+    (data) =>
+      data.currency !== "USD" ||
+      (data.exchangeRate !== undefined && data.exchangeRate > 0),
+    {
+      message: "Exchange rate is required and must be positive for USD charges.",
+      path: ["exchangeRate"],
+    },
+  );
+
+export const createBuyingChargeInputSchema = buyingChargeBaseInputSchema.extend({
+  shippingNoteId: z.string().trim().min(1),
+});
+
+export const updateBuyingChargeInputSchema = buyingChargeBaseInputSchema.extend({
+  id: z.string().trim().min(1),
+});
+
+export const deleteBuyingChargeInputSchema = z.object({
+  id: z.string().trim().min(1),
+});
+
+export type CreateBuyingChargeInput = z.infer<typeof createBuyingChargeInputSchema>;
+export type UpdateBuyingChargeInput = z.infer<typeof updateBuyingChargeInputSchema>;
+export type DeleteBuyingChargeInput = z.infer<typeof deleteBuyingChargeInputSchema>;

@@ -3,6 +3,8 @@ import "server-only";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
+import { requireAnyPermission } from "@/lib/permissions/require-permission";
+import { PERMISSIONS } from "@/lib/permissions/permissions";
 import {
   shippingNotes,
   shippingNoteCharges,
@@ -10,6 +12,7 @@ import {
 } from "@/lib/db/schema";
 
 import type {
+  BuyingChargeDetail,
   SellingChargeDetail,
   ShippingNoteDetail,
   ShippingNoteListItem,
@@ -117,6 +120,24 @@ const sellingChargeColumns = {
   updatedAt: shippingNoteCharges.updatedAt,
 } as const;
 
+/** Safe columns returned for buying charges — no tax, override, or audit fields. */
+const buyingChargeColumns = {
+  id: shippingNoteCharges.id,
+  shippingNoteId: shippingNoteCharges.shippingNoteId,
+  chargeName: shippingNoteCharges.chargeName,
+  description: shippingNoteCharges.description,
+  quantity: shippingNoteCharges.quantity,
+  unit: shippingNoteCharges.unit,
+  unitPrice: shippingNoteCharges.unitPrice,
+  currency: shippingNoteCharges.currency,
+  exchangeRate: shippingNoteCharges.exchangeRate,
+  amountOriginal: shippingNoteCharges.amountOriginal,
+  amountVnd: shippingNoteCharges.amountVnd,
+  vendorOrAgentText: shippingNoteCharges.vendorOrAgentText,
+  createdAt: shippingNoteCharges.createdAt,
+  updatedAt: shippingNoteCharges.updatedAt,
+} as const;
+
 /**
  * Returns selling charges for a shipping note the user can access.
  * Never returns buying charges or deleted charges.
@@ -152,4 +173,29 @@ export async function getSellingChargesAndSummaryForNoteForUser(
   const charges = await listSellingChargesForNoteForUser(noteId, user);
   const summary = summarizeSellingCharges(charges);
   return { charges, summary };
+}
+
+export async function listBuyingChargesForNoteForUser(
+  noteId: string,
+  user: DbUser,
+): Promise<BuyingChargeDetail[]> {
+  requireAnyPermission(user.role, PERMISSIONS.BUYING_CHARGES_READ);
+
+  const note = await getShippingNoteForUser(noteId, user);
+
+  if (!note) {
+    return [];
+  }
+
+  return db
+    .select(buyingChargeColumns)
+    .from(shippingNoteCharges)
+    .where(
+      and(
+        eq(shippingNoteCharges.shippingNoteId, noteId),
+        eq(shippingNoteCharges.section, "buying"),
+        isNull(shippingNoteCharges.deletedAt),
+      ),
+    )
+    .orderBy(asc(shippingNoteCharges.createdAt));
 }

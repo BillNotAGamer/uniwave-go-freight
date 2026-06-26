@@ -16,14 +16,24 @@ import {
 } from "@/lib/db/schema";
 
 import {
+  type CreateBuyingChargeInput,
   type CreateShippingNoteDraftInput,
   type CreateSellingChargeInput,
   type SubmitShippingNoteInput,
+  type UpdateBuyingChargeInput,
   type UpdateShippingNoteDraftInput,
   type UpdateSellingChargeInput,
 } from "./validators";
-import type { SellingChargeDetail, ShippingNoteDetail } from "./types";
-import { getShippingNoteById, shippingNoteDetailSelect } from "./queries";
+import type {
+  BuyingChargeDetail,
+  SellingChargeDetail,
+  ShippingNoteDetail,
+} from "./types";
+import {
+  getShippingNoteById,
+  getShippingNoteForUser,
+  shippingNoteDetailSelect,
+} from "./queries";
 import { calculateChargeAmounts } from "@/lib/calculations/money";
 
 function normalizeOptionalDate(value: Date | undefined): Date | null {
@@ -263,6 +273,11 @@ const chargeReturnColumns = {
   updatedAt: shippingNoteCharges.updatedAt,
 } as const;
 
+const buyingChargeReturnColumns = {
+  ...chargeReturnColumns,
+  vendorOrAgentText: shippingNoteCharges.vendorOrAgentText,
+} as const;
+
 /**
  * Ensures the user can mutate selling charges on the given draft note.
  * Only sale (own draft) and admin (any draft) are allowed.
@@ -284,6 +299,20 @@ function ensureChargeMutationAccess(note: ShippingNoteDetail | null, user: DbUse
 
   // Sale can only mutate on own notes.
   if (user.role === "sale" && note.createdById !== user.id) {
+    throw new AuthorizationError();
+  }
+
+  return note;
+}
+
+function ensureBuyingChargeMutationAccess(
+  note: ShippingNoteDetail | null,
+): ShippingNoteDetail {
+  if (!note) {
+    throw new AuthorizationError();
+  }
+
+  if (note.status !== "submitted") {
     throw new AuthorizationError();
   }
 
@@ -522,4 +551,240 @@ export async function softDeleteSellingCharge(
 
     throw new Error("Failed to delete selling charge.");
   }
+}
+
+export async function createBuyingChargeForNote(
+  noteId: string,
+  input: CreateBuyingChargeInput,
+  user: DbUser,
+): Promise<BuyingChargeDetail> {
+  requireShippingNoteAccess(user, PERMISSIONS.BUYING_CHARGES_MANAGE);
+
+  const note = ensureBuyingChargeMutationAccess(
+    await getShippingNoteForUser(noteId, user),
+  );
+
+  const amounts = calculateChargeAmounts({
+    quantity: input.quantity,
+    unitPrice: input.unitPrice,
+    currency: input.currency,
+    exchangeRate: input.exchangeRate ?? 1,
+  });
+
+  try {
+    return await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(shippingNoteCharges)
+        .values({
+          shippingNoteId: note.id,
+          section: "buying",
+          chargeName: input.chargeName,
+          description: normalizeOptionalText(input.description),
+          quantity: amounts.quantity,
+          unit: input.unit,
+          unitPrice: amounts.unitPrice,
+          currency: input.currency,
+          exchangeRate: amounts.exchangeRate,
+          amountOriginal: amounts.amountOriginal,
+          amountVnd: amounts.amountVnd,
+          vatPercent: "0",
+          vatAmount: "0",
+          vendorOrAgentText: normalizeOptionalText(input.vendorOrAgentText),
+          isOverride: false,
+          overrideReason: null,
+          createdById: user.id,
+        })
+        .returning(buyingChargeReturnColumns);
+
+      if (!created) {
+        throw new Error("Failed to create buying charge.");
+      }
+
+      await logAuditEvent(tx, {
+        actorUserId: user.id,
+        action: "shipping_note_charge.buying.create",
+        entityType: "shipping_note_charge",
+        entityId: created.id,
+        after: created,
+      });
+
+      return created;
+    });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
+
+    throw new Error("Failed to create buying charge.");
+  }
+}
+
+export async function updateBuyingCharge(
+  chargeId: string,
+  input: UpdateBuyingChargeInput,
+  user: DbUser,
+): Promise<BuyingChargeDetail> {
+  requireShippingNoteAccess(user, PERMISSIONS.BUYING_CHARGES_MANAGE);
+
+  const [existingCharge] = await db
+    .select({
+      id: shippingNoteCharges.id,
+      shippingNoteId: shippingNoteCharges.shippingNoteId,
+      section: shippingNoteCharges.section,
+      chargeName: shippingNoteCharges.chargeName,
+      description: shippingNoteCharges.description,
+      quantity: shippingNoteCharges.quantity,
+      unit: shippingNoteCharges.unit,
+      unitPrice: shippingNoteCharges.unitPrice,
+      currency: shippingNoteCharges.currency,
+      exchangeRate: shippingNoteCharges.exchangeRate,
+      amountOriginal: shippingNoteCharges.amountOriginal,
+      amountVnd: shippingNoteCharges.amountVnd,
+      vendorOrAgentText: shippingNoteCharges.vendorOrAgentText,
+    })
+    .from(shippingNoteCharges)
+    .where(
+      and(
+        eq(shippingNoteCharges.id, chargeId),
+        eq(shippingNoteCharges.section, "buying"),
+        isNull(shippingNoteCharges.deletedAt),
+      ),
+    )
+    .limit(1);
+
+  if (!existingCharge) {
+    throw new AuthorizationError();
+  }
+
+  ensureBuyingChargeMutationAccess(
+    await getShippingNoteForUser(existingCharge.shippingNoteId, user),
+  );
+
+  const amounts = calculateChargeAmounts({
+    quantity: input.quantity,
+    unitPrice: input.unitPrice,
+    currency: input.currency,
+    exchangeRate: input.exchangeRate ?? 1,
+  });
+
+  try {
+    return await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(shippingNoteCharges)
+        .set({
+          chargeName: input.chargeName,
+          description: normalizeOptionalText(input.description),
+          quantity: amounts.quantity,
+          unit: input.unit,
+          unitPrice: amounts.unitPrice,
+          currency: input.currency,
+          exchangeRate: amounts.exchangeRate,
+          amountOriginal: amounts.amountOriginal,
+          amountVnd: amounts.amountVnd,
+          vendorOrAgentText: normalizeOptionalText(input.vendorOrAgentText),
+          vatPercent: "0",
+          vatAmount: "0",
+          isOverride: false,
+          overrideReason: null,
+        })
+        .where(
+          and(
+            eq(shippingNoteCharges.id, chargeId),
+            eq(shippingNoteCharges.section, "buying"),
+            isNull(shippingNoteCharges.deletedAt),
+          ),
+        )
+        .returning(buyingChargeReturnColumns);
+
+      if (!updated) {
+        throw new AuthorizationError();
+      }
+
+      await logAuditEvent(tx, {
+        actorUserId: user.id,
+        action: "shipping_note_charge.buying.update",
+        entityType: "shipping_note_charge",
+        entityId: updated.id,
+        before: existingCharge,
+        after: updated,
+      });
+
+      return updated;
+    });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
+
+    throw new Error("Failed to update buying charge.");
+  }
+}
+
+export async function softDeleteBuyingCharge(
+  chargeId: string,
+  user: DbUser,
+): Promise<string> {
+  requireShippingNoteAccess(user, PERMISSIONS.BUYING_CHARGES_MANAGE);
+
+  const [existingCharge] = await db
+    .select({
+      id: shippingNoteCharges.id,
+      shippingNoteId: shippingNoteCharges.shippingNoteId,
+      section: shippingNoteCharges.section,
+      chargeName: shippingNoteCharges.chargeName,
+      vendorOrAgentText: shippingNoteCharges.vendorOrAgentText,
+    })
+    .from(shippingNoteCharges)
+    .where(
+      and(
+        eq(shippingNoteCharges.id, chargeId),
+        eq(shippingNoteCharges.section, "buying"),
+        isNull(shippingNoteCharges.deletedAt),
+      ),
+    )
+    .limit(1);
+
+  if (!existingCharge) {
+    throw new AuthorizationError();
+  }
+
+  ensureBuyingChargeMutationAccess(
+    await getShippingNoteForUser(existingCharge.shippingNoteId, user),
+  );
+
+  try {
+    await db.transaction(async (tx) => {
+      const [deleted] = await tx
+        .update(shippingNoteCharges)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            eq(shippingNoteCharges.id, chargeId),
+            eq(shippingNoteCharges.section, "buying"),
+            isNull(shippingNoteCharges.deletedAt),
+          ),
+        )
+        .returning({ id: shippingNoteCharges.id });
+
+      if (!deleted) {
+        throw new AuthorizationError();
+      }
+
+      await logAuditEvent(tx, {
+        actorUserId: user.id,
+        action: "shipping_note_charge.buying.delete",
+        entityType: "shipping_note_charge",
+        entityId: deleted.id,
+        before: existingCharge,
+      });
+    });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
+
+    throw new Error("Failed to delete buying charge.");
+  }
+
+  return existingCharge.shippingNoteId;
 }
