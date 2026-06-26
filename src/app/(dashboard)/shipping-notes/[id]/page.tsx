@@ -13,9 +13,10 @@ import { ShippingNoteDraftForm } from "@/features/shipping-notes/components/ship
 import { ShippingNoteSubmitForm } from "@/features/shipping-notes/components/shipping-note-submit-form";
 import { SellingChargesList } from "@/features/shipping-notes/components/selling-charges-list";
 import { SellingChargeForm } from "@/features/shipping-notes/components/selling-charge-form";
+import { SellingChargeSummaryView } from "@/features/shipping-notes/components/selling-charge-summary";
 import {
   getShippingNoteForUser,
-  listSellingChargesForNoteForUser,
+  getSellingChargesAndSummaryForNoteForUser,
 } from "@/features/shipping-notes/queries";
 
 function formatDateTime(value: Date | null | undefined): string {
@@ -44,7 +45,7 @@ export default async function ShippingNoteDetailPage({
   const canMutateCharges =
     canEditDraft && user.role !== "accountant";
 
-  const sellingCharges = await listSellingChargesForNoteForUser(id, user);
+  const { charges: sellingCharges, summary: sellingSummary } = await getSellingChargesAndSummaryForNoteForUser(id, user);
 
   return (
     <main className="min-h-screen bg-slate-100 px-6 py-10 text-slate-900">
@@ -184,6 +185,8 @@ export default async function ShippingNoteDetailPage({
             shippingNoteId={note.id}
             canMutate={canMutateCharges}
           />
+
+          <SellingChargeSummaryView summary={sellingSummary} />
 
           {canMutateCharges ? (
             <SellingChargeForm shippingNoteId={note.id} />

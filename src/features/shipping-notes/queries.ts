@@ -13,7 +13,9 @@ import type {
   SellingChargeDetail,
   ShippingNoteDetail,
   ShippingNoteListItem,
+  SellingChargeSummary,
 } from "./types";
+import { summarizeSellingCharges } from "@/lib/calculations/shipping-note";
 
 function getShippingNoteAccessConditions(user: DbUser) {
   const conditions = [isNull(shippingNotes.deletedAt)];
@@ -141,4 +143,13 @@ export async function listSellingChargesForNoteForUser(
       ),
     )
     .orderBy(asc(shippingNoteCharges.createdAt));
+}
+
+export async function getSellingChargesAndSummaryForNoteForUser(
+  noteId: string,
+  user: DbUser,
+): Promise<{ charges: SellingChargeDetail[]; summary: SellingChargeSummary }> {
+  const charges = await listSellingChargesForNoteForUser(noteId, user);
+  const summary = summarizeSellingCharges(charges);
+  return { charges, summary };
 }

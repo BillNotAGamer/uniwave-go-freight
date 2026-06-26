@@ -52,3 +52,12 @@ export type SellingChargeDetail = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+export type SellingChargeSummary = {
+  chargeCount: number;
+  totalVnd: string;
+  totalsByCurrency: Array<{
+    currency: "VND" | "USD";
+    amountOriginal: string;
+  }>;
+};

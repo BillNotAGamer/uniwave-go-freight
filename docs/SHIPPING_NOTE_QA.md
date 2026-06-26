@@ -127,3 +127,11 @@ After charge line tests, verify that audit rows exist for:
 - `shipping_note_charge.delete`
 
 Each row should record actor user ID, entity type `shipping_note_charge`, entity ID, and before/after snapshots.
+
+## 7. Selling summary QA (Phase 6B.2)
+
+After creating or editing selling charges, verify:
+1. The read-only selling summary updates automatically to reflect the new charge count, total VND, and original totals.
+2. The summary remains visible and read-only on submitted notes.
+3. Accountant and admin roles can view the summary.
+4. Sale roles can view the summary only on their own accessible notes.
