@@ -9,6 +9,8 @@ import {
   submitShippingNoteAction,
   updateShippingNoteDraftAction,
 } from "@/features/shipping-notes/actions";
+import { BuyingChargeForm } from "@/features/shipping-notes/components/buying-charge-form";
+import { BuyingChargesList } from "@/features/shipping-notes/components/buying-charges-list";
 import { ShippingNoteDraftForm } from "@/features/shipping-notes/components/shipping-note-draft-form";
 import { ShippingNoteSubmitForm } from "@/features/shipping-notes/components/shipping-note-submit-form";
 import { SellingChargesList } from "@/features/shipping-notes/components/selling-charges-list";
@@ -16,6 +18,7 @@ import { SellingChargeForm } from "@/features/shipping-notes/components/selling-
 import { SellingChargeSummaryView } from "@/features/shipping-notes/components/selling-charge-summary";
 import {
   getShippingNoteForUser,
+  listBuyingChargesForNoteForUser,
   getSellingChargesAndSummaryForNoteForUser,
 } from "@/features/shipping-notes/queries";
 
@@ -44,8 +47,18 @@ export default async function ShippingNoteDetailPage({
   // Accountant cannot mutate charges, even though they can view.
   const canMutateCharges =
     canEditDraft && user.role !== "accountant";
+  const canReadBuyingCharges = hasPermission(
+    user.role,
+    PERMISSIONS.BUYING_CHARGES_READ,
+  );
+  const canManageBuyingCharges =
+    hasPermission(user.role, PERMISSIONS.BUYING_CHARGES_MANAGE) &&
+    note.status === "submitted";
 
   const { charges: sellingCharges, summary: sellingSummary } = await getSellingChargesAndSummaryForNoteForUser(id, user);
+  const buyingCharges = canReadBuyingCharges
+    ? await listBuyingChargesForNoteForUser(id, user)
+    : null;
 
   return (
     <main className="min-h-screen bg-slate-100 px-6 py-10 text-slate-900">
@@ -192,6 +205,36 @@ export default async function ShippingNoteDetailPage({
             <SellingChargeForm shippingNoteId={note.id} />
           ) : null}
         </section>
+
+        {canReadBuyingCharges ? (
+          <section className="grid gap-4 border-t border-slate-200 pt-6">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Financial Area
+              </p>
+              <h2 className="text-lg font-semibold tracking-tight">Buying Charges</h2>
+              <p className="text-sm text-slate-600">
+                Accountant and admin users can review buying charge lines here.
+              </p>
+              {!canManageBuyingCharges ? (
+                <p className="text-sm text-slate-600">
+                  Buying charge changes are available only when the shipping note
+                  status is exactly submitted.
+                </p>
+              ) : null}
+            </div>
+
+            <BuyingChargesList
+              charges={buyingCharges ?? []}
+              canManageBuyingCharges={canManageBuyingCharges}
+            />
+
+            <BuyingChargeForm
+              shippingNoteId={note.id}
+              canManageBuyingCharges={canManageBuyingCharges}
+            />
+          </section>
+        ) : null}
 
         {canEditDraft ? (
           <section className="grid gap-6 border-t border-slate-200 pt-6">
