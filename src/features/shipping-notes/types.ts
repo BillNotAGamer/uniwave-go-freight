@@ -74,10 +74,7 @@ export type BuyingChargeDetail = {
 export type SellingChargeSummary = {
   chargeCount: number;
   totalVnd: string;
-  totalsByCurrency: Array<{
-    currency: "VND" | "USD";
-    amountOriginal: string;
-  }>;
+  totalsByCurrency: FinancialCurrencyTotal[];
 };
 
 export type BuyingChargeInput = {
@@ -94,3 +91,25 @@ export type BuyingChargeInput = {
 export type BuyingChargeActionState =
   | { ok: true }
   | { ok: false; error: string };
+
+export type FinancialCurrencyTotal = {
+  currency: CurrencyCode;
+  amountOriginal: string;
+};
+
+export type FinancialSummaryChargeRow = {
+  section: "selling" | "buying";
+  currency: CurrencyCode;
+  amountOriginal: string;
+  amountVnd: string;
+};
+
+export type FinancialSummary = {
+  sellingChargeCount: number;
+  buyingChargeCount: number;
+  totalSellingVnd: string;
+  totalBuyingVnd: string;
+  grossProfitVnd: string;
+  sellingTotalsByCurrency: FinancialCurrencyTotal[];
+  buyingTotalsByCurrency: FinancialCurrencyTotal[];
+};

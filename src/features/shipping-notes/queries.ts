@@ -1,10 +1,11 @@
 import "server-only";
 
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { requireAnyPermission } from "@/lib/permissions/require-permission";
 import { PERMISSIONS } from "@/lib/permissions/permissions";
+import type { ShippingNoteStatus } from "./constants";
 import {
   shippingNotes,
   shippingNoteCharges,
@@ -13,12 +14,26 @@ import {
 
 import type {
   BuyingChargeDetail,
+  FinancialSummary,
+  FinancialSummaryChargeRow,
   SellingChargeDetail,
   ShippingNoteDetail,
   ShippingNoteListItem,
   SellingChargeSummary,
 } from "./types";
-import { summarizeSellingCharges } from "@/lib/calculations/shipping-note";
+import {
+  summarizeFinancialCharges,
+  summarizeSellingCharges,
+} from "@/lib/calculations/shipping-note";
+
+const FINANCIAL_SUMMARY_ELIGIBLE_STATUSES = new Set<ShippingNoteStatus>([
+  "submitted",
+  "accounting_reviewing",
+  "checked",
+  "approved",
+  "exported",
+  "locked",
+]);
 
 function getShippingNoteAccessConditions(user: DbUser) {
   const conditions = [isNull(shippingNotes.deletedAt)];
@@ -138,6 +153,13 @@ const buyingChargeColumns = {
   updatedAt: shippingNoteCharges.updatedAt,
 } as const;
 
+const financialSummaryChargeColumns = {
+  section: shippingNoteCharges.section,
+  currency: shippingNoteCharges.currency,
+  amountOriginal: shippingNoteCharges.amountOriginal,
+  amountVnd: shippingNoteCharges.amountVnd,
+} as const;
+
 /**
  * Returns selling charges for a shipping note the user can access.
  * Never returns buying charges or deleted charges.
@@ -198,4 +220,35 @@ export async function listBuyingChargesForNoteForUser(
       ),
     )
     .orderBy(asc(shippingNoteCharges.createdAt));
+}
+
+export async function getFinancialSummaryForNoteForUser(
+  noteId: string,
+  user: DbUser,
+): Promise<FinancialSummary | null> {
+  requireAnyPermission(user.role, PERMISSIONS.FINANCIAL_SUMMARY_READ);
+
+  const note = await getShippingNoteForUser(noteId, user);
+
+  if (!note) {
+    return null;
+  }
+
+  if (!FINANCIAL_SUMMARY_ELIGIBLE_STATUSES.has(note.status)) {
+    return null;
+  }
+
+  const chargeRows = await db
+    .select(financialSummaryChargeColumns)
+    .from(shippingNoteCharges)
+    .where(
+      and(
+        eq(shippingNoteCharges.shippingNoteId, noteId),
+        inArray(shippingNoteCharges.section, ["selling", "buying"]),
+        isNull(shippingNoteCharges.deletedAt),
+      ),
+    )
+    .orderBy(asc(shippingNoteCharges.createdAt));
+
+  return summarizeFinancialCharges(chargeRows as FinancialSummaryChargeRow[]);
 }
