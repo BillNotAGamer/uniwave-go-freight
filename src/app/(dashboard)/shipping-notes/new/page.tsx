@@ -1,15 +1,18 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { requireAuthenticatedUser } from "@/lib/auth/session";
-import { requireAnyPermission } from "@/lib/permissions/require-permission";
-import { PERMISSIONS } from "@/lib/permissions/permissions";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions/permissions";
 
 import { createShippingNoteDraftAction } from "@/features/shipping-notes/actions";
 import { ShippingNoteDraftForm } from "@/features/shipping-notes/components/shipping-note-draft-form";
 
 export default async function NewShippingNotePage() {
   const { user } = await requireAuthenticatedUser();
-  requireAnyPermission(user.role, PERMISSIONS.SHIPPING_NOTES_CREATE_OWN);
+
+  if (!hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_CREATE_OWN)) {
+    redirect("/shipping-notes");
+  }
 
   return (
     <main className="min-h-screen bg-slate-100 px-6 py-10 text-slate-900">
