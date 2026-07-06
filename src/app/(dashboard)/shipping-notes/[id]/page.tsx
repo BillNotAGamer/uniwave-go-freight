@@ -11,12 +11,14 @@ import {
 } from "@/features/shipping-notes/actions";
 import { BuyingChargeForm } from "@/features/shipping-notes/components/buying-charge-form";
 import { BuyingChargesList } from "@/features/shipping-notes/components/buying-charges-list";
+import { FinancialSummaryView } from "@/features/shipping-notes/components/financial-summary";
 import { ShippingNoteDraftForm } from "@/features/shipping-notes/components/shipping-note-draft-form";
 import { ShippingNoteSubmitForm } from "@/features/shipping-notes/components/shipping-note-submit-form";
 import { SellingChargesList } from "@/features/shipping-notes/components/selling-charges-list";
 import { SellingChargeForm } from "@/features/shipping-notes/components/selling-charge-form";
 import { SellingChargeSummaryView } from "@/features/shipping-notes/components/selling-charge-summary";
 import {
+  getFinancialSummaryForNoteForUser,
   getShippingNoteForUser,
   listBuyingChargesForNoteForUser,
   getSellingChargesAndSummaryForNoteForUser,
@@ -51,13 +53,25 @@ export default async function ShippingNoteDetailPage({
     user.role,
     PERMISSIONS.BUYING_CHARGES_READ,
   );
+  const canReadFinancialSummary = hasPermission(
+    user.role,
+    PERMISSIONS.FINANCIAL_SUMMARY_READ,
+  );
   const canManageBuyingCharges =
     hasPermission(user.role, PERMISSIONS.BUYING_CHARGES_MANAGE) &&
     note.status === "submitted";
+  const canViewFinancialArea = canReadBuyingCharges || canReadFinancialSummary;
+  const shouldFetchFinancialSummary =
+    canReadFinancialSummary &&
+    note.status !== "draft" &&
+    note.status !== "cancelled";
 
   const { charges: sellingCharges, summary: sellingSummary } = await getSellingChargesAndSummaryForNoteForUser(id, user);
   const buyingCharges = canReadBuyingCharges
     ? await listBuyingChargesForNoteForUser(id, user)
+    : null;
+  const financialSummary = shouldFetchFinancialSummary
+    ? await getFinancialSummaryForNoteForUser(id, user)
     : null;
 
   return (
@@ -206,7 +220,7 @@ export default async function ShippingNoteDetailPage({
           ) : null}
         </section>
 
-        {canReadBuyingCharges ? (
+        {canViewFinancialArea ? (
           <section className="grid gap-4 border-t border-slate-200 pt-6">
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -216,6 +230,11 @@ export default async function ShippingNoteDetailPage({
               <p className="text-sm text-slate-600">
                 Accountant and admin users can review buying charge lines here.
               </p>
+              {financialSummary ? (
+                <p className="text-sm text-slate-600">
+                  Gross Profit is derived from stored selling and buying totals.
+                </p>
+              ) : null}
               {!canManageBuyingCharges ? (
                 <p className="text-sm text-slate-600">
                   Buying charge changes are available only when the shipping note
@@ -224,15 +243,23 @@ export default async function ShippingNoteDetailPage({
               ) : null}
             </div>
 
-            <BuyingChargesList
-              charges={buyingCharges ?? []}
-              canManageBuyingCharges={canManageBuyingCharges}
-            />
+            {financialSummary ? (
+              <FinancialSummaryView summary={financialSummary} />
+            ) : null}
 
-            <BuyingChargeForm
-              shippingNoteId={note.id}
-              canManageBuyingCharges={canManageBuyingCharges}
-            />
+            {canReadBuyingCharges ? (
+              <BuyingChargesList
+                charges={buyingCharges ?? []}
+                canManageBuyingCharges={canManageBuyingCharges}
+              />
+            ) : null}
+
+            {canReadBuyingCharges ? (
+              <BuyingChargeForm
+                shippingNoteId={note.id}
+                canManageBuyingCharges={canManageBuyingCharges}
+              />
+            ) : null}
           </section>
         ) : null}
 
