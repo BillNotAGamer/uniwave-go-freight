@@ -80,11 +80,11 @@ export type SellingChargeSummary = {
 export type BuyingChargeInput = {
   chargeName: string;
   description?: string;
-  quantity: number;
+  quantity: string;
   unit: string;
-  unitPrice: number;
+  unitPrice: string;
   currency: CurrencyCode;
-  exchangeRate?: number;
+  exchangeRate?: string;
   vendorOrAgentText?: string;
 };
 

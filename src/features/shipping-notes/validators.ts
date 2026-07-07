@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  type DecimalMinimum,
+  validateDecimalString,
+} from "@/lib/calculations/decimal";
 
 import {
   CURRENCY_CODES,
@@ -59,29 +63,62 @@ function optionalPositiveNumber() {
   }, z.number().positive().optional());
 }
 
-function requiredPositiveNumber() {
+type ChargeDecimalFieldOptions = {
+  scale: number;
+  maxIntegerDigits: number;
+  minimum: DecimalMinimum;
+};
+
+function chargeDecimalStringField(options: ChargeDecimalFieldOptions) {
+  return z.preprocess((value) => {
+    if (typeof value === "string") {
+      return value.trim();
+    }
+
+    return value;
+  }, z.string().superRefine((value, ctx) => {
+    try {
+      validateDecimalString(value, options);
+    } catch (error) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          error instanceof Error ? error.message : "Invalid decimal value.",
+      });
+    }
+  }).transform((value) => validateDecimalString(value, options)));
+}
+
+function optionalChargeDecimalStringField(options: ChargeDecimalFieldOptions) {
   return z.preprocess((value) => {
     if (value === undefined || value === null || value === "") {
       return undefined;
     }
 
-    return typeof value === "string" || typeof value === "number"
-      ? Number(value)
-      : value;
-  }, z.number().positive());
-}
-
-function requiredNonNegativeNumber() {
-  return z.preprocess((value) => {
-    if (value === undefined || value === null || value === "") {
-      return undefined;
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
     }
 
-    return typeof value === "string" || typeof value === "number"
-      ? Number(value)
-      : value;
-  }, z.number().min(0));
+    return value;
+  }, chargeDecimalStringField(options).optional());
 }
+
+const chargeQuantitySchema = chargeDecimalStringField({
+  scale: 3,
+  maxIntegerDigits: 15,
+  minimum: "positive",
+});
+const chargeUnitPriceSchema = chargeDecimalStringField({
+  scale: 4,
+  maxIntegerDigits: 14,
+  minimum: "nonNegative",
+});
+const chargeExchangeRateSchema = optionalChargeDecimalStringField({
+  scale: 6,
+  maxIntegerDigits: 12,
+  minimum: "positive",
+});
 
 function normalizeJobsheetNo(value: string): string {
   return value.trim().replace(/\s+/g, " ").toUpperCase();
@@ -138,18 +175,19 @@ export const createSellingChargeInputSchema = z
     shippingNoteId: z.string().trim().min(1),
     chargeName: z.string().trim().min(1),
     description: optionalTrimmedText().optional(),
-    quantity: requiredPositiveNumber(),
+    quantity: chargeQuantitySchema,
     unit: z.string().trim().min(1),
-    unitPrice: requiredNonNegativeNumber(),
+    unitPrice: chargeUnitPriceSchema,
     currency: currencySchema,
-    exchangeRate: optionalPositiveNumber().optional(),
+    exchangeRate: chargeExchangeRateSchema,
   })
   .refine(
     (data) =>
       data.currency !== "USD" ||
-      (data.exchangeRate !== undefined && data.exchangeRate > 0),
+      data.exchangeRate !== undefined,
     {
-      message: "Exchange rate is required and must be positive for USD charges.",
+      message:
+        "Exchange rate is required and must be a positive decimal value for USD charges.",
       path: ["exchangeRate"],
     },
   );
@@ -159,18 +197,19 @@ export const updateSellingChargeInputSchema = z
     id: z.string().trim().min(1),
     chargeName: z.string().trim().min(1),
     description: optionalTrimmedText().optional(),
-    quantity: requiredPositiveNumber(),
+    quantity: chargeQuantitySchema,
     unit: z.string().trim().min(1),
-    unitPrice: requiredNonNegativeNumber(),
+    unitPrice: chargeUnitPriceSchema,
     currency: currencySchema,
-    exchangeRate: optionalPositiveNumber().optional(),
+    exchangeRate: chargeExchangeRateSchema,
   })
   .refine(
     (data) =>
       data.currency !== "USD" ||
-      (data.exchangeRate !== undefined && data.exchangeRate > 0),
+      data.exchangeRate !== undefined,
     {
-      message: "Exchange rate is required and must be positive for USD charges.",
+      message:
+        "Exchange rate is required and must be a positive decimal value for USD charges.",
       path: ["exchangeRate"],
     },
   );
@@ -194,19 +233,20 @@ const buyingChargeBaseInputSchema = z
   .object({
     chargeName: z.string().trim().min(1),
     description: optionalTrimmedText().optional(),
-    quantity: requiredPositiveNumber(),
+    quantity: chargeQuantitySchema,
     unit: z.string().trim().min(1),
-    unitPrice: requiredNonNegativeNumber(),
+    unitPrice: chargeUnitPriceSchema,
     currency: currencySchema,
-    exchangeRate: optionalPositiveNumber().optional(),
+    exchangeRate: chargeExchangeRateSchema,
     vendorOrAgentText: vendorOrAgentTextSchema,
   })
   .refine(
     (data) =>
       data.currency !== "USD" ||
-      (data.exchangeRate !== undefined && data.exchangeRate > 0),
+      data.exchangeRate !== undefined,
     {
-      message: "Exchange rate is required and must be positive for USD charges.",
+      message:
+        "Exchange rate is required and must be a positive decimal value for USD charges.",
       path: ["exchangeRate"],
     },
   );

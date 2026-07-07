@@ -334,7 +334,7 @@ export async function createSellingChargeForNote(
     quantity: input.quantity,
     unitPrice: input.unitPrice,
     currency: input.currency,
-    exchangeRate: input.exchangeRate ?? 1,
+    exchangeRate: input.exchangeRate,
   });
 
   try {
@@ -431,7 +431,7 @@ export async function updateSellingCharge(
     quantity: input.quantity,
     unitPrice: input.unitPrice,
     currency: input.currency,
-    exchangeRate: input.exchangeRate ?? 1,
+    exchangeRate: input.exchangeRate,
   });
 
   try {
@@ -568,7 +568,7 @@ export async function createBuyingChargeForNote(
     quantity: input.quantity,
     unitPrice: input.unitPrice,
     currency: input.currency,
-    exchangeRate: input.exchangeRate ?? 1,
+    exchangeRate: input.exchangeRate,
   });
 
   try {
@@ -664,7 +664,7 @@ export async function updateBuyingCharge(
     quantity: input.quantity,
     unitPrice: input.unitPrice,
     currency: input.currency,
-    exchangeRate: input.exchangeRate ?? 1,
+    exchangeRate: input.exchangeRate,
   });
 
   try {

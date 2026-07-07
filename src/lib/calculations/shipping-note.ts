@@ -2,6 +2,10 @@ import {
   CURRENCY_CODES,
   type CurrencyCode,
 } from "@/features/shipping-notes/constants";
+import {
+  addDecimalStrings,
+  subtractDecimalStrings,
+} from "@/lib/calculations/decimal";
 import type {
   FinancialCurrencyTotal,
   FinancialSummary,
@@ -13,63 +17,6 @@ type SellingSummaryChargeRow = Pick<
   FinancialSummaryChargeRow,
   "currency" | "amountOriginal" | "amountVnd"
 >;
-
-const DECIMAL_PATTERN = /^-?\d+(?:\.\d+)?$/;
-
-function parseDecimalToScaledInteger(value: string, scale: number): bigint {
-  if (!DECIMAL_PATTERN.test(value)) {
-    throw new Error(`Invalid decimal value: "${value}".`);
-  }
-
-  const isNegative = value.startsWith("-");
-  const unsignedValue = isNegative ? value.slice(1) : value;
-  const [integerPart, fractionalPart = ""] = unsignedValue.split(".");
-
-  if (fractionalPart.length > scale) {
-    throw new Error(
-      `Invalid decimal precision for "${value}". Expected at most ${scale} decimal places.`,
-    );
-  }
-
-  const paddedFraction = fractionalPart.padEnd(scale, "0");
-  const scaledValue = BigInt(`${integerPart}${paddedFraction}`);
-
-  return isNegative ? scaledValue * BigInt(-1) : scaledValue;
-}
-
-function formatScaledInteger(value: bigint, scale: number): string {
-  const isNegative = value < BigInt(0);
-  const absoluteValue = isNegative ? value * BigInt(-1) : value;
-  const scaleFactor = BigInt(10) ** BigInt(scale);
-  const integerPart = absoluteValue / scaleFactor;
-  const fractionalPart = (absoluteValue % scaleFactor)
-    .toString()
-    .padStart(scale, "0");
-
-  return `${isNegative ? "-" : ""}${integerPart.toString()}.${fractionalPart}`;
-}
-
-function addDecimalStrings(values: readonly string[], scale: number): string {
-  let total = BigInt(0);
-
-  for (const value of values) {
-    total += parseDecimalToScaledInteger(value, scale);
-  }
-
-  return formatScaledInteger(total, scale);
-}
-
-function subtractDecimalStrings(
-  left: string,
-  right: string,
-  scale: number,
-): string {
-  const difference =
-    parseDecimalToScaledInteger(left, scale) -
-    parseDecimalToScaledInteger(right, scale);
-
-  return formatScaledInteger(difference, scale);
-}
 
 function createCurrencyBuckets(): Record<CurrencyCode, string[]> {
   return {
