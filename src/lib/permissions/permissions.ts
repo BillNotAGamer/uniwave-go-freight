@@ -6,6 +6,8 @@ export const PERMISSIONS = {
   SHIPPING_NOTES_CREATE_OWN: "shipping-notes:create-own",
   SHIPPING_NOTES_EDIT_OWN: "shipping-notes:edit-own",
   SHIPPING_NOTES_READ_ALL: "shipping-notes:read-all",
+  SHIPPING_NOTES_ACCOUNTING_REVIEW: "shipping-notes:accounting-review",
+  SHIPPING_NOTES_MARK_CHECKED: "shipping-notes:mark-checked",
   ACCOUNTING_READ: "accounting:read",
   BUYING_CHARGES_READ: "buying-charges:read",
   BUYING_CHARGES_MANAGE: "buying-charges:manage",
@@ -33,6 +35,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   accountant: [
     PERMISSIONS.DASHBOARD_ACCOUNTING_ACCESS,
     PERMISSIONS.SHIPPING_NOTES_READ_ALL,
+    PERMISSIONS.SHIPPING_NOTES_ACCOUNTING_REVIEW,
+    PERMISSIONS.SHIPPING_NOTES_MARK_CHECKED,
     PERMISSIONS.ACCOUNTING_READ,
     PERMISSIONS.BUYING_CHARGES_READ,
     PERMISSIONS.BUYING_CHARGES_MANAGE,

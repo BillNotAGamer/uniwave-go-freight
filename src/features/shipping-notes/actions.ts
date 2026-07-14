@@ -8,7 +8,9 @@ import { requireAuthenticatedUser } from "@/lib/auth/session";
 import {
   createBuyingChargeForNote,
   createShippingNoteDraft,
+  markShippingNoteChecked,
   softDeleteBuyingCharge,
+  startAccountingReview,
   submitShippingNote,
   updateBuyingCharge,
   updateShippingNoteDraft,
@@ -21,7 +23,9 @@ import {
   createShippingNoteDraftInputSchema,
   deleteBuyingChargeInputSchema,
   createSellingChargeInputSchema,
+  markShippingNoteCheckedInputSchema,
   deleteSellingChargeInputSchema,
+  startAccountingReviewInputSchema,
   submitShippingNoteInputSchema,
   updateBuyingChargeInputSchema,
   updateShippingNoteDraftInputSchema,
@@ -166,6 +170,70 @@ export async function submitShippingNoteAction(
   revalidatePath("/shipping-notes");
   revalidatePath(`/shipping-notes/${noteId}`);
   redirect(`/shipping-notes/${noteId}`);
+}
+
+export async function startAccountingReviewAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = startAccountingReviewInputSchema.safeParse({
+    id: readString(formData, "id"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid shipping note selection.",
+    };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await startAccountingReview(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  return { ok: true };
+}
+
+export async function markShippingNoteCheckedAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = markShippingNoteCheckedInputSchema.safeParse({
+    id: readString(formData, "id"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid shipping note selection.",
+    };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await markShippingNoteChecked(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------

@@ -19,6 +19,8 @@ import {
   type CreateBuyingChargeInput,
   type CreateShippingNoteDraftInput,
   type CreateSellingChargeInput,
+  type MarkShippingNoteCheckedInput,
+  type StartAccountingReviewInput,
   type SubmitShippingNoteInput,
   type UpdateBuyingChargeInput,
   type UpdateShippingNoteDraftInput,
@@ -29,6 +31,7 @@ import type {
   SellingChargeDetail,
   ShippingNoteDetail,
 } from "./types";
+import type { ShippingNoteStatus } from "./constants";
 import {
   getShippingNoteById,
   getShippingNoteForUser,
@@ -86,6 +89,21 @@ function ensureDraftAccess(note: ShippingNoteDetail | null, user: DbUser): Shipp
   }
 
   if (user.role === "sale" && note.createdById !== user.id) {
+    throw new AuthorizationError();
+  }
+
+  return note;
+}
+
+function ensureAccountingTransitionAccess(
+  note: ShippingNoteDetail | null,
+  expectedStatus: ShippingNoteStatus,
+): ShippingNoteDetail {
+  if (!note) {
+    throw new AuthorizationError();
+  }
+
+  if (note.status !== expectedStatus) {
     throw new AuthorizationError();
   }
 
@@ -252,6 +270,110 @@ export async function submitShippingNote(
   }
 }
 
+export async function startAccountingReview(
+  input: StartAccountingReviewInput,
+  user: DbUser,
+): Promise<ShippingNoteDetail> {
+  requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_ACCOUNTING_REVIEW);
+
+  const current = ensureAccountingTransitionAccess(
+    await getShippingNoteForUser(input.id, user),
+    "submitted",
+  );
+
+  try {
+    return await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(shippingNotes)
+        .set({
+          status: "accounting_reviewing",
+        })
+        .where(
+          and(
+            eq(shippingNotes.id, input.id),
+            eq(shippingNotes.status, "submitted"),
+          ),
+        )
+        .returning(shippingNoteDetailSelect);
+
+      if (!updated) {
+        throw new AuthorizationError();
+      }
+
+      await logAuditEvent(tx, {
+        actorUserId: user.id,
+        action: "shipping_note.accounting_review.start",
+        entityType: "shipping_note",
+        entityId: updated.id,
+        before: current,
+        after: updated,
+      });
+
+      return updated;
+    });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
+
+    throw new Error("Failed to start accounting review.");
+  }
+}
+
+export async function markShippingNoteChecked(
+  input: MarkShippingNoteCheckedInput,
+  user: DbUser,
+): Promise<ShippingNoteDetail> {
+  requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_MARK_CHECKED);
+
+  const current = ensureAccountingTransitionAccess(
+    await getShippingNoteForUser(input.id, user),
+    "accounting_reviewing",
+  );
+
+  try {
+    return await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(shippingNotes)
+        .set({
+          status: "checked",
+          checkedById: user.id,
+        })
+        .where(
+          and(
+            eq(shippingNotes.id, input.id),
+            eq(shippingNotes.status, "accounting_reviewing"),
+          ),
+        )
+        .returning(shippingNoteDetailSelect);
+
+      if (!updated) {
+        throw new AuthorizationError();
+      }
+
+      await logAuditEvent(tx, {
+        actorUserId: user.id,
+        action: "shipping_note.accounting_review.checked",
+        entityType: "shipping_note",
+        entityId: updated.id,
+        before: current,
+        after: {
+          ...updated,
+          checkedById: user.id,
+        },
+      });
+
+      return updated;
+    });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
+
+    throw new Error("Failed to mark shipping note as checked.");
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Selling charge mutations
 // ---------------------------------------------------------------------------
@@ -277,6 +399,11 @@ const buyingChargeReturnColumns = {
   ...chargeReturnColumns,
   vendorOrAgentText: shippingNoteCharges.vendorOrAgentText,
 } as const;
+
+const BUYING_CHARGE_MUTABLE_STATUSES = new Set<ShippingNoteStatus>([
+  "submitted",
+  "accounting_reviewing",
+]);
 
 /**
  * Ensures the user can mutate selling charges on the given draft note.
@@ -312,7 +439,7 @@ function ensureBuyingChargeMutationAccess(
     throw new AuthorizationError();
   }
 
-  if (note.status !== "submitted") {
+  if (!BUYING_CHARGE_MUTABLE_STATUSES.has(note.status)) {
     throw new AuthorizationError();
   }
 

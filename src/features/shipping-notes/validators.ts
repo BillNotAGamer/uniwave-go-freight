@@ -155,6 +155,14 @@ export const submitShippingNoteInputSchema = z.object({
   id: z.string().trim().min(1),
 });
 
+export const startAccountingReviewInputSchema = z.object({
+  id: z.string().trim().min(1),
+});
+
+export const markShippingNoteCheckedInputSchema = z.object({
+  id: z.string().trim().min(1),
+});
+
 export type ShippingNoteDraftInput = z.infer<typeof shippingNoteDraftInputSchema>;
 export type CreateShippingNoteDraftInput = z.infer<
   typeof createShippingNoteDraftInputSchema
@@ -163,6 +171,12 @@ export type UpdateShippingNoteDraftInput = z.infer<
   typeof updateShippingNoteDraftInputSchema
 >;
 export type SubmitShippingNoteInput = z.infer<typeof submitShippingNoteInputSchema>;
+export type StartAccountingReviewInput = z.infer<
+  typeof startAccountingReviewInputSchema
+>;
+export type MarkShippingNoteCheckedInput = z.infer<
+  typeof markShippingNoteCheckedInputSchema
+>;
 
 // ---------------------------------------------------------------------------
 // Selling charge validators
