@@ -17,6 +17,7 @@ import { ShippingNoteSubmitForm } from "@/features/shipping-notes/components/shi
 import { SellingChargesList } from "@/features/shipping-notes/components/selling-charges-list";
 import { SellingChargeForm } from "@/features/shipping-notes/components/selling-charge-form";
 import { SellingChargeSummaryView } from "@/features/shipping-notes/components/selling-charge-summary";
+import { AccountingReviewControls } from "@/features/shipping-notes/components/accounting-review-controls";
 import {
   getFinancialSummaryForNoteForUser,
   getShippingNoteForUser,
@@ -59,7 +60,21 @@ export default async function ShippingNoteDetailPage({
   );
   const canManageBuyingCharges =
     hasPermission(user.role, PERMISSIONS.BUYING_CHARGES_MANAGE) &&
-    note.status === "submitted";
+    (note.status === "submitted" || note.status === "accounting_reviewing");
+
+  const canStartAccountingReview = hasPermission(
+    user.role,
+    PERMISSIONS.SHIPPING_NOTES_ACCOUNTING_REVIEW,
+  );
+  const canMarkChecked = hasPermission(
+    user.role,
+    PERMISSIONS.SHIPPING_NOTES_MARK_CHECKED,
+  );
+  const showAccountingReviewPanel =
+    (canStartAccountingReview || canMarkChecked) &&
+    (note.status === "submitted" ||
+      note.status === "accounting_reviewing" ||
+      note.status === "checked");
   const canViewFinancialArea = canReadBuyingCharges || canReadFinancialSummary;
   const shouldFetchFinancialSummary =
     canReadFinancialSummary &&
@@ -242,6 +257,15 @@ export default async function ShippingNoteDetailPage({
                 </p>
               ) : null}
             </div>
+
+            {showAccountingReviewPanel ? (
+              <AccountingReviewControls
+                noteId={note.id}
+                status={note.status}
+                canStartReview={canStartAccountingReview}
+                canMarkChecked={canMarkChecked}
+              />
+            ) : null}
 
             {financialSummary ? (
               <FinancialSummaryView summary={financialSummary} />
