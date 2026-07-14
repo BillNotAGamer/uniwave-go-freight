@@ -20,6 +20,7 @@ export const PERMISSIONS = {
   ADMIN_DESTRUCTIVE_ACTIONS: "admin:destructive-actions",
   EXPORTS_GENERATE: "exports:generate",
   EXPORTS_UPLOAD: "exports:upload",
+  SHIPPING_NOTES_EXPORT_INTERNAL: "shipping-notes:export-internal",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -45,6 +46,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     PERMISSIONS.TAX_RULES_READ,
     PERMISSIONS.TAX_RULES_MANAGE,
     PERMISSIONS.EXPORTS_GENERATE,
+    PERMISSIONS.SHIPPING_NOTES_EXPORT_INTERNAL,
   ],
   admin: ALL_PERMISSIONS,
 } as const;
