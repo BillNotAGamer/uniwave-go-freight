@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import { authClient } from "@/lib/auth/client";
+
+const INVALID_CREDENTIALS_MESSAGE = "Invalid email or password.";
+const TEMPORARY_SIGN_IN_FAILURE_MESSAGE =
+  "Unable to sign in right now. Please try again.";
 
 export function LoginForm() {
   const router = useRouter();
@@ -11,24 +15,39 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isSubmittingRef = useRef(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isSubmittingRef.current) {
+      return;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    isSubmittingRef.current = true;
     setError(null);
     setIsSubmitting(true);
 
     try {
-      await authClient.signIn.email({
-        email,
+      const result = await authClient.signIn.email({
+        email: normalizedEmail,
         password,
-        callbackURL: "/dashboard",
       });
+
+      if (result.error) {
+        setError(INVALID_CREDENTIALS_MESSAGE);
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
+        return;
+      }
 
       router.replace("/dashboard");
       router.refresh();
     } catch {
-      setError("Unable to sign in with those credentials.");
-    } finally {
+      setError(TEMPORARY_SIGN_IN_FAILURE_MESSAGE);
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   }
@@ -43,7 +62,8 @@ export function LoginForm() {
           className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
           id="email"
           name="email"
-          type="email"
+          type="text"
+          inputMode="email"
           autoComplete="username"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
@@ -71,7 +91,11 @@ export function LoginForm() {
         />
       </div>
 
-      {error ? <p className="text-sm text-red-700">{error}</p> : null}
+      {error ? (
+        <p className="text-sm text-red-700" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       <button
         className="inline-flex w-full items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
