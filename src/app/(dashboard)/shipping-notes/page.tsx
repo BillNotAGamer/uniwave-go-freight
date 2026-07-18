@@ -3,6 +3,8 @@ import Link from "next/link";
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/permissions/permissions";
 import { PERMISSIONS } from "@/lib/permissions/permissions";
+import { PageContainer } from "@/components/shell/page-container";
+import { PageHeader } from "@/components/shell/page-header";
 
 import { listShippingNotesForUser } from "@/features/shipping-notes/queries";
 
@@ -19,30 +21,22 @@ export default async function ShippingNotesPage() {
   );
 
   return (
-    <main className="min-h-screen bg-slate-100 px-6 py-10 text-slate-900">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Shipping Notes
-            </p>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Shipping note list
-            </h1>
-            <p className="text-sm leading-6 text-slate-600">
-              Safe list view only. Draft creation and submission stay server-side.
-            </p>
-          </div>
+    <PageContainer>
+      <PageHeader
+        title="Shipping notes"
+        description="Safe list view only. Draft creation and submission stay server-side."
+      >
+        {canCreateShippingNote ? (
+          <Link
+            className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+            href="/shipping-notes/new"
+          >
+            New Shipping Note
+          </Link>
+        ) : null}
+      </PageHeader>
 
-          {canCreateShippingNote ? (
-            <Link
-              className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
-              href="/shipping-notes/new"
-            >
-              New Shipping Note
-            </Link>
-          ) : null}
-        </div>
+      <div className="flex w-full flex-col gap-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
 
         {shippingNotes.length > 0 ? (
           <div className="overflow-x-auto">
@@ -94,6 +88,6 @@ export default async function ShippingNotesPage() {
           work.
         </div>
       </div>
-    </main>
+    </PageContainer>
   );
 }

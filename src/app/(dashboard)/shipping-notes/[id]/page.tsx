@@ -5,6 +5,9 @@ import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/permissions/permissions";
 import { PERMISSIONS } from "@/lib/permissions/permissions";
 
+import { PageContainer } from "@/components/shell/page-container";
+import { PageHeader } from "@/components/shell/page-header";
+
 import {
   submitShippingNoteAction,
   updateShippingNoteDraftAction,
@@ -93,41 +96,33 @@ export default async function ShippingNoteDetailPage({
     : null;
 
   return (
-    <main className="min-h-screen bg-slate-100 px-6 py-10 text-slate-900">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-200 pb-6 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-              Shipping Notes
-            </p>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {note.jobsheetNo}
-            </h1>
-            <p className="text-sm leading-6 text-slate-600">
-              Status: {note.status}
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2 sm:items-end">
-            {canOpenInternalPrintView ? (
-              <Link
-                className="inline-flex rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-                href={`/shipping-notes/${note.id}/print/internal`}
-                prefetch={false}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                Internal print view
-              </Link>
-            ) : null}
+    <PageContainer>
+      <PageHeader
+        title={note.jobsheetNo}
+        description={`Status: ${note.status}`}
+      >
+        <div className="flex items-center gap-2">
+          {canOpenInternalPrintView ? (
             <Link
-              className="text-sm text-slate-600 underline-offset-4 hover:underline"
-              href="/shipping-notes"
+              className="inline-flex rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+              href={`/shipping-notes/${note.id}/print/internal`}
+              prefetch={false}
+              rel="noopener noreferrer"
+              target="_blank"
             >
-              Back to list
+              Internal print view
             </Link>
-          </div>
+          ) : null}
+          <Link
+            className="text-sm text-slate-600 underline-offset-4 hover:underline px-2"
+            href="/shipping-notes"
+          >
+            Back to list
+          </Link>
         </div>
+      </PageHeader>
+
+      <div className="flex w-full flex-col gap-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
 
         <section className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
@@ -332,6 +327,6 @@ export default async function ShippingNoteDetailPage({
           </p>
         )}
       </div>
-    </main>
+    </PageContainer>
   );
 }
