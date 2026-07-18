@@ -58,6 +58,9 @@ export default async function ShippingNoteDetailPage({
     user.role,
     PERMISSIONS.FINANCIAL_SUMMARY_READ,
   );
+  const canOpenInternalPrintView =
+    note.status === "checked" &&
+    hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_EXPORT_INTERNAL);
   const canManageBuyingCharges =
     hasPermission(user.role, PERMISSIONS.BUYING_CHARGES_MANAGE) &&
     (note.status === "submitted" || note.status === "accounting_reviewing");
@@ -105,12 +108,25 @@ export default async function ShippingNoteDetailPage({
             </p>
           </div>
 
-          <Link
-            className="text-sm text-slate-600 underline-offset-4 hover:underline"
-            href="/shipping-notes"
-          >
-            Back to list
-          </Link>
+          <div className="flex flex-col gap-2 sm:items-end">
+            {canOpenInternalPrintView ? (
+              <Link
+                className="inline-flex rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                href={`/shipping-notes/${note.id}/print/internal`}
+                prefetch={false}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                Internal print view
+              </Link>
+            ) : null}
+            <Link
+              className="text-sm text-slate-600 underline-offset-4 hover:underline"
+              href="/shipping-notes"
+            >
+              Back to list
+            </Link>
+          </div>
         </div>
 
         <section className="grid gap-4 sm:grid-cols-2">

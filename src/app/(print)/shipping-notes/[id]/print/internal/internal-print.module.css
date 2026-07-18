@@ -1,0 +1,194 @@
+.pageShell {
+  min-height: 100vh;
+  background: #e2e8f0;
+  color: #111827;
+}
+
+.paper {
+  width: min(100%, 210mm);
+  margin: 0 auto 32px;
+  background: #ffffff;
+  box-shadow: 0 20px 40px rgb(15 23 42 / 16%);
+}
+
+.document {
+  padding: 18mm 16mm;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 2px solid #0f172a;
+  padding-bottom: 16px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.meta {
+  margin: 6px 0 0;
+  color: #334155;
+  font-size: 12px;
+}
+
+.section {
+  margin-top: 20px;
+}
+
+.sectionTitle {
+  margin: 0 0 8px;
+  color: #0f172a;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid #cbd5e1;
+  border-left: 1px solid #cbd5e1;
+}
+
+.infoCell {
+  min-height: 44px;
+  border-right: 1px solid #cbd5e1;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 7px 8px;
+}
+
+.label {
+  display: block;
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.value {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.tableWrap {
+  overflow: visible;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.table th,
+.table td {
+  border: 1px solid #cbd5e1;
+  padding: 6px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.table th {
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.table thead {
+  display: table-header-group;
+}
+
+.table tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.numeric {
+  text-align: right;
+}
+
+.empty {
+  color: #64748b;
+  text-align: center;
+}
+
+.totals {
+  margin-left: auto;
+  width: min(100%, 360px);
+  border: 1px solid #0f172a;
+  border-bottom: 0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.totalRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  border-bottom: 1px solid #0f172a;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.profitRow {
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.printMeta {
+  margin-top: 16px;
+  color: #64748b;
+  font-size: 10px;
+  text-align: right;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+@media print {
+  .pageShell {
+    min-height: auto;
+    background: #ffffff;
+  }
+
+  .paper {
+    width: 100%;
+    margin: 0;
+    box-shadow: none;
+  }
+
+  .document {
+    padding: 0;
+  }
+
+  .tableWrap {
+    overflow: visible;
+  }
+
+  a[href]::after {
+    content: "";
+  }
+}
