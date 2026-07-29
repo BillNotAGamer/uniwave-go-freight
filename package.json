@@ -6,6 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "node --conditions=react-server ./node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts",
+    "test:all": "npm test && npm run test:integration",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "admin:create-first": "node --conditions=react-server --import tsx scripts/create-first-admin.ts",
@@ -40,6 +44,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^2.1.9"
   }
 }

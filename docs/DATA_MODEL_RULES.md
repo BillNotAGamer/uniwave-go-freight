@@ -63,6 +63,10 @@ Use line items:
 - amount_vnd
 - vat_percent
 - vat_amount
+- tax_rule_id
+- tax_rule_code_snapshot
+- tax_rule_name_snapshot
+- tax_treatment_snapshot: taxable | zero_rated | non_taxable
 - vendor_or_agent_text or party_id
 - is_override
 - override_reason
@@ -82,6 +86,14 @@ All financial calculations must consider:
 - manual override
 - VAT/tax percentage
 - rounding policy
+
+Phase 6B.1 VAT basis:
+- VAT is calculated from stored `amount_vnd`.
+- VAT is rounded per active charge line, half-up, to scale 2.
+- Prices are tax-exclusive.
+- Tax summaries sum persisted per-line VAT amounts.
+- Gross profit remains tax-exclusive.
+- Existing rows keep their commercial and VAT values; null tax snapshots are treated as unclassified.
 
 Do not assume legal tax rates without explicit confirmation from the product owner/accountant.
 

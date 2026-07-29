@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 interface PageHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
   title: string;
-  description?: string;
+  description?: React.ReactNode;
   children?: React.ReactNode;
 }
 
@@ -21,15 +21,15 @@ export function PageHeader({
       )}
       {...props}
     >
-      <div className="space-y-1">
+      <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
           {title}
         </h1>
         {description ? (
-          <p className="text-sm text-slate-500">{description}</p>
+          <div className="text-sm text-slate-500">{description}</div>
         ) : null}
       </div>
-      {children ? <div className="flex shrink-0 items-center gap-2">{children}</div> : null}
+      {children ? <div className="flex shrink-0 items-center gap-3">{children}</div> : null}
     </div>
   );
 }

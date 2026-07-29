@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 
+import { readFormString } from "./form-data";
 import {
   createBuyingChargeForNote,
   createShippingNoteDraft,
@@ -37,11 +38,6 @@ export type ShippingNoteActionResult =
   | { ok: true }
   | { ok: false; error: string };
 
-function readString(formData: FormData, key: string): string | undefined {
-  const value = formData.get(key);
-  return typeof value === "string" ? value : undefined;
-}
-
 function parseBooleanishError(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -57,21 +53,21 @@ export async function createShippingNoteDraftAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = createShippingNoteDraftInputSchema.safeParse({
-    jobsheetNo: readString(formData, "jobsheetNo"),
-    shippingMode: readString(formData, "shippingMode"),
-    mawbHawbNo: readString(formData, "mawbHawbNo"),
-    shipperText: readString(formData, "shipperText"),
-    consigneeText: readString(formData, "consigneeText"),
-    customerText: readString(formData, "customerText"),
-    agentText: readString(formData, "agentText"),
-    aol: readString(formData, "aol"),
-    aod: readString(formData, "aod"),
-    finalDestination: readString(formData, "finalDestination"),
-    etd: readString(formData, "etd"),
-    eta: readString(formData, "eta"),
-    volumeValue: readString(formData, "volumeValue"),
-    volumeUnit: readString(formData, "volumeUnit"),
-    exchangeRate: readString(formData, "exchangeRate"),
+    jobsheetNo: readFormString(formData, "jobsheetNo"),
+    shippingMode: readFormString(formData, "shippingMode"),
+    mawbHawbNo: readFormString(formData, "mawbHawbNo"),
+    shipperText: readFormString(formData, "shipperText"),
+    consigneeText: readFormString(formData, "consigneeText"),
+    customerText: readFormString(formData, "customerText"),
+    agentText: readFormString(formData, "agentText"),
+    aol: readFormString(formData, "aol"),
+    aod: readFormString(formData, "aod"),
+    finalDestination: readFormString(formData, "finalDestination"),
+    etd: readFormString(formData, "etd"),
+    eta: readFormString(formData, "eta"),
+    volumeValue: readFormString(formData, "volumeValue"),
+    volumeUnit: readFormString(formData, "volumeUnit"),
+    exchangeRate: readFormString(formData, "exchangeRate"),
   });
 
   if (!parsed.success) {
@@ -102,22 +98,22 @@ export async function updateShippingNoteDraftAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = updateShippingNoteDraftInputSchema.safeParse({
-    id: readString(formData, "id"),
-    jobsheetNo: readString(formData, "jobsheetNo"),
-    shippingMode: readString(formData, "shippingMode"),
-    mawbHawbNo: readString(formData, "mawbHawbNo"),
-    shipperText: readString(formData, "shipperText"),
-    consigneeText: readString(formData, "consigneeText"),
-    customerText: readString(formData, "customerText"),
-    agentText: readString(formData, "agentText"),
-    aol: readString(formData, "aol"),
-    aod: readString(formData, "aod"),
-    finalDestination: readString(formData, "finalDestination"),
-    etd: readString(formData, "etd"),
-    eta: readString(formData, "eta"),
-    volumeValue: readString(formData, "volumeValue"),
-    volumeUnit: readString(formData, "volumeUnit"),
-    exchangeRate: readString(formData, "exchangeRate"),
+    id: readFormString(formData, "id"),
+    jobsheetNo: readFormString(formData, "jobsheetNo"),
+    shippingMode: readFormString(formData, "shippingMode"),
+    mawbHawbNo: readFormString(formData, "mawbHawbNo"),
+    shipperText: readFormString(formData, "shipperText"),
+    consigneeText: readFormString(formData, "consigneeText"),
+    customerText: readFormString(formData, "customerText"),
+    agentText: readFormString(formData, "agentText"),
+    aol: readFormString(formData, "aol"),
+    aod: readFormString(formData, "aod"),
+    finalDestination: readFormString(formData, "finalDestination"),
+    etd: readFormString(formData, "etd"),
+    eta: readFormString(formData, "eta"),
+    volumeValue: readFormString(formData, "volumeValue"),
+    volumeUnit: readFormString(formData, "volumeUnit"),
+    exchangeRate: readFormString(formData, "exchangeRate"),
   });
 
   if (!parsed.success) {
@@ -148,7 +144,7 @@ export async function submitShippingNoteAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = submitShippingNoteInputSchema.safeParse({
-    id: readString(formData, "id"),
+    id: readFormString(formData, "id"),
   });
 
   if (!parsed.success) {
@@ -179,7 +175,7 @@ export async function startAccountingReviewAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = startAccountingReviewInputSchema.safeParse({
-    id: readString(formData, "id"),
+    id: readFormString(formData, "id"),
   });
 
   if (!parsed.success) {
@@ -211,7 +207,7 @@ export async function markShippingNoteCheckedAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = markShippingNoteCheckedInputSchema.safeParse({
-    id: readString(formData, "id"),
+    id: readFormString(formData, "id"),
   });
 
   if (!parsed.success) {
@@ -247,14 +243,14 @@ export async function createSellingChargeAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = createSellingChargeInputSchema.safeParse({
-    shippingNoteId: readString(formData, "shippingNoteId"),
-    chargeName: readString(formData, "chargeName"),
-    description: readString(formData, "description"),
-    quantity: readString(formData, "quantity"),
-    unit: readString(formData, "unit"),
-    unitPrice: readString(formData, "unitPrice"),
-    currency: readString(formData, "currency"),
-    exchangeRate: readString(formData, "exchangeRate"),
+    shippingNoteId: readFormString(formData, "shippingNoteId"),
+    chargeName: readFormString(formData, "chargeName"),
+    description: readFormString(formData, "description"),
+    quantity: readFormString(formData, "quantity"),
+    unit: readFormString(formData, "unit"),
+    unitPrice: readFormString(formData, "unitPrice"),
+    currency: readFormString(formData, "currency"),
+    exchangeRate: readFormString(formData, "exchangeRate"),
   });
 
   if (!parsed.success) {
@@ -281,14 +277,14 @@ export async function updateSellingChargeAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = updateSellingChargeInputSchema.safeParse({
-    id: readString(formData, "id"),
-    chargeName: readString(formData, "chargeName"),
-    description: readString(formData, "description"),
-    quantity: readString(formData, "quantity"),
-    unit: readString(formData, "unit"),
-    unitPrice: readString(formData, "unitPrice"),
-    currency: readString(formData, "currency"),
-    exchangeRate: readString(formData, "exchangeRate"),
+    id: readFormString(formData, "id"),
+    chargeName: readFormString(formData, "chargeName"),
+    description: readFormString(formData, "description"),
+    quantity: readFormString(formData, "quantity"),
+    unit: readFormString(formData, "unit"),
+    unitPrice: readFormString(formData, "unitPrice"),
+    currency: readFormString(formData, "currency"),
+    exchangeRate: readFormString(formData, "exchangeRate"),
   });
 
   if (!parsed.success) {
@@ -298,7 +294,7 @@ export async function updateSellingChargeAction(
     };
   }
 
-  const shippingNoteId = readString(formData, "shippingNoteId") ?? "";
+  const shippingNoteId = readFormString(formData, "shippingNoteId") ?? "";
 
   try {
     await updateSellingCharge(parsed.data, session.user);
@@ -317,8 +313,8 @@ export async function softDeleteSellingChargeAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = deleteSellingChargeInputSchema.safeParse({
-    id: readString(formData, "id"),
-    shippingNoteId: readString(formData, "shippingNoteId"),
+    id: readFormString(formData, "id"),
+    shippingNoteId: readFormString(formData, "shippingNoteId"),
   });
 
   if (!parsed.success) {
@@ -345,15 +341,15 @@ export async function createBuyingChargeAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = createBuyingChargeInputSchema.safeParse({
-    shippingNoteId: readString(formData, "shippingNoteId"),
-    chargeName: readString(formData, "chargeName"),
-    description: readString(formData, "description"),
-    quantity: readString(formData, "quantity"),
-    unit: readString(formData, "unit"),
-    unitPrice: readString(formData, "unitPrice"),
-    currency: readString(formData, "currency"),
-    exchangeRate: readString(formData, "exchangeRate"),
-    vendorOrAgentText: readString(formData, "vendorOrAgentText"),
+    shippingNoteId: readFormString(formData, "shippingNoteId"),
+    chargeName: readFormString(formData, "chargeName"),
+    description: readFormString(formData, "description"),
+    quantity: readFormString(formData, "quantity"),
+    unit: readFormString(formData, "unit"),
+    unitPrice: readFormString(formData, "unitPrice"),
+    currency: readFormString(formData, "currency"),
+    exchangeRate: readFormString(formData, "exchangeRate"),
+    vendorOrAgentText: readFormString(formData, "vendorOrAgentText"),
   });
 
   if (!parsed.success) {
@@ -387,15 +383,15 @@ export async function updateBuyingChargeAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = updateBuyingChargeInputSchema.safeParse({
-    id: readString(formData, "id"),
-    chargeName: readString(formData, "chargeName"),
-    description: readString(formData, "description"),
-    quantity: readString(formData, "quantity"),
-    unit: readString(formData, "unit"),
-    unitPrice: readString(formData, "unitPrice"),
-    currency: readString(formData, "currency"),
-    exchangeRate: readString(formData, "exchangeRate"),
-    vendorOrAgentText: readString(formData, "vendorOrAgentText"),
+    id: readFormString(formData, "id"),
+    chargeName: readFormString(formData, "chargeName"),
+    description: readFormString(formData, "description"),
+    quantity: readFormString(formData, "quantity"),
+    unit: readFormString(formData, "unit"),
+    unitPrice: readFormString(formData, "unitPrice"),
+    currency: readFormString(formData, "currency"),
+    exchangeRate: readFormString(formData, "exchangeRate"),
+    vendorOrAgentText: readFormString(formData, "vendorOrAgentText"),
   });
 
   if (!parsed.success) {
@@ -425,7 +421,7 @@ export async function softDeleteBuyingChargeAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = deleteBuyingChargeInputSchema.safeParse({
-    id: readString(formData, "id"),
+    id: readFormString(formData, "id"),
   });
 
   if (!parsed.success) {
@@ -446,3 +442,4 @@ export async function softDeleteBuyingChargeAction(
   revalidatePath(`/shipping-notes/${shippingNoteId}`);
   return { ok: true };
 }
+

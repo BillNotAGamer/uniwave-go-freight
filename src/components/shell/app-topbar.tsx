@@ -27,8 +27,8 @@ export function AppTopbar({ session }: { session: CurrentSession }) {
       <div className="flex flex-1 items-center justify-end gap-4">
         <div className="flex items-center gap-3">
           <div className="flex flex-col items-end text-sm">
-            <span className="font-medium text-slate-900 leading-tight">{session.user.name}</span>
-            <span className="text-slate-500 text-xs leading-tight">{session.user.email}</span>
+            <span className="font-medium text-slate-900 leading-tight truncate max-w-[120px] sm:max-w-[200px]">{session.user.name}</span>
+            <span className="text-slate-500 text-xs leading-tight truncate max-w-[120px] sm:max-w-[200px]">{session.user.email}</span>
           </div>
           <RoleBadge role={session.user.role} />
         </div>

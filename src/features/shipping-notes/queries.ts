@@ -158,6 +158,7 @@ const financialSummaryChargeColumns = {
   currency: shippingNoteCharges.currency,
   amountOriginal: shippingNoteCharges.amountOriginal,
   amountVnd: shippingNoteCharges.amountVnd,
+  vatAmount: shippingNoteCharges.vatAmount,
 } as const;
 
 /**

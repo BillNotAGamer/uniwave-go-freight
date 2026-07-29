@@ -5,6 +5,8 @@ import { hasPermission } from "@/lib/permissions/permissions";
 import { PERMISSIONS } from "@/lib/permissions/permissions";
 import { PageContainer } from "@/components/shell/page-container";
 import { PageHeader } from "@/components/shell/page-header";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { EmptyState } from "@/components/ui/feedback";
 
 import { listShippingNotesForUser } from "@/features/shipping-notes/queries";
 
@@ -28,7 +30,7 @@ export default async function ShippingNotesPage() {
       >
         {canCreateShippingNote ? (
           <Link
-            className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+            className="inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 shadow-sm"
             href="/shipping-notes/new"
           >
             New Shipping Note
@@ -53,9 +55,9 @@ export default async function ShippingNotesPage() {
               </thead>
               <tbody>
                 {shippingNotes.map((note) => (
-                  <tr key={note.id} className="align-top">
+                  <tr key={note.id} className="align-top hover:bg-slate-50 transition-colors">
                     <td className="border-b border-slate-100 px-3 py-3 font-medium text-slate-900">
-                      <Link className="text-slate-900 underline-offset-4 hover:underline" href={`/shipping-notes/${note.id}`}>
+                      <Link className="text-indigo-600 underline-offset-4 hover:underline" href={`/shipping-notes/${note.id}`}>
                         {note.jobsheetNo}
                       </Link>
                     </td>
@@ -68,10 +70,10 @@ export default async function ShippingNotesPage() {
                     <td className="border-b border-slate-100 px-3 py-3 text-slate-700">
                       {note.consigneeText ?? "-"}
                     </td>
-                    <td className="border-b border-slate-100 px-3 py-3 text-slate-700">
-                      {note.status}
+                    <td className="border-b border-slate-100 px-3 py-3">
+                      <StatusBadge status={note.status} />
                     </td>
-                    <td className="border-b border-slate-100 px-3 py-3 text-slate-700">
+                    <td className="border-b border-slate-100 px-3 py-3 text-slate-700 whitespace-nowrap">
                       {formatDate(note.createdAt)}
                     </td>
                   </tr>
@@ -80,10 +82,22 @@ export default async function ShippingNotesPage() {
             </table>
           </div>
         ) : (
-          <p className="text-sm text-slate-600">No shipping notes yet.</p>
+          <EmptyState
+            title="No shipping notes"
+            description="You haven't created any shipping notes yet."
+          >
+            {canCreateShippingNote && (
+              <Link
+                href="/shipping-notes/new"
+                className="inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-500 shadow-sm"
+              >
+                Create new note
+              </Link>
+            )}
+          </EmptyState>
         )}
 
-        <div className="text-sm text-slate-500">
+        <div className="text-xs text-slate-400 mt-2">
           Charge lines, buying data, accounting review, and exports are next-phase
           work.
         </div>

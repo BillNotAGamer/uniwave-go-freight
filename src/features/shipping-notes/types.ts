@@ -102,6 +102,7 @@ export type FinancialSummaryChargeRow = {
   currency: CurrencyCode;
   amountOriginal: string;
   amountVnd: string;
+  vatAmount?: string;
 };
 
 export type FinancialSummary = {
@@ -110,6 +111,13 @@ export type FinancialSummary = {
   totalSellingVnd: string;
   totalBuyingVnd: string;
   grossProfitVnd: string;
+  sellingSubtotalExcludingVatVnd: string;
+  sellingVatVnd: string;
+  sellingTotalIncludingVatVnd: string;
+  buyingSubtotalExcludingVatVnd: string;
+  buyingVatVnd: string;
+  buyingTotalIncludingVatVnd: string;
+  grossProfitExcludingVatVnd: string;
   sellingTotalsByCurrency: FinancialCurrencyTotal[];
   buyingTotalsByCurrency: FinancialCurrencyTotal[];
 };

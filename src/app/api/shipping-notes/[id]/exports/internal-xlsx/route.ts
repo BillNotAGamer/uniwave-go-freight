@@ -8,6 +8,10 @@ import {
   generateInternalShippingNoteXlsx,
 } from "@/features/shipping-notes/export/generator";
 import {
+  buildContentDisposition,
+  isSameOriginRequestMetadata,
+} from "@/features/shipping-notes/export/http";
+import {
   createPendingInternalXlsxExportRecord,
   markInternalXlsxExportFailed,
   markInternalXlsxExportGenerated,
@@ -50,18 +54,11 @@ function jsonError(code: ExportErrorCode, status: number): NextResponse {
 }
 
 function isSameOriginRequest(request: NextRequest): boolean {
-  const originHeader = request.headers.get("origin");
-  const secFetchSite = request.headers.get("sec-fetch-site");
-
-  if (originHeader) {
-    try {
-      return new URL(originHeader).origin === request.nextUrl.origin;
-    } catch {
-      return false;
-    }
-  }
-
-  return secFetchSite === "same-origin" || secFetchSite === "none";
+  return isSameOriginRequestMetadata({
+    requestOrigin: request.nextUrl.origin,
+    originHeader: request.headers.get("origin"),
+    secFetchSite: request.headers.get("sec-fetch-site"),
+  });
 }
 
 function toExportError(error: unknown): ExportError {
@@ -93,11 +90,6 @@ function toExportError(error: unknown): ExportError {
     500,
     "Internal XLSX export failed.",
   );
-}
-
-function buildContentDisposition(fileName: string): string {
-  const fallbackName = fileName.replace(/[^\x20-\x7E]/g, "_").replace(/"/g, "_");
-  return `attachment; filename="${fallbackName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
 
 export async function POST(

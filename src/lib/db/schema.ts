@@ -62,6 +62,12 @@ export const chargeSectionEnum = pgEnum("charge_section", [
   "buying",
 ]);
 
+export const taxTreatmentEnum = pgEnum("tax_treatment", [
+  "taxable",
+  "zero_rated",
+  "non_taxable",
+]);
+
 export const currencyCodeEnum = pgEnum("currency_code", ["VND", "USD"]);
 
 export const exportTypeEnum = pgEnum("export_type", ["excel", "pdf"]);
@@ -236,6 +242,12 @@ export const shippingNoteCharges = pgTable(
       scale: 4,
     }).notNull(),
     amountVnd: numeric("amount_vnd", { precision: 20, scale: 2 }).notNull(),
+    taxRuleId: text("tax_rule_id").references(() => taxRules.id, {
+      onDelete: "restrict",
+    }),
+    taxRuleCodeSnapshot: text("tax_rule_code_snapshot"),
+    taxRuleNameSnapshot: text("tax_rule_name_snapshot"),
+    taxTreatmentSnapshot: taxTreatmentEnum("tax_treatment_snapshot"),
     vatPercent: numeric("vat_percent", { precision: 6, scale: 2 })
       .notNull()
       .default("0"),
@@ -256,6 +268,7 @@ export const shippingNoteCharges = pgTable(
     index("shipping_note_charges_shipping_note_id_idx").on(
       table.shippingNoteId,
     ),
+    index("shipping_note_charges_tax_rule_id_idx").on(table.taxRuleId),
   ],
 );
 
@@ -312,10 +325,13 @@ export const taxRules = pgTable(
   "tax_rules",
   {
     id: idColumn(),
+    code: text("code").notNull(),
     name: text("name").notNull(),
+    description: text("description"),
     shippingMode: shippingModeEnum("shipping_mode").notNull(),
     chargeSection: chargeSectionEnum("charge_section").notNull(),
     chargeNamePattern: text("charge_name_pattern").notNull(),
+    taxTreatment: taxTreatmentEnum("tax_treatment").notNull(),
     vatPercent: numeric("vat_percent", { precision: 6, scale: 2 })
       .notNull()
       .default("0"),
@@ -334,6 +350,7 @@ export const taxRules = pgTable(
       table.chargeSection,
       table.isActive,
     ),
+    uniqueIndex("tax_rules_code_uidx").on(table.code),
   ],
 );
 

@@ -7,6 +7,7 @@ import { PERMISSIONS } from "@/lib/permissions/permissions";
 
 import { PageContainer } from "@/components/shell/page-container";
 import { PageHeader } from "@/components/shell/page-header";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 import {
   submitShippingNoteAction,
@@ -99,7 +100,12 @@ export default async function ShippingNoteDetailPage({
     <PageContainer>
       <PageHeader
         title={note.jobsheetNo}
-        description={`Status: ${note.status}`}
+        description={
+          <div className="flex items-center gap-2">
+            <span>Status:</span>
+            <StatusBadge status={note.status} />
+          </div>
+        }
       >
         <div className="flex items-center gap-2">
           {canOpenInternalPrintView ? (

@@ -38,6 +38,17 @@ import {
   shippingNoteDetailSelect,
 } from "./queries";
 import { calculateChargeAmounts } from "@/lib/calculations/money";
+import {
+  canAccessDraftMutationSubject,
+  canMutateBuyingChargeAtStatus,
+  canMutateSellingChargeForDraft,
+  isExpectedAccountingTransitionSource,
+} from "./status-policy";
+import {
+  summarizeTaxCompleteness,
+  TAX_COMPLETENESS_ERROR,
+} from "./tax/completeness";
+import { recomputeVatForCommercialChange } from "./tax/mutations";
 
 function normalizeOptionalDate(value: Date | undefined): Date | null {
   return value ?? null;
@@ -84,11 +95,7 @@ function ensureDraftAccess(note: ShippingNoteDetail | null, user: DbUser): Shipp
     throw new AuthorizationError();
   }
 
-  if (note.status !== "draft") {
-    throw new AuthorizationError();
-  }
-
-  if (user.role === "sale" && note.createdById !== user.id) {
+  if (!canAccessDraftMutationSubject(note, user)) {
     throw new AuthorizationError();
   }
 
@@ -103,7 +110,7 @@ function ensureAccountingTransitionAccess(
     throw new AuthorizationError();
   }
 
-  if (note.status !== expectedStatus) {
+  if (!isExpectedAccountingTransitionSource(note.status, expectedStatus)) {
     throw new AuthorizationError();
   }
 
@@ -333,6 +340,31 @@ export async function markShippingNoteChecked(
 
   try {
     return await db.transaction(async (tx) => {
+      const chargeTaxRows = await tx
+        .select({
+          amountVnd: shippingNoteCharges.amountVnd,
+          taxRuleId: shippingNoteCharges.taxRuleId,
+          taxRuleCodeSnapshot: shippingNoteCharges.taxRuleCodeSnapshot,
+          taxRuleNameSnapshot: shippingNoteCharges.taxRuleNameSnapshot,
+          taxTreatmentSnapshot: shippingNoteCharges.taxTreatmentSnapshot,
+          vatPercent: shippingNoteCharges.vatPercent,
+          vatAmount: shippingNoteCharges.vatAmount,
+          isOverride: shippingNoteCharges.isOverride,
+          overrideReason: shippingNoteCharges.overrideReason,
+          deletedAt: shippingNoteCharges.deletedAt,
+        })
+        .from(shippingNoteCharges)
+        .where(
+          and(
+            eq(shippingNoteCharges.shippingNoteId, input.id),
+            isNull(shippingNoteCharges.deletedAt),
+          ),
+        );
+
+      if (!summarizeTaxCompleteness(chargeTaxRows).taxComplete) {
+        throw new Error(TAX_COMPLETENESS_ERROR);
+      }
+
       const [updated] = await tx
         .update(shippingNotes)
         .set({
@@ -370,6 +402,10 @@ export async function markShippingNoteChecked(
       throw error;
     }
 
+    if (error instanceof Error && error.message === TAX_COMPLETENESS_ERROR) {
+      throw error;
+    }
+
     throw new Error("Failed to mark shipping note as checked.");
   }
 }
@@ -400,11 +436,6 @@ const buyingChargeReturnColumns = {
   vendorOrAgentText: shippingNoteCharges.vendorOrAgentText,
 } as const;
 
-const BUYING_CHARGE_MUTABLE_STATUSES = new Set<ShippingNoteStatus>([
-  "submitted",
-  "accounting_reviewing",
-]);
-
 /**
  * Ensures the user can mutate selling charges on the given draft note.
  * Only sale (own draft) and admin (any draft) are allowed.
@@ -415,17 +446,7 @@ function ensureChargeMutationAccess(note: ShippingNoteDetail | null, user: DbUse
     throw new AuthorizationError();
   }
 
-  if (note.status !== "draft") {
-    throw new AuthorizationError();
-  }
-
-  // Accountant cannot mutate charges.
-  if (user.role === "accountant") {
-    throw new AuthorizationError();
-  }
-
-  // Sale can only mutate on own notes.
-  if (user.role === "sale" && note.createdById !== user.id) {
+  if (!canMutateSellingChargeForDraft(note, user)) {
     throw new AuthorizationError();
   }
 
@@ -439,7 +460,7 @@ function ensureBuyingChargeMutationAccess(
     throw new AuthorizationError();
   }
 
-  if (!BUYING_CHARGE_MUTABLE_STATUSES.has(note.status)) {
+  if (!canMutateBuyingChargeAtStatus(note.status)) {
     throw new AuthorizationError();
   }
 
@@ -533,6 +554,8 @@ export async function updateSellingCharge(
       exchangeRate: shippingNoteCharges.exchangeRate,
       amountOriginal: shippingNoteCharges.amountOriginal,
       amountVnd: shippingNoteCharges.amountVnd,
+      vatPercent: shippingNoteCharges.vatPercent,
+      taxTreatmentSnapshot: shippingNoteCharges.taxTreatmentSnapshot,
     })
     .from(shippingNoteCharges)
     .where(
@@ -575,6 +598,11 @@ export async function updateSellingCharge(
           exchangeRate: amounts.exchangeRate,
           amountOriginal: amounts.amountOriginal,
           amountVnd: amounts.amountVnd,
+          vatAmount: recomputeVatForCommercialChange({
+            amountVnd: amounts.amountVnd,
+            vatPercent: existingCharge.vatPercent,
+            taxTreatmentSnapshot: existingCharge.taxTreatmentSnapshot,
+          }),
         })
         .where(
           and(
@@ -768,6 +796,8 @@ export async function updateBuyingCharge(
       amountOriginal: shippingNoteCharges.amountOriginal,
       amountVnd: shippingNoteCharges.amountVnd,
       vendorOrAgentText: shippingNoteCharges.vendorOrAgentText,
+      vatPercent: shippingNoteCharges.vatPercent,
+      taxTreatmentSnapshot: shippingNoteCharges.taxTreatmentSnapshot,
     })
     .from(shippingNoteCharges)
     .where(
@@ -809,10 +839,11 @@ export async function updateBuyingCharge(
           amountOriginal: amounts.amountOriginal,
           amountVnd: amounts.amountVnd,
           vendorOrAgentText: normalizeOptionalText(input.vendorOrAgentText),
-          vatPercent: "0",
-          vatAmount: "0",
-          isOverride: false,
-          overrideReason: null,
+          vatAmount: recomputeVatForCommercialChange({
+            amountVnd: amounts.amountVnd,
+            vatPercent: existingCharge.vatPercent,
+            taxTreatmentSnapshot: existingCharge.taxTreatmentSnapshot,
+          }),
         })
         .where(
           and(

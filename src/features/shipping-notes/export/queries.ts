@@ -8,6 +8,7 @@ import { PERMISSIONS } from "@/lib/permissions/permissions";
 import { shippingNotes, shippingNoteCharges, type User as DbUser } from "@/lib/db/schema";
 import { summarizeFinancialCharges } from "@/lib/calculations/shipping-note";
 import type { FinancialSummaryChargeRow } from "../types";
+import { isInternalXlsxExportEligibleStatus } from "../status-policy";
 import type {
   InternalExportCharge,
   InternalExportBuyingCharge,
@@ -83,7 +84,7 @@ export async function getInternalShippingNoteExportDataForUser(
   const { note } = rows[0];
 
   // 3. Strict status gate - no admin bypass
-  if (note.status !== "checked") {
+  if (!isInternalXlsxExportEligibleStatus(note.status)) {
     throw new Error("Shipping note must be in 'checked' status to be exported.");
   }
 

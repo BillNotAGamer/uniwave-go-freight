@@ -15,6 +15,13 @@
       "when": 1782204335701,
       "tag": "0001_dazzling_saracen",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785315747587,
+      "tag": "0002_jittery_paper_doll",
+      "breakpoints": true
     }
   ]
 }
