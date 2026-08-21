@@ -6,6 +6,10 @@ import { AuthorizationError } from "@/lib/permissions/require-permission";
 import { InternalPrintActions } from "@/components/shipping-notes/internal-print-actions";
 import { INTERNAL_XLSX_PROFIT_CELL } from "@/features/shipping-notes/export/constants";
 import { getInternalShippingNoteExportDataForUser } from "@/features/shipping-notes/export/queries";
+import {
+  formatTaxRuleSnapshotForExport,
+  formatTaxTreatmentForExport,
+} from "@/features/shipping-notes/export/read-model";
 import type {
   InternalExportBuyingCharge,
   InternalExportCharge,
@@ -123,17 +127,19 @@ function ChargeRows({
               <th scope="col">Description</th>
               <th scope="col">Quantity / Unit</th>
               <th scope="col">Unit Price</th>
-              <th scope="col">Currency</th>
               <th scope="col">Exchange Rate</th>
-              <th scope="col">Amount Original</th>
-              <th scope="col">Amount VND</th>
+              <th scope="col">Base excl. VAT</th>
+              <th scope="col">Tax rule / Treatment</th>
+              <th scope="col">VAT %</th>
+              <th scope="col">VAT amount</th>
+              <th scope="col">Total incl. VAT</th>
               <th scope="col">{partyLabel}</th>
             </tr>
           </thead>
           <tbody>
             {charges.length === 0 ? (
               <tr>
-                <td className={styles.empty} colSpan={10}>
+                <td className={styles.empty} colSpan={12}>
                   No active {section.toLowerCase()} charges.
                 </td>
               </tr>
@@ -153,11 +159,31 @@ function ChargeRows({
                       {formatDecimalString(charge.quantity)}
                       {charge.unit ? ` ${charge.unit}` : ""}
                     </td>
-                    <td className={styles.numeric}>{formatDecimalString(charge.unitPrice)}</td>
-                    <td>{charge.currency}</td>
+                    <td className={styles.numeric}>
+                      {formatDecimalString(charge.unitPrice)} {charge.currency}
+                    </td>
                     <td className={styles.numeric}>{formatDecimalString(charge.exchangeRate)}</td>
-                    <td className={styles.numeric}>{formatDecimalString(charge.amountOriginal)}</td>
                     <td className={styles.numeric}>{formatDecimalString(charge.amountVnd)}</td>
+                    <td>
+                      <span>{formatTaxRuleSnapshotForExport(charge)}</span>
+                      <br />
+                      <span>{formatTaxTreatmentForExport(charge.taxTreatmentSnapshot)}</span>
+                      {charge.isOverride ? (
+                        <>
+                          <br />
+                          <span>Override</span>
+                          {charge.overrideReason ? (
+                            <>
+                              <br />
+                              <span>{charge.overrideReason}</span>
+                            </>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </td>
+                    <td className={styles.numeric}>{formatDecimalString(charge.vatPercent)}</td>
+                    <td className={styles.numeric}>{formatDecimalString(charge.vatAmount)}</td>
+                    <td className={styles.numeric}>{formatDecimalString(charge.totalIncludingVatVnd)}</td>
                     <td>{formatOptional(partyText)}</td>
                   </tr>
                 );
@@ -183,7 +209,7 @@ export default async function InternalShippingNotePrintPage({
   } catch (error) {
     if (
       error instanceof AuthorizationError ||
-      (error instanceof Error && error.message.includes("checked"))
+      (error instanceof Error && error.message.includes("exported"))
     ) {
       notFound();
     }
@@ -214,7 +240,7 @@ export default async function InternalShippingNotePrintPage({
               <p className={styles.meta}>Jobsheet No: {note.jobsheetNo}</p>
             </div>
             <div>
-              <p className={styles.eyebrow}>Internal Checked View</p>
+              <p className={styles.eyebrow}>Internal Finalized View</p>
               <p className={styles.meta}>Status: {note.status}</p>
               <p className={styles.meta}>Rendered: {formatDateTime(renderedAt)}</p>
             </div>
@@ -243,12 +269,20 @@ export default async function InternalShippingNotePrintPage({
 
           <section className={styles.section} aria-labelledby="selling-total-title">
             <h2 className={styles.sectionTitle} id="selling-total-title">
-              TOTAL SELLING
+              Selling Tax Summary
             </h2>
             <div className={styles.totals}>
               <div className={styles.totalRow}>
-                <span>Total Selling (VND)</span>
-                <span>{formatDecimalString(summary.totalSellingVnd)}</span>
+                <span>Selling subtotal excl. VAT</span>
+                <span>{formatDecimalString(summary.sellingSubtotalExcludingVatVnd)}</span>
+              </div>
+              <div className={styles.totalRow}>
+                <span>Selling VAT</span>
+                <span>{formatDecimalString(summary.sellingVatVnd)}</span>
+              </div>
+              <div className={styles.totalRow}>
+                <span>Selling total incl. VAT</span>
+                <span>{formatDecimalString(summary.sellingTotalIncludingVatVnd)}</span>
               </div>
             </div>
           </section>
@@ -266,12 +300,28 @@ export default async function InternalShippingNotePrintPage({
             </h2>
             <div className={styles.totals}>
               <div className={styles.totalRow}>
-                <span>TOTAL SELLING</span>
-                <span>{formatDecimalString(summary.totalSellingVnd)}</span>
+                <span>SELLING SUBTOTAL EXCL. VAT</span>
+                <span>{formatDecimalString(summary.sellingSubtotalExcludingVatVnd)}</span>
               </div>
               <div className={styles.totalRow}>
-                <span>TOTAL BUYING</span>
-                <span>{formatDecimalString(summary.totalBuyingVnd)}</span>
+                <span>SELLING VAT</span>
+                <span>{formatDecimalString(summary.sellingVatVnd)}</span>
+              </div>
+              <div className={styles.totalRow}>
+                <span>SELLING TOTAL INCL. VAT</span>
+                <span>{formatDecimalString(summary.sellingTotalIncludingVatVnd)}</span>
+              </div>
+              <div className={styles.totalRow}>
+                <span>BUYING SUBTOTAL EXCL. VAT</span>
+                <span>{formatDecimalString(summary.buyingSubtotalExcludingVatVnd)}</span>
+              </div>
+              <div className={styles.totalRow}>
+                <span>BUYING VAT</span>
+                <span>{formatDecimalString(summary.buyingVatVnd)}</span>
+              </div>
+              <div className={styles.totalRow}>
+                <span>BUYING TOTAL INCL. VAT</span>
+                <span>{formatDecimalString(summary.buyingTotalIncludingVatVnd)}</span>
               </div>
               <div className={`${styles.totalRow} ${styles.profitRow}`}>
                 {/*
@@ -280,7 +330,7 @@ export default async function InternalShippingNotePrintPage({
                   Do not change this label without explicit client approval.
                 */}
                 <span>{INTERNAL_XLSX_PROFIT_CELL.label}</span>
-                <span>{formatDecimalString(summary.grossProfitVnd)}</span>
+                <span>{formatDecimalString(summary.grossProfitExcludingVatVnd)}</span>
               </div>
             </div>
           </section>

@@ -18,12 +18,21 @@ import {
   INTERNAL_XLSX_HEADER_CELLS,
   INTERNAL_XLSX_PROFIT_CELL,
   INTERNAL_XLSX_SELLING_ROWS,
+  INTERNAL_XLSX_TAX_DETAIL_BUYING_ROWS,
+  INTERNAL_XLSX_TAX_DETAIL_COLUMNS,
+  INTERNAL_XLSX_TAX_DETAIL_SELLING_ROWS,
+  INTERNAL_XLSX_TAX_DETAILS_WORKSHEET_NAME,
+  INTERNAL_XLSX_TAX_SUMMARY_CELLS,
   INTERNAL_XLSX_TEMPLATE_SHA256,
   INTERNAL_XLSX_TEMPLATE_VERSION,
   INTERNAL_XLSX_WORKSHEET_NAME,
 } from "./constants";
 import { ExportError, EXPORT_ERROR_CODES } from "./errors";
 import { buildInternalXlsxFileName } from "./filename";
+import {
+  formatTaxRuleSnapshotForExport,
+  formatTaxTreatmentForExport,
+} from "./read-model";
 import type {
   InternalExportBuyingCharge,
   InternalExportCharge,
@@ -35,6 +44,11 @@ export { buildInternalXlsxFileName } from "./filename";
 type TemplateRowRange = {
   start: number;
   end: number;
+};
+
+type TemplateRowMapping = TemplateRowRange & {
+  headerRow: number;
+  sectionLabelCell: string;
 };
 
 export type InternalXlsxGenerationResult = {
@@ -118,6 +132,28 @@ function getWorksheet(workbook: ExcelJS.Workbook): ExcelJS.Worksheet {
   return worksheet;
 }
 
+function getTaxDetailsWorksheet(workbook: ExcelJS.Workbook): ExcelJS.Worksheet {
+  const worksheet = workbook.getWorksheet(INTERNAL_XLSX_TAX_DETAILS_WORKSHEET_NAME);
+
+  if (!worksheet) {
+    throw new ExportError(
+      EXPORT_ERROR_CODES.TEMPLATE_INVALID,
+      500,
+      "Internal XLSX tax details worksheet is missing.",
+    );
+  }
+
+  if (worksheet.getCell("A1").value !== "INTERNAL TAX DETAILS") {
+    throw new ExportError(
+      EXPORT_ERROR_CODES.TEMPLATE_INVALID,
+      500,
+      "Internal XLSX tax details worksheet does not match the pinned layout.",
+    );
+  }
+
+  return worksheet;
+}
+
 function assertCapacity(
   charges: readonly unknown[],
   rowRange: TemplateRowRange,
@@ -151,11 +187,36 @@ function assertSummaryMatchesCharges(
       totalBuyingVnd,
       AMOUNT_VND_SCALE,
     );
+    const sellingVatVnd = addDecimalStrings(
+      exportData.sellingCharges.map((charge) => charge.vatAmount),
+      AMOUNT_VND_SCALE,
+    );
+    const buyingVatVnd = addDecimalStrings(
+      exportData.buyingCharges.map((charge) => charge.vatAmount),
+      AMOUNT_VND_SCALE,
+    );
+    const sellingTotalIncludingVatVnd = addDecimalStrings(
+      exportData.sellingCharges.map((charge) => charge.totalIncludingVatVnd),
+      AMOUNT_VND_SCALE,
+    );
+    const buyingTotalIncludingVatVnd = addDecimalStrings(
+      exportData.buyingCharges.map((charge) => charge.totalIncludingVatVnd),
+      AMOUNT_VND_SCALE,
+    );
 
     if (
       totalSellingVnd !== exportData.summary.totalSellingVnd ||
       totalBuyingVnd !== exportData.summary.totalBuyingVnd ||
-      grossProfitVnd !== exportData.summary.grossProfitVnd
+      grossProfitVnd !== exportData.summary.grossProfitVnd ||
+      totalSellingVnd !== exportData.summary.sellingSubtotalExcludingVatVnd ||
+      totalBuyingVnd !== exportData.summary.buyingSubtotalExcludingVatVnd ||
+      sellingVatVnd !== exportData.summary.sellingVatVnd ||
+      buyingVatVnd !== exportData.summary.buyingVatVnd ||
+      sellingTotalIncludingVatVnd !==
+        exportData.summary.sellingTotalIncludingVatVnd ||
+      buyingTotalIncludingVatVnd !==
+        exportData.summary.buyingTotalIncludingVatVnd ||
+      grossProfitVnd !== exportData.summary.grossProfitExcludingVatVnd
     ) {
       throw new Error("Summary totals do not match charge rows.");
     }
@@ -211,6 +272,20 @@ function clearChargeRows(
   }
 }
 
+function clearTaxDetailRows(
+  worksheet: ExcelJS.Worksheet,
+  rowRange: TemplateRowRange,
+): void {
+  for (let rowNumber = rowRange.start; rowNumber <= rowRange.end; rowNumber += 1) {
+    const row = worksheet.getRow(rowNumber);
+    row.hidden = true;
+
+    for (const column of Object.values(INTERNAL_XLSX_TAX_DETAIL_COLUMNS)) {
+      worksheet.getCell(`${column}${rowNumber}`).value = null;
+    }
+  }
+}
+
 function formatChargeDescription(charge: InternalExportCharge): string {
   const quantityLine = `${charge.quantity}${charge.unit ? ` ${charge.unit}` : ""}`;
   const unitPriceLine = `${charge.unitPrice} ${charge.currency}`;
@@ -250,6 +325,54 @@ function writeChargeRows(
 
     worksheet.getCell(`D${rowNumber}`).value = toExcelNumber(charge.amountVnd);
     worksheet.getCell(`E${rowNumber}`).value = partyTextForCharge(charge);
+  });
+}
+
+function writeTaxDetailRows(
+  worksheet: ExcelJS.Worksheet,
+  rowRange: TemplateRowMapping,
+  sectionLabel: string,
+  charges: readonly InternalExportCharge[],
+): void {
+  clearTaxDetailRows(worksheet, rowRange);
+
+  const firstWrittenRow = rowRange.start;
+
+  charges.forEach((charge, index) => {
+    const rowNumber = firstWrittenRow + index;
+    const row = worksheet.getRow(rowNumber);
+    row.hidden = false;
+
+    worksheet.getCell(
+      `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.section}${rowNumber}`,
+    ).value = sectionLabel;
+    worksheet.getCell(
+      `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.chargeName}${rowNumber}`,
+    ).value = charge.chargeName;
+    worksheet.getCell(
+      `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.taxRule}${rowNumber}`,
+    ).value = formatTaxRuleSnapshotForExport(charge);
+    worksheet.getCell(
+      `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.taxTreatment}${rowNumber}`,
+    ).value = formatTaxTreatmentForExport(charge.taxTreatmentSnapshot);
+    worksheet.getCell(
+      `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.baseExcludingVatVnd}${rowNumber}`,
+    ).value = toExcelNumber(charge.amountVnd);
+    worksheet.getCell(
+      `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.vatPercent}${rowNumber}`,
+    ).value = toExcelNumber(charge.vatPercent);
+    worksheet.getCell(
+      `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.vatAmountVnd}${rowNumber}`,
+    ).value = toExcelNumber(charge.vatAmount);
+    worksheet.getCell(
+      `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.totalIncludingVatVnd}${rowNumber}`,
+    ).value = toExcelNumber(charge.totalIncludingVatVnd);
+    worksheet.getCell(
+      `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.overrideFlag}${rowNumber}`,
+    ).value = charge.isOverride ? "Override" : "";
+    worksheet.getCell(
+      `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.overrideReason}${rowNumber}`,
+    ).value = charge.overrideReason ?? "";
   });
 }
 
@@ -321,6 +444,31 @@ function writeFormulas(
   };
 }
 
+function writeTaxSummary(
+  worksheet: ExcelJS.Worksheet,
+  exportData: InternalShippingNoteExportDto,
+): void {
+  worksheet.getCell(
+    INTERNAL_XLSX_TAX_SUMMARY_CELLS.sellingSubtotalExcludingVatVnd,
+  ).value = toExcelNumber(exportData.summary.sellingSubtotalExcludingVatVnd);
+  worksheet.getCell(INTERNAL_XLSX_TAX_SUMMARY_CELLS.sellingVatVnd).value =
+    toExcelNumber(exportData.summary.sellingVatVnd);
+  worksheet.getCell(
+    INTERNAL_XLSX_TAX_SUMMARY_CELLS.sellingTotalIncludingVatVnd,
+  ).value = toExcelNumber(exportData.summary.sellingTotalIncludingVatVnd);
+  worksheet.getCell(
+    INTERNAL_XLSX_TAX_SUMMARY_CELLS.buyingSubtotalExcludingVatVnd,
+  ).value = toExcelNumber(exportData.summary.buyingSubtotalExcludingVatVnd);
+  worksheet.getCell(INTERNAL_XLSX_TAX_SUMMARY_CELLS.buyingVatVnd).value =
+    toExcelNumber(exportData.summary.buyingVatVnd);
+  worksheet.getCell(
+    INTERNAL_XLSX_TAX_SUMMARY_CELLS.buyingTotalIncludingVatVnd,
+  ).value = toExcelNumber(exportData.summary.buyingTotalIncludingVatVnd);
+  worksheet.getCell(
+    INTERNAL_XLSX_TAX_SUMMARY_CELLS.grossProfitExcludingVatVnd,
+  ).value = toExcelNumber(exportData.summary.grossProfitExcludingVatVnd, true);
+}
+
 export async function generateInternalShippingNoteXlsx(
   exportData: InternalShippingNoteExportDto,
   generatedAt = new Date(),
@@ -339,6 +487,7 @@ export async function generateInternalShippingNoteXlsx(
   workbook.calcProperties.fullCalcOnLoad = true;
 
   const worksheet = getWorksheet(workbook);
+  const taxDetailsWorksheet = getTaxDetailsWorksheet(workbook);
 
   writeHeader(worksheet, exportData);
   writeChargeRows(
@@ -357,6 +506,19 @@ export async function generateInternalShippingNoteXlsx(
       "",
   );
   writeFormulas(worksheet, exportData);
+  writeTaxDetailRows(
+    taxDetailsWorksheet,
+    INTERNAL_XLSX_TAX_DETAIL_SELLING_ROWS,
+    "Selling",
+    exportData.sellingCharges,
+  );
+  writeTaxDetailRows(
+    taxDetailsWorksheet,
+    INTERNAL_XLSX_TAX_DETAIL_BUYING_ROWS,
+    "Buying",
+    exportData.buyingCharges,
+  );
+  writeTaxSummary(taxDetailsWorksheet, exportData);
 
   const outputBuffer = Buffer.from(await workbook.xlsx.writeBuffer());
   const outputArrayBuffer = outputBuffer.buffer.slice(

@@ -9,6 +9,7 @@ import {
   submitShippingNote,
   updateBuyingCharge,
 } from "@/features/shipping-notes/mutations";
+import { getSellingChargesAndSummaryForNoteForUser } from "@/features/shipping-notes/queries";
 import {
   createBuyingChargeInputSchema,
   createSellingChargeInputSchema,
@@ -158,6 +159,37 @@ describe("hosted tax domain services", () => {
 
     const deactivated = await deactivateTaxRule(rule.id, actors.admin);
     expect(deactivated.isActive).toBe(false);
+    expect((await listTaxRulesForUser(actors.accountant)).some(
+      (taxRule) => taxRule.id === rule.id,
+    )).toBe(false);
+    expect((await listTaxRulesForUser(
+      actors.admin,
+      { activeOnly: false },
+    )).some((taxRule) => taxRule.id === rule.id)).toBe(true);
+
+    const activeRules = await listTaxRulesForUser(actors.accountant);
+    const sectionOrder = { selling: 0, buying: 1 };
+    const sortedRuleKeys = [...activeRules]
+      .sort((left, right) => {
+        const sectionDifference =
+          sectionOrder[left.chargeSection] - sectionOrder[right.chargeSection];
+
+        if (sectionDifference !== 0) {
+          return sectionDifference;
+        }
+
+        const modeDifference = left.shippingMode.localeCompare(right.shippingMode);
+
+        if (modeDifference !== 0) {
+          return modeDifference;
+        }
+
+        return left.code.localeCompare(right.code);
+      })
+      .map((taxRule) => `${taxRule.chargeSection}:${taxRule.shippingMode}:${taxRule.code}`);
+    expect(activeRules.map(
+      (taxRule) => `${taxRule.chargeSection}:${taxRule.shippingMode}:${taxRule.code}`,
+    )).toStrictEqual(sortedRuleKeys);
 
     const auditRows = await listAuditLogsForEntity("tax_rule", rule.id);
     expect(auditRows.map((row) => row.action)).toEqual(
@@ -192,6 +224,15 @@ describe("hosted tax domain services", () => {
       lineTotalIncludingVatVnd: "110.00",
       taxComplete: true,
     });
+    const saleSelling = await getSellingChargesAndSummaryForNoteForUser(
+      note.id,
+      actors.saleA,
+    );
+    expect(saleSelling.charges[0]).not.toHaveProperty("vatPercent");
+    expect(saleSelling.charges[0]).not.toHaveProperty("vatAmount");
+    expect(saleSelling.charges[0]).not.toHaveProperty("taxRuleId");
+    expect(saleSelling.charges[0]).not.toHaveProperty("taxTreatmentSnapshot");
+    expect(saleSelling.charges[0]).not.toHaveProperty("overrideReason");
     await expect(
       listChargeTaxDetailsForNoteForUser(note.id, actors.saleA),
     ).rejects.toBeInstanceOf(AuthorizationError);
@@ -216,6 +257,25 @@ describe("hosted tax domain services", () => {
         actors.accountant,
       ),
     ).rejects.toBeInstanceOf(AuthorizationError);
+  });
+
+  it("returns legacy unclassified accounting DTOs with null snapshots", async () => {
+    const { note } = await createSubmittedSellingNote("UNCLASSIFIED-DTO");
+
+    const [detail] = await listChargeTaxDetailsForNoteForUser(
+      note.id,
+      actors.accountant,
+    );
+
+    expect(detail).toMatchObject({
+      taxRuleId: null,
+      taxRuleCodeSnapshot: null,
+      taxRuleNameSnapshot: null,
+      taxTreatmentSnapshot: null,
+      vatPercent: "0.00",
+      vatAmount: "0.00",
+      taxComplete: false,
+    });
   });
 
   it("supports accountant/admin taxable VAT overrides with a required reason", async () => {
@@ -254,6 +314,13 @@ describe("hosted tax domain services", () => {
       isOverride: true,
       overrideReason: "Contract-specific VAT percentage",
       taxComplete: true,
+    });
+    expect((await listChargeTaxDetailsForNoteForUser(
+      overridden.shippingNoteId,
+      actors.admin,
+    )).find((row) => row.chargeId === charge.id)).toMatchObject({
+      isOverride: true,
+      overrideReason: "Contract-specific VAT percentage",
     });
 
     const auditRows = await listAuditLogsForEntity(
@@ -302,6 +369,27 @@ describe("hosted tax domain services", () => {
           chargeId: charge.id,
           vatPercent: "11.00",
           reason: "Too late",
+        }),
+        actors.accountant,
+      ),
+    ).rejects.toBeInstanceOf(AuthorizationError);
+  });
+
+  it("denies assigning inactive tax rules", async () => {
+    const inactiveRule = await createTaxRuleFixture({
+      runId,
+      label: "INACTIVE",
+      actor: actors.admin,
+      chargeSection: "selling",
+    });
+    await deactivateTaxRule(inactiveRule.id, actors.admin);
+    const { charge } = await createSubmittedSellingNote("INACTIVE-ASSIGN");
+
+    await expect(
+      assignChargeTaxRule(
+        assignChargeTaxRuleInputSchema.parse({
+          chargeId: charge.id,
+          taxRuleId: inactiveRule.id,
         }),
         actors.accountant,
       ),

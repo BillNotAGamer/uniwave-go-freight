@@ -6,20 +6,18 @@ import { db } from "@/lib/db/client";
 import { requirePermission } from "@/lib/permissions/require-permission";
 import { PERMISSIONS } from "@/lib/permissions/permissions";
 import { shippingNotes, shippingNoteCharges, type User as DbUser } from "@/lib/db/schema";
-import { summarizeFinancialCharges } from "@/lib/calculations/shipping-note";
-import type { FinancialSummaryChargeRow } from "../types";
 import { isInternalXlsxExportEligibleStatus } from "../status-policy";
-import type {
-  InternalExportCharge,
-  InternalExportBuyingCharge,
-  InternalShippingNoteExportDto,
-} from "./types";
+import {
+  buildInternalExportSections,
+  type InternalExportChargeSourceRow,
+} from "./read-model";
+import type { InternalShippingNoteExportDto } from "./types";
 
 /**
  * Server-only read model for the internal XLSX export.
  * Safely fetches the note and active charges in a single joined snapshot.
  * Requires exactly the SHIPPING_NOTES_EXPORT_INTERNAL permission.
- * Denies access if the note is not exactly in the 'checked' status.
+ * Denies access if the note is not in a finalized export-eligible status.
  */
 export async function getInternalShippingNoteExportDataForUser(
   noteId: string,
@@ -63,6 +61,13 @@ export async function getInternalShippingNoteExportDataForUser(
         amountOriginal: shippingNoteCharges.amountOriginal,
         amountVnd: shippingNoteCharges.amountVnd,
         vendorOrAgentText: shippingNoteCharges.vendorOrAgentText,
+        taxRuleCodeSnapshot: shippingNoteCharges.taxRuleCodeSnapshot,
+        taxRuleNameSnapshot: shippingNoteCharges.taxRuleNameSnapshot,
+        taxTreatmentSnapshot: shippingNoteCharges.taxTreatmentSnapshot,
+        vatPercent: shippingNoteCharges.vatPercent,
+        vatAmount: shippingNoteCharges.vatAmount,
+        isOverride: shippingNoteCharges.isOverride,
+        overrideReason: shippingNoteCharges.overrideReason,
         createdAt: shippingNoteCharges.createdAt,
       },
     })
@@ -85,60 +90,27 @@ export async function getInternalShippingNoteExportDataForUser(
 
   // 3. Strict status gate - no admin bypass
   if (!isInternalXlsxExportEligibleStatus(note.status)) {
-    throw new Error("Shipping note must be in 'checked' status to be exported.");
+    throw new Error(
+      "Shipping note must be in 'checked', 'approved', or 'locked' status to be exported.",
+    );
   }
 
   // 4. Group charges into arrays
-  const sellingCharges: InternalExportCharge[] = [];
-  const buyingCharges: InternalExportBuyingCharge[] = [];
-  const financialChargeRows: FinancialSummaryChargeRow[] = [];
+  const chargeRows: InternalExportChargeSourceRow[] = [];
 
   for (const row of rows) {
     if (!row.charge) continue;
-    const { charge } = row;
-
-    financialChargeRows.push({
-      section: charge.section,
-      currency: charge.currency,
-      amountOriginal: charge.amountOriginal,
-      amountVnd: charge.amountVnd,
-    });
-
-    if (charge.section === "selling") {
-      sellingCharges.push({
-        chargeName: charge.chargeName,
-        description: charge.description,
-        quantity: charge.quantity,
-        unit: charge.unit,
-        unitPrice: charge.unitPrice,
-        currency: charge.currency,
-        exchangeRate: charge.exchangeRate,
-        amountOriginal: charge.amountOriginal,
-        amountVnd: charge.amountVnd,
-      });
-    } else if (charge.section === "buying") {
-      buyingCharges.push({
-        chargeName: charge.chargeName,
-        description: charge.description,
-        quantity: charge.quantity,
-        unit: charge.unit,
-        unitPrice: charge.unitPrice,
-        currency: charge.currency,
-        exchangeRate: charge.exchangeRate,
-        amountOriginal: charge.amountOriginal,
-        amountVnd: charge.amountVnd,
-        vendorOrAgentText: charge.vendorOrAgentText,
-      });
-    }
+    chargeRows.push(row.charge);
   }
 
   // 5. Derive financial summary using bigint-safe helpers
-  const summary = summarizeFinancialCharges(financialChargeRows);
+  const { sellingCharges, buyingCharges, summary } =
+    buildInternalExportSections(chargeRows);
 
   return {
     note: {
       ...note,
-      status: "checked",
+      status: note.status,
     },
     sellingCharges,
     buyingCharges,

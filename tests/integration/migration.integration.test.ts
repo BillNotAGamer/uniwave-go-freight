@@ -63,6 +63,8 @@ describe("hosted database migration verification", () => {
           'users_email_unique',
           'shipping_notes_jobsheet_no_unique',
           'shipping_notes_created_by_id_users_id_fk',
+          'shipping_notes_locked_by_id_users_id_fk',
+          'shipping_notes_cancelled_by_id_users_id_fk',
           'shipping_note_charges_shipping_note_id_shipping_notes_id_fk',
           'audit_logs_actor_user_id_users_id_fk'
           ,'shipping_note_charges_tax_rule_id_tax_rules_id_fk'
@@ -74,6 +76,8 @@ describe("hosted database migration verification", () => {
         "users_email_unique",
         "shipping_notes_jobsheet_no_unique",
         "shipping_notes_created_by_id_users_id_fk",
+        "shipping_notes_locked_by_id_users_id_fk",
+        "shipping_notes_cancelled_by_id_users_id_fk",
         "shipping_note_charges_shipping_note_id_shipping_notes_id_fk",
         "audit_logs_actor_user_id_users_id_fk",
         "shipping_note_charges_tax_rule_id_tax_rules_id_fk",
@@ -144,5 +148,53 @@ describe("hosted database migration verification", () => {
       "zero_rated",
       "non_taxable",
     ]);
+  });
+
+  it("has post-checked workflow metadata columns on shipping notes", async () => {
+    await ensureDatabaseReady();
+
+    const columns = await queryRows<{
+      column_name: string;
+      is_nullable: string;
+      udt_name: string;
+    }>(sql`
+      select column_name, is_nullable, udt_name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'shipping_notes'
+        and column_name in (
+          'checked_at',
+          'approved_at',
+          'locked_by_id',
+          'lock_reason',
+          'cancelled_by_id',
+          'cancelled_at',
+          'cancel_reason'
+        )
+    `);
+
+    expect(new Set(columns.map((row) => row.column_name))).toEqual(new Set([
+      "checked_at",
+      "approved_at",
+      "locked_by_id",
+      "lock_reason",
+      "cancelled_by_id",
+      "cancelled_at",
+      "cancel_reason",
+    ]));
+
+    for (const column of columns) {
+      expect(column.is_nullable).toBe("YES");
+    }
+
+    expect(columns.find((row) => row.column_name === "checked_at")?.udt_name).toBe(
+      "timestamp",
+    );
+    expect(columns.find((row) => row.column_name === "approved_at")?.udt_name).toBe(
+      "timestamp",
+    );
+    expect(columns.find((row) => row.column_name === "cancelled_at")?.udt_name).toBe(
+      "timestamp",
+    );
   });
 });

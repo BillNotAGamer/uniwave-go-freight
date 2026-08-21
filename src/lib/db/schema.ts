@@ -203,10 +203,21 @@ export const shippingNotes = pgTable(
     checkedById: text("checked_by_id").references(() => users.id, {
       onDelete: "set null",
     }),
+    checkedAt: timestamp("checked_at", { mode: "date", precision: 3 }),
     approvedById: text("approved_by_id").references(() => users.id, {
       onDelete: "set null",
     }),
+    approvedAt: timestamp("approved_at", { mode: "date", precision: 3 }),
+    lockedById: text("locked_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     lockedAt: timestamp("locked_at", { mode: "date", precision: 3 }),
+    lockReason: text("lock_reason"),
+    cancelledById: text("cancelled_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    cancelledAt: timestamp("cancelled_at", { mode: "date", precision: 3 }),
+    cancelReason: text("cancel_reason"),
     createdAt,
     updatedAt,
     deletedAt,

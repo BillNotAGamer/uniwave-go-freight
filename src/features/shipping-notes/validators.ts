@@ -32,6 +32,17 @@ function optionalTrimmedTextWithMax(maxLength: number) {
   }, z.string().trim().min(1).max(maxLength));
 }
 
+function optionalWorkflowReason() {
+  return z.preprocess((value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }, z.string().min(1).optional());
+}
+
 function optionalDatetime() {
   return z.preprocess((value) => {
     if (value === undefined || value === null || value === "") {
@@ -163,6 +174,38 @@ export const markShippingNoteCheckedInputSchema = z.object({
   id: z.string().trim().min(1),
 });
 
+export const approveShippingNoteInputSchema = z.object({
+  id: z.string().trim().min(1),
+});
+
+export const lockShippingNoteInputSchema = z.object({
+  id: z.string().trim().min(1),
+  lockReason: optionalWorkflowReason(),
+});
+
+export const unlockShippingNoteInputSchema = z.object({
+  id: z.string().trim().min(1),
+  unlockReason: z.string().trim().min(1, "Unlock reason is required."),
+});
+
+export const cancelShippingNoteInputSchema = z.object({
+  id: z.string().trim().min(1),
+  expectedStatus: z.enum(["draft", "submitted", "accounting_reviewing"]),
+  cancelReason: optionalWorkflowReason(),
+});
+
+export const cancelFinalizedShippingNoteInputSchema = z.object({
+  id: z.string().trim().min(1),
+  expectedStatus: z.enum(["checked", "approved"]),
+  cancelReason: z.string().trim().min(1, "Cancellation reason is required."),
+});
+
+export const reopenShippingNoteForCorrectionInputSchema = z.object({
+  id: z.string().trim().min(1),
+  expectedStatus: z.enum(["checked", "approved"]),
+  reason: z.string().trim().min(1, "Correction reason is required."),
+});
+
 export type ShippingNoteDraftInput = z.infer<typeof shippingNoteDraftInputSchema>;
 export type CreateShippingNoteDraftInput = z.infer<
   typeof createShippingNoteDraftInputSchema
@@ -176,6 +219,22 @@ export type StartAccountingReviewInput = z.infer<
 >;
 export type MarkShippingNoteCheckedInput = z.infer<
   typeof markShippingNoteCheckedInputSchema
+>;
+export type ApproveShippingNoteInput = z.infer<
+  typeof approveShippingNoteInputSchema
+>;
+export type LockShippingNoteInput = z.infer<typeof lockShippingNoteInputSchema>;
+export type UnlockShippingNoteInput = z.infer<
+  typeof unlockShippingNoteInputSchema
+>;
+export type CancelShippingNoteInput = z.infer<
+  typeof cancelShippingNoteInputSchema
+>;
+export type CancelFinalizedShippingNoteInput = z.infer<
+  typeof cancelFinalizedShippingNoteInputSchema
+>;
+export type ReopenShippingNoteForCorrectionInput = z.infer<
+  typeof reopenShippingNoteForCorrectionInputSchema
 >;
 
 // ---------------------------------------------------------------------------

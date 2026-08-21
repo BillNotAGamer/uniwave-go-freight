@@ -26,13 +26,13 @@
 
 ## B. Executive Status
 
-- Actual current project maturity: uneven. Foundation, auth, shipping-note drafts, charge CRUD/calculations, VAT/tax domain foundation, accounting review start/check, audit writes, internal XLSX export, unit/policy tests, and hosted database integration tests are implemented and passing against the authorized hosted test/staging database. Admin user management UI, VAT/tax UI, approval/lock/cancel transitions, PDF export, Google Drive integration, CI, and deployment hardening are not implemented.
-- Most advanced implemented phase: Phase 7, but only the internal XLSX subset.
+- Actual current project maturity: uneven. Foundation, auth, shipping-note drafts, charge CRUD/calculations, VAT/tax domain foundation and UI, accounting review start/check/approval/lock/unlock/cancellation/reopen-for-correction, audit writes, tax-complete internal XLSX export, generated internal PDF export, unit/policy tests, and hosted database integration tests are implemented. Admin user management UI, Google Drive integration, CI, and deployment hardening are not implemented.
+- Most advanced implemented phase: Phase 7B generated internal PDF export.
 - Most advanced verified phase: Phase 6 partial behavior is live database-verified for the currently implemented workflow through `checked`; Phase 7 internal XLSX export-data eligibility is live database-verified for checked notes.
-- Phase 7 implemented: PARTIAL. Internal XLSX export exists; PDF export does not.
+- Phase 7 implemented: PARTIAL. Internal XLSX V2, internal print HTML, and generated internal PDF V1 exist; Google Drive upload does not.
 - Phase 8 implemented: DOCUMENTED ONLY. Environment placeholders and DB columns exist, but no Google Drive integration code was found.
 - Phase 9 implemented: PARTIAL. Audit-log writes, unit/policy tests, and hosted database integration tests exist and pass; CI, audit-log viewer, browser E2E, and deployment hardening are missing.
-- Main blockers: missing VAT/tax UI/export mapping, missing post-checked workflow transitions, no user-management UI, no browser/session regression suite.
+- Main blockers: Google Drive upload, no user-management UI, no browser/session regression suite.
 - Main security risks: no route-protection middleware backstop, no browser/session regression tests, no user-management implementation for deactivation/role changes/session invalidation.
 - Recommended immediate next step: define and implement the remaining Phase 6 accounting workflow decisions, starting with VAT/tax behavior.
 
@@ -128,18 +128,137 @@
 - Unit result: `npm test` passed 12 files / 58 tests.
 - Remaining VAT/tax gaps: no UI controls, no export template changes, no automatic rule matching, no legal tax-rate content, no tax liability/payable/recoverable reporting.
 
+## Phase 6B.2 Accounting VAT/Tax UI
+
+- Implementation date: 2026-07-29
+- Route added: `/tax-rules`
+- Status impact: VAT/tax is now usable through an accountant/admin UI layer backed by the Phase 6B.1 services.
+- Accountant behavior: read-only active tax-rule table; shipping-note tax completeness, tax charge tables, rule assignment, taxable VAT override with reason, and VAT-aware summaries.
+- Admin behavior: active/inactive tax-rule table with create/edit/deactivate controls, plus all accountant charge-tax operations during submitted/accounting-reviewing statuses.
+- Sale behavior: no Tax Rules navigation, direct route denied server-side, existing sale charge DTOs and components still receive no tax fields.
+- Checked behavior: tax controls are read-only; Mark Checked is disabled in the UI when loaded tax completeness is incomplete, while the server mutation remains authoritative.
+- Remaining VAT/tax gaps: XLSX/PDF tax mapping, full browser E2E, Better Auth HTTP/session E2E, no automatic matching, no official tax-rate seed, no checked override.
+
+## Phase 7A Tax-Complete Internal Export V2
+
+- Implementation date: 2026-08-09
+- Branch: `feature/ui-overhaul`
+- Starting commit: `3b0ff2c841806ff0a6fe6b1b2d64c9fa83c30e8d`
+- Status impact: internal accounting XLSX and internal print HTML now represent persisted VAT/tax snapshots for checked notes.
+- XLSX template: `assets/export-templates/shipping-note/internal-v2.xlsx`
+- XLSX template version: `internal-v2`
+- XLSX template SHA-256: `CFC150C44E49A368433D6295BE6FB2F70876139F8A7A70D0FE97963076284E57`
+- Workbook mapping: existing `AK` sheet is preserved; new `Tax Details` worksheet contains selling/buying tax detail rows and summary rows for subtotal excluding VAT, VAT, total including VAT, and gross profit excluding VAT.
+- Print mapping: internal print view now shows base amount excluding VAT, stored tax rule/treatment, VAT percent, VAT amount, total including VAT, override flag/reason, and VAT-aware summaries.
+- Historical behavior: export uses persisted charge snapshots only and does not resolve current live `tax_rules` rows.
+- Validation: `npm test` passed 15 files / 69 tests; `npm run typecheck`, `npm run lint`, and `npm run build` passed.
+- Integration status: `npm run test:integration` and `npm run test:all` were skipped because this run did not include explicit authorization for the configured database as test/staging.
+- Remaining gaps: Google Drive upload, browser E2E, Better Auth HTTP/session E2E, pending-export crash recovery, admin user management, and audit viewer.
+
+## Phase 7B Generated Internal PDF Export V1
+
+- Implementation date: 2026-08-21
+- Branch: `feature/ui-overhaul`
+- Starting commit: `3b0ff2c841806ff0a6fe6b1b2d64c9fa83c30e8d`
+- Status impact: no Shipping Note workflow status changes were added; PDF generation never transitions a note to `exported`.
+- Engine: server-side `@react-pdf/renderer` 4.6.1 on the Node route runtime.
+- PDF contract: `exportType = pdf`, metadata version `1`, layout identifier `internal-pdf-v1`, MIME `application/pdf`.
+- Font contract: local Noto Sans Regular/Bold TTF files in `assets/fonts/noto-sans/`, licensed under SIL OFL 1.1, traced only for the PDF route.
+- Data behavior: PDF uses the existing `getInternalShippingNoteExportDataForUser` read model, persisted charge-level tax snapshots, canonical summary values, VAT/tax-inclusive totals, and stored override reasons.
+- Export behavior: internal XLSX, internal PDF, and internal print eligibility is `checked | approved | locked`. `cancelled`, `accounting_reviewing`, and `exported` remain non-exportable for new artifacts.
+- RBAC: Sale is denied; Accountant/Admin can export eligible finalized notes through `SHIPPING_NOTES_EXPORT_INTERNAL`.
+- Persistence and audit: PDF writes `shipping_note_exports` pending/generated/failed records with SHA-256 checksum and `shipping_note.export.pdf.generated` / `shipping_note.export.pdf.failed` audit events.
+- UI behavior: finalized note detail exposes separate `Export XLSX`, `Export PDF`, and `Print` controls.
+- Validation: focused tests passed 5 files / 27 tests; full `npm test` passed 18 files / 90 tests; `npm run typecheck`, `npm run lint`, and `npm run build` passed.
+- Integration status: production-path integration tests were extended but `npm run test:integration` and `npm run test:all` were not run because this conversation did not authorize the configured database as test/staging.
+- Migration status: no new migration was created; `drizzle/0003_hard_titania.sql` was not applied in this conversation.
+
+## Phase 6C.1 Post-Checked Workflow Foundation
+
+- Implementation date: 2026-08-13
+- Branch: `feature/ui-overhaul`
+- Starting commit: `3b0ff2c841806ff0a6fe6b1b2d64c9fa83c30e8d`
+- Status impact: no new reachable workflow transitions were added. The implemented workflow remains `draft -> submitted -> accounting_reviewing -> checked`.
+- Schema impact: additive migration `drizzle/0003_hard_titania.sql` adds nullable transition metadata columns on `shipping_notes`: `checked_at`, `approved_at`, `locked_by_id`, `lock_reason`, `cancelled_by_id`, `cancelled_at`, and `cancel_reason`.
+- Checked behavior: new checked transitions persist `checked_at` atomically with `checked_by_id`, status update, and audit logging.
+- Permission impact: future capability constants exist for approval, lock, unlock, cancellation, finalized cancellation, and reopen-for-correction; no approve/lock/unlock/reopen capability is granted to sale or accountant.
+- Export behavior at Phase 6C.1: internal XLSX eligibility remained checked-only; Phase 6C.2 supersedes this to `checked | approved`. `exported` remains outside the normal Shipping Note business workflow policy.
+- Validation: `npm test` passed 17 files / 79 tests; `npm run typecheck`, `npm run lint`, and `npm run build` passed.
+- Integration status: `npm run test:integration` and `npm run test:all` were not run because this conversation did not authorize the configured database as test/staging.
+
+## Phase 6C.2 Approval Transition + Export Compatibility
+
+- Implementation date: 2026-08-14
+- Branch: `feature/ui-overhaul`
+- Starting commit: `3b0ff2c841806ff0a6fe6b1b2d64c9fa83c30e8d`
+- Status impact: `checked -> approved` is now operational. No other post-checked transition was added.
+- Approval policy: Admin only via `SHIPPING_NOTES_APPROVE`; Sale and Accountant are denied; the same Admin may check and approve; no approval reason is required.
+- Mutation behavior: approval uses a guarded `checked`-only update, persists `approved_by_id`, `approved_at`, and `updated_at` with one logical timestamp, and writes `shipping_note.approve` in the same transaction.
+- Data behavior: approval does not recalculate selling, buying, VAT, tax snapshots, profit, or tax completeness.
+- Export behavior: internal XLSX and internal print eligibility is now `checked | approved`. `locked`, `cancelled`, and `exported` remain non-exportable in Phase 6C.2.
+- Phase 7A artifact behavior: template version `internal-v2`, metadata version `2`, pinned SHA-256, workbook mapping, and print tax semantics are unchanged.
+- Validation: focused tests passed 5 files / 31 tests; `npm test` passed 17 files / 79 tests; `npm run typecheck`, `npm run lint`, and `npm run build` passed.
+- Integration status: production-path integration tests were extended but `npm run test:integration` and `npm run test:all` were not run because this conversation did not authorize the configured database as test/staging.
+- Migration status: no new migration was created; `drizzle/0003_hard_titania.sql` was not applied in this conversation.
+
+## Phase 6C.3 Lock / Unlock + Locked Export Compatibility
+
+- Implementation date: 2026-08-14
+- Branch: `feature/ui-overhaul`
+- Starting commit: `3b0ff2c841806ff0a6fe6b1b2d64c9fa83c30e8d`
+- Status impact: `approved -> locked` and privileged `locked -> approved` are now operational. No cancellation, correction, or exported transition was added.
+- Corrected lock policy: only Approved notes can lock. Checked notes cannot lock because unlock returns to Approved and must not imply approval without `shipping_note.approve`.
+- Lock policy: Admin only via `SHIPPING_NOTES_LOCK`; lock reason is optional and blank input persists as `null`.
+- Unlock policy: Admin only via `SHIPPING_NOTES_UNLOCK`; unlock reason is mandatory and preserved on `shipping_note.unlock` audit logs; current lock metadata is cleared.
+- Data behavior: locked notes remain readable to permitted roles and immutable through normal note, charge, buying, tax, mark-checked, and approval mutation guards.
+- Export behavior: internal XLSX and internal print eligibility is now `checked | approved | locked`. `cancelled` and `exported` remain non-exportable.
+- Validation: focused tests passed 5 files / 32 tests; `npm test` passed 17 files / 80 tests; `npm run typecheck`, `npm run lint`, and `npm run build` passed.
+- Integration status: production-path integration tests were extended but `npm run test:integration` and `npm run test:all` were not run because this conversation did not authorize the configured database as test/staging.
+- Migration status: no new migration was created; `drizzle/0003_hard_titania.sql` was not applied in this conversation.
+
+## Phase 6C.4 Shipping Note Cancellation
+
+- Implementation date: 2026-08-14
+- Branch: `feature/ui-overhaul`
+- Starting commit: `3b0ff2c841806ff0a6fe6b1b2d64c9fa83c30e8d`
+- Status impact: `cancelled` is now operational as a terminal business state. It is not soft deletion.
+- Normal cancellation policy: Sale may cancel only their own Draft with optional reason; Accountant/Admin may cancel Submitted or Accounting Reviewing with mandatory reason; Admin may cancel Draft with mandatory reason.
+- Finalized cancellation policy: Admin may cancel Checked or Approved with mandatory reason. Sale and Accountant are denied finalized cancellation.
+- Locked cancellation: denied directly; the required path is existing Admin unlock back to Approved, then finalized cancellation.
+- Persistence and audit: cancellation writes `cancelled_by_id`, `cancelled_at`, `cancel_reason`, `updated_at`, and `shipping_note.cancel` in one transaction with an expected-source status guard.
+- Data preservation: cancellation does not set `deleted_at`, recalculate tax/financial data, clear charge/tax rows, clear checked/approval metadata, or modify historical export records.
+- Read/export behavior: Accountant/Admin retain read-only historical accounting access on Cancelled notes; Sale remains limited to safe owned-note data. New internal XLSX and print exports are denied for Cancelled notes.
+- Validation: focused tests passed 5 files / 34 tests; `npm run typecheck` and `npm run lint` passed before docs/report updates. Full `npm test`, final `npm run typecheck`, final `npm run lint`, and `npm run build` are reported in the Phase 6C.4 audit report.
+- Integration status: production-path integration tests were extended but `npm run test:integration` and `npm run test:all` were not run because this conversation did not authorize the configured database as test/staging.
+- Migration status: no new migration was created; `drizzle/0003_hard_titania.sql` was not applied in this conversation.
+
+## Phase 6C.5 Reopen for Accounting Correction
+
+- Implementation date: 2026-08-14
+- Branch: `feature/ui-overhaul`
+- Starting commit: `3b0ff2c841806ff0a6fe6b1b2d64c9fa83c30e8d`
+- Status impact: Admin-only `checked -> accounting_reviewing` and `approved -> accounting_reviewing` are now operational for explicit accounting correction.
+- Permission: `SHIPPING_NOTES_REOPEN_FOR_CORRECTION`; Sale and Accountant are denied.
+- Reason policy: mandatory correction reason; blank and whitespace-only reasons are rejected.
+- Metadata behavior: reopen clears current `checked_by_id`, `checked_at`, `approved_by_id`, and `approved_at`; `submitted_at`, charges, tax snapshots, cancellation metadata, and export records are not modified.
+- Correction scope: buying charges and tax/VAT mutation become available again through existing Accounting Reviewing policies; Shipping Note core fields and selling charges remain Draft-only.
+- Export behavior: Accounting Reviewing remains non-exportable; historical export records remain unchanged; export becomes available again after the existing Mark Checked transition.
+- Locked/Cancelled behavior: Locked cannot reopen directly and must be unlocked to Approved first; Cancelled remains terminal and cannot reopen.
+- Integration status: production-path integration tests were extended but `npm run test:integration` and `npm run test:all` were not run because this conversation did not authorize the configured database as test/staging.
+- Migration status: no new migration was created; `drizzle/0003_hard_titania.sql` was not applied in this conversation.
+
 ## C. Build Phase Matrix
 
 | Phase | Status | Key implemented components | Missing components | Verification evidence | Blocking issues |
 | --- | --- | --- | --- | --- | --- |
 | 0 - Repository audit/bootstrap | VERIFIED | Coherent Next.js/TypeScript repository with docs, migrations, scripts, and source boundaries. | No committed CI or deployment config. | `rg --files`; `package.json:5-15`; `src/`, `drizzle/`, `docs/`. | None for local development. |
 | 1 - Minimal Next.js foundation | VERIFIED | App Router, TypeScript strict, Tailwind v4, auth/dashboard route groups, shell layout. | shadcn is compatible by structure, not installed as a generated component set. | `src/app/(dashboard)/layout.tsx:9-11`; `src/app/(auth)/login/page.tsx:6-29`; `npm run build` passed. | None. |
-| 2 - Database and core schema | PARTIAL | Drizzle schema and 3 migrations for users/auth, shipping notes, charges, exports, audit logs, tax rules, tax treatment enum, and charge tax snapshots. | Separate `shipping_note_parties`; accounting periods; checked/approved timestamp fields. | `src/lib/db/schema.ts`; `drizzle/0002_jittery_paper_doll.sql`; hosted migration tests passed. | Schema diverges from `DATA_MODEL_RULES.md` on parties and timestamps. |
+| 2 - Database and core schema | PARTIAL | Drizzle schema and 4 migrations for users/auth, shipping notes, charges, exports, audit logs, tax rules, tax treatment enum, charge tax snapshots, and post-checked workflow metadata. | Separate `shipping_note_parties`; accounting periods. | `src/lib/db/schema.ts`; `drizzle/0003_hard_titania.sql`; hosted migration tests were extended but not executed in Phase 6C.1 because no current DB authorization was provided. | Schema still diverges from `DATA_MODEL_RULES.md` on parties and accounting periods. |
 | 3 - Authentication and RBAC | PARTIAL | Better Auth, disabled public signup by default, active-user session recheck, role permission map, server authorization helpers, bootstrap scripts. | Admin user-management UI, role-change workflow, session invalidation on role changes, middleware backstop, tests. | `src/lib/auth/server.ts:11-47`; `src/lib/auth/session.ts:18-59`; `src/lib/permissions/permissions.ts:30-52`; `scripts/create-first-admin.ts:87-144`. | Admin management objective not implemented. |
 | 4 - Shipping note form MVP | IMPLEMENTED - LIVE DB VERIFIED | List, create draft, edit draft, detail, submit; Zod server action parsing; draft-only server enforcement. | Browser form workflows, concurrency/stale-data handling, party table. | `src/features/shipping-notes/actions.ts:53-173`; `src/features/shipping-notes/mutations.ts:113-270`; `src/features/shipping-notes/validators.ts:129-155`; `npm run test:integration` passed 6 files / 28 tests. | Browser and concurrency coverage still missing. |
 | 5 - Charge calculation engine | IMPLEMENTED - UNIT AND LIVE DB VERIFIED | BigInt decimal helpers, charge amount calculation, selling and buying charge CRUD, summaries, profit derivation, server-computed amounts. | VAT/tax; override reasons. | `src/lib/calculations/decimal.ts:25-201`; `src/lib/calculations/money.ts:141-186`; `src/lib/calculations/shipping-note.ts:42-100`; `npm test` covers pure helpers; `npm run test:integration` verifies persisted charge rows and summaries. | VAT/tax and overrides remain unimplemented. |
-| 6 - Accounting review | PARTIAL - LIVE DB VERIFIED FOR CURRENT FLOW | Accountant/admin can view buying charges and financial summary; transitions `submitted -> accounting_reviewing -> checked`; buying charge management; tax-rule services; charge tax assignment/override; checked tax completeness. | VAT/tax UI, approve/export/lock/cancel transitions, accounting filters, accounting periods. | `src/features/shipping-notes/mutations.ts`; `src/features/shipping-notes/tax/**`; `src/features/tax-rules/**`; integration tests passed against hosted PostgreSQL. | Blocks clean claim of full accounting workflow completion. |
-| 7 - Excel/PDF export | PARTIAL | Internal XLSX template mapping, hash pinning, same-origin check, sanitized export errors, export records and audit events, print view. | PDF export; Drive upload; background/queue architecture if exports become heavy; template tests. | `src/features/shipping-notes/export/generator.ts:92-404`; `src/app/api/shipping-notes/[id]/exports/internal-xlsx/route.ts:103-189`; `src/app/(print)/shipping-notes/[id]/print/internal/page.tsx:173-288`. | Phase 7 is not complete because PDF is absent. |
+| 6 - Accounting review | PARTIAL - LIVE DB VERIFIED FOR CURRENT FLOW | Accountant/admin can view buying charges and financial summary; transitions `submitted -> accounting_reviewing -> checked`; Admin-only `checked -> approved`; Admin-only `approved -> locked` and `locked -> approved`; Admin-only Checked/Approved reopen to Accounting Reviewing; contextual cancellation to `cancelled`; buying charge management; tax-rule services and UI; charge tax assignment/override UI; checked tax completeness UX. | Accounting filters, accounting periods, browser E2E. | `src/features/shipping-notes/mutations.ts`; `src/features/shipping-notes/actions.ts`; `src/features/shipping-notes/status-policy.ts`; Phase 6C.5 unit tests passed; integration tests were extended but not run in this conversation. | Blocks clean claim of full accounting workflow completion. |
+| 7 - Excel/PDF export | PARTIAL | Tax-complete internal XLSX V2 template mapping, generated internal PDF V1, hash/font tracing, same-origin checks, sanitized export errors, export records and audit events, VAT-aware print view. | Drive upload; background/queue architecture if exports become heavy; live DB/browser export workflow verification. | `src/features/shipping-notes/export/generator.ts`; `src/features/shipping-notes/export/pdf/generator.tsx`; `src/features/shipping-notes/export/read-model.ts`; `src/app/api/shipping-notes/[id]/exports/internal-xlsx/route.ts`; `src/app/api/shipping-notes/[id]/exports/internal-pdf/route.ts`; `src/app/(print)/shipping-notes/[id]/print/internal/page.tsx`; Phase 7B `npm test` passed 18 files / 90 tests on 2026-08-21. | Phase 7 is not complete because Drive upload is absent. |
 | 8 - Google Drive integration | DOCUMENTED ONLY | `.env.example` placeholders and export DB columns. | Google API client, credential/token strategy, upload flow, retries, persistence usage. | `.env.example:13-17`; `src/lib/db/schema.ts:272-273`; repo search found no `googleapis` or Drive integration code. | Entire integration is unbuilt. |
 | 9 - Audit, QA, hardening | PARTIAL | Audit write helper and audit writes inside mutations/export status updates; Vitest unit/policy test foundation; hosted database integration tests. | CI, audit viewer, seed/dev QA data, browser E2E, deployment checklist, observability. | `src/lib/audit/log.ts:28-41`; mutation/export audit calls in `src/features/shipping-notes/mutations.ts` and `src/features/shipping-notes/export/mutations.ts:112-176`; `npm test` covers 9 files / 46 tests; `npm run test:integration` covers 6 files / 28 tests. | No browser workflow regression suite yet. |
 
@@ -217,7 +336,7 @@ See the finding IDs below; these are repeated in the final audit report.
 
 - F-P1-01: VAT/tax UI and export mapping are still missing; the Phase 6B.1 service foundation is implemented.
 - F-P1-02: Workflow cannot progress past `checked`; approve/export/lock/cancel transitions are missing.
-- F-P1-03: Phase 7 is only partial because PDF export is absent.
+- F-P1-03: Phase 7 is still partial because Google Drive upload is absent, although internal XLSX, internal print, and generated internal PDF export now exist.
 
 ### P2 - Medium
 
@@ -275,7 +394,7 @@ See the finding IDs below; these are repeated in the final audit report.
 ## J. Documentation Discrepancies
 
 - `docs/BUILD_PHASES.md:35-41` lists parties as a Phase 2 schema objective; implementation stores party text fields directly on `shipping_notes` and has no `shipping_note_parties` table (`src/lib/db/schema.ts:175-178`).
-- `docs/DATA_MODEL_RULES.md:41-44` references `checked_at`, `approved_at`, and `locked_at`; implementation has `checkedById`, `approvedById`, and `lockedAt`, but no checked/approved timestamp columns (`src/lib/db/schema.ts:197-203`).
+- `docs/DATA_MODEL_RULES.md:41-44` references `checked_at`, `approved_at`, and `locked_at`; Phase 6C.1 now adds checked and approved timestamps plus lock/cancel metadata, but accounting periods and separate parties remain absent.
 - `docs/BUILD_PHASES.md:98-100` describes VAT/tax and lock statuses as Phase 6 objectives; implementation now has review/check plus VAT/tax domain services, but VAT/tax UI and lock/future statuses remain incomplete.
 - `docs/BUILD_PHASES.md:108-112` describes Excel and PDF export; implementation has internal XLSX only and schema enum value `"pdf"` only (`src/lib/db/schema.ts:67`, export modules under `src/features/shipping-notes/export/`).
 - `docs/PROJECT_BRIEF.md:40,86-87` includes Google Drive; implementation has only env placeholders and DB columns (`.env.example:13-17`, `src/lib/db/schema.ts:272-273`).

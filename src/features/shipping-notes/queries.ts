@@ -18,6 +18,7 @@ import type {
   FinancialSummaryChargeRow,
   SellingChargeDetail,
   ShippingNoteDetail,
+  ShippingNoteCancellationMetadata,
   ShippingNoteListItem,
   SellingChargeSummary,
 } from "./types";
@@ -33,6 +34,7 @@ const FINANCIAL_SUMMARY_ELIGIBLE_STATUSES = new Set<ShippingNoteStatus>([
   "approved",
   "exported",
   "locked",
+  "cancelled",
 ]);
 
 function getShippingNoteAccessConditions(user: DbUser) {
@@ -113,6 +115,31 @@ export async function getShippingNoteById(
 }
 
 export const shippingNoteDetailSelect = shippingNoteDetailColumns;
+
+export async function getCancellationMetadataForNoteForUser(
+  noteId: string,
+  user: DbUser,
+): Promise<ShippingNoteCancellationMetadata | null> {
+  requireAnyPermission(user.role, PERMISSIONS.SHIPPING_NOTES_READ_ALL);
+
+  const note = await getShippingNoteForUser(noteId, user);
+
+  if (!note || note.status !== "cancelled") {
+    return null;
+  }
+
+  const [row] = await db
+    .select({
+      cancelledById: shippingNotes.cancelledById,
+      cancelledAt: shippingNotes.cancelledAt,
+      cancelReason: shippingNotes.cancelReason,
+    })
+    .from(shippingNotes)
+    .where(and(eq(shippingNotes.id, noteId), isNull(shippingNotes.deletedAt)))
+    .limit(1);
+
+  return row ?? null;
+}
 
 // ---------------------------------------------------------------------------
 // Selling charge queries

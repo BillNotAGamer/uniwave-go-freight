@@ -7,12 +7,18 @@ import { requireAuthenticatedUser } from "@/lib/auth/session";
 
 import { readFormString } from "./form-data";
 import {
+  approveShippingNote,
+  cancelFinalizedShippingNote,
+  cancelShippingNote,
   createBuyingChargeForNote,
   createShippingNoteDraft,
+  lockShippingNote,
   markShippingNoteChecked,
+  reopenShippingNoteForCorrection,
   softDeleteBuyingCharge,
   startAccountingReview,
   submitShippingNote,
+  unlockShippingNote,
   updateBuyingCharge,
   updateShippingNoteDraft,
   createSellingChargeForNote,
@@ -20,14 +26,20 @@ import {
   softDeleteSellingCharge,
 } from "./mutations";
 import {
+  approveShippingNoteInputSchema,
+  cancelFinalizedShippingNoteInputSchema,
+  cancelShippingNoteInputSchema,
   createBuyingChargeInputSchema,
   createShippingNoteDraftInputSchema,
   deleteBuyingChargeInputSchema,
   createSellingChargeInputSchema,
+  lockShippingNoteInputSchema,
   markShippingNoteCheckedInputSchema,
+  reopenShippingNoteForCorrectionInputSchema,
   deleteSellingChargeInputSchema,
   startAccountingReviewInputSchema,
   submitShippingNoteInputSchema,
+  unlockShippingNoteInputSchema,
   updateBuyingChargeInputSchema,
   updateShippingNoteDraftInputSchema,
   updateSellingChargeInputSchema,
@@ -222,6 +234,222 @@ export async function markShippingNoteCheckedAction(
 
   try {
     const note = await markShippingNoteChecked(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  return { ok: true };
+}
+
+export async function approveShippingNoteAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = approveShippingNoteInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid shipping note selection.",
+    };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await approveShippingNote(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  return { ok: true };
+}
+
+export async function lockShippingNoteAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = lockShippingNoteInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+    lockReason: readFormString(formData, "lockReason"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid shipping note selection.",
+    };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await lockShippingNote(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  return { ok: true };
+}
+
+export async function unlockShippingNoteAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = unlockShippingNoteInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+    unlockReason: readFormString(formData, "unlockReason"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid unlock reason.",
+    };
+  }
+
+  if (readFormString(formData, "unlockConfirmation") !== "confirmed") {
+    return { ok: false, error: "Unlock confirmation is required." };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await unlockShippingNote(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  return { ok: true };
+}
+
+export async function cancelShippingNoteAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = cancelShippingNoteInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+    expectedStatus: readFormString(formData, "expectedStatus"),
+    cancelReason: readFormString(formData, "cancelReason"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid cancellation request.",
+    };
+  }
+
+  if (readFormString(formData, "cancelConfirmation") !== "confirmed") {
+    return { ok: false, error: "Cancellation confirmation is required." };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await cancelShippingNote(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  return { ok: true };
+}
+
+export async function cancelFinalizedShippingNoteAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = cancelFinalizedShippingNoteInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+    expectedStatus: readFormString(formData, "expectedStatus"),
+    cancelReason: readFormString(formData, "cancelReason"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid cancellation request.",
+    };
+  }
+
+  if (readFormString(formData, "cancelConfirmation") !== "confirmed") {
+    return { ok: false, error: "Cancellation confirmation is required." };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await cancelFinalizedShippingNote(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  return { ok: true };
+}
+
+export async function reopenShippingNoteForCorrectionAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = reopenShippingNoteForCorrectionInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+    expectedStatus: readFormString(formData, "expectedStatus"),
+    reason: readFormString(formData, "reason"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid correction request.",
+    };
+  }
+
+  if (readFormString(formData, "reopenConfirmation") !== "confirmed") {
+    return { ok: false, error: "Correction confirmation is required." };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await reopenShippingNoteForCorrection(parsed.data, session.user);
     noteId = note.id;
   } catch (error: unknown) {
     return { ok: false, error: parseBooleanishError(error) };

@@ -3,11 +3,19 @@ import { describe, expect, it } from "vitest";
 import { SHIPPING_NOTE_STATUSES, type ShippingNoteStatus } from "./constants";
 import {
   BUYING_CHARGE_MUTABLE_STATUSES,
+  canApproveShippingNoteStatus,
+  canCancelFinalizedShippingNoteStatus,
+  canCancelShippingNoteStatus,
   canAccessDraftMutationSubject,
+  canLockShippingNoteStatus,
   canMutateBuyingChargeAtStatus,
   canMutateSellingChargeForDraft,
+  canReopenShippingNoteForCorrectionStatus,
+  canUnlockShippingNoteStatus,
+  hasNormalOutboundBusinessTransition,
   isExpectedAccountingTransitionSource,
   isInternalXlsxExportEligibleStatus,
+  isNormalBusinessWorkflowTargetStatus,
   isSupportedCurrentAccountingTransition,
   type ShippingNotePolicyActor,
   type ShippingNotePolicySubject,
@@ -76,16 +84,90 @@ describe("shipping note status policy", () => {
     expect(isExpectedAccountingTransitionSource("draft", "submitted")).toBe(false);
   });
 
-  it("exports internal XLSX only from checked notes", () => {
+  it("exports internal XLSX only from checked, approved, or locked notes", () => {
     expect(isInternalXlsxExportEligibleStatus("checked")).toBe(true);
+    expect(isInternalXlsxExportEligibleStatus("approved")).toBe(true);
+    expect(isInternalXlsxExportEligibleStatus("locked")).toBe(true);
     expect(SHIPPING_NOTE_STATUSES.filter(
       (status) => !isInternalXlsxExportEligibleStatus(status),
     )).toStrictEqual([
       "draft",
       "submitted",
       "accounting_reviewing",
-      "approved",
       "exported",
+      "cancelled",
+    ]);
+  });
+
+  it("allows future approval only from checked status", () => {
+    expect(SHIPPING_NOTE_STATUSES.filter(canApproveShippingNoteStatus)).toStrictEqual([
+      "checked",
+    ]);
+  });
+
+  it("allows locking only from approved status", () => {
+    expect(SHIPPING_NOTE_STATUSES.filter(canLockShippingNoteStatus)).toStrictEqual([
+      "approved",
+    ]);
+    expect(canLockShippingNoteStatus("checked")).toBe(false);
+  });
+
+  it("allows future unlock from locked status only", () => {
+    expect(SHIPPING_NOTE_STATUSES.filter(canUnlockShippingNoteStatus)).toStrictEqual([
+      "locked",
+    ]);
+  });
+
+  it("separates normal and finalized cancellation source statuses", () => {
+    expect(SHIPPING_NOTE_STATUSES.filter(canCancelShippingNoteStatus)).toStrictEqual([
+      "draft",
+      "submitted",
+      "accounting_reviewing",
+    ]);
+    expect(canCancelShippingNoteStatus("checked")).toBe(false);
+    expect(canCancelShippingNoteStatus("approved")).toBe(false);
+    expect(canCancelShippingNoteStatus("locked")).toBe(false);
+    expect(canCancelShippingNoteStatus("cancelled")).toBe(false);
+    expect(canCancelShippingNoteStatus("exported")).toBe(false);
+
+    expect(
+      SHIPPING_NOTE_STATUSES.filter(canCancelFinalizedShippingNoteStatus),
+    ).toStrictEqual([
+      "checked",
+      "approved",
+    ]);
+    expect(canCancelFinalizedShippingNoteStatus("draft")).toBe(false);
+    expect(canCancelFinalizedShippingNoteStatus("submitted")).toBe(false);
+    expect(canCancelFinalizedShippingNoteStatus("accounting_reviewing")).toBe(false);
+    expect(canCancelFinalizedShippingNoteStatus("locked")).toBe(false);
+    expect(canCancelFinalizedShippingNoteStatus("cancelled")).toBe(false);
+    expect(canCancelFinalizedShippingNoteStatus("exported")).toBe(false);
+  });
+
+  it("allows future correction reopen from checked or approved status", () => {
+    expect(
+      SHIPPING_NOTE_STATUSES.filter(canReopenShippingNoteForCorrectionStatus),
+    ).toStrictEqual([
+      "checked",
+      "approved",
+    ]);
+    expect(canReopenShippingNoteForCorrectionStatus("draft")).toBe(false);
+    expect(canReopenShippingNoteForCorrectionStatus("submitted")).toBe(false);
+    expect(canReopenShippingNoteForCorrectionStatus("accounting_reviewing")).toBe(false);
+    expect(canReopenShippingNoteForCorrectionStatus("locked")).toBe(false);
+    expect(canReopenShippingNoteForCorrectionStatus("cancelled")).toBe(false);
+    expect(canReopenShippingNoteForCorrectionStatus("exported")).toBe(false);
+  });
+
+  it("keeps cancelled terminal and exported outside normal workflow targets", () => {
+    expect(hasNormalOutboundBusinessTransition("cancelled")).toBe(false);
+    expect(hasNormalOutboundBusinessTransition("exported")).toBe(false);
+    expect(isNormalBusinessWorkflowTargetStatus("exported")).toBe(false);
+    expect(SHIPPING_NOTE_STATUSES.filter(isNormalBusinessWorkflowTargetStatus)).toStrictEqual([
+      "submitted",
+      "accounting_reviewing",
+      "checked",
+      "approved",
       "locked",
       "cancelled",
     ]);

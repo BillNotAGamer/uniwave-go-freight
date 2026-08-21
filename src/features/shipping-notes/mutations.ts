@@ -16,15 +16,28 @@ import {
 } from "@/lib/db/schema";
 
 import {
-  type CreateBuyingChargeInput,
-  type CreateShippingNoteDraftInput,
-  type CreateSellingChargeInput,
-  type MarkShippingNoteCheckedInput,
-  type StartAccountingReviewInput,
-  type SubmitShippingNoteInput,
-  type UpdateBuyingChargeInput,
-  type UpdateShippingNoteDraftInput,
-  type UpdateSellingChargeInput,
+  cancelFinalizedShippingNoteInputSchema,
+  cancelShippingNoteInputSchema,
+  lockShippingNoteInputSchema,
+  reopenShippingNoteForCorrectionInputSchema,
+  unlockShippingNoteInputSchema,
+} from "./validators";
+import type {
+  CancelFinalizedShippingNoteInput,
+  CancelShippingNoteInput,
+  CreateBuyingChargeInput,
+  CreateShippingNoteDraftInput,
+  CreateSellingChargeInput,
+  ApproveShippingNoteInput,
+  LockShippingNoteInput,
+  MarkShippingNoteCheckedInput,
+  ReopenShippingNoteForCorrectionInput,
+  StartAccountingReviewInput,
+  SubmitShippingNoteInput,
+  UnlockShippingNoteInput,
+  UpdateBuyingChargeInput,
+  UpdateShippingNoteDraftInput,
+  UpdateSellingChargeInput,
 } from "./validators";
 import type {
   BuyingChargeDetail,
@@ -40,8 +53,14 @@ import {
 import { calculateChargeAmounts } from "@/lib/calculations/money";
 import {
   canAccessDraftMutationSubject,
+  canApproveShippingNoteStatus,
+  canCancelFinalizedShippingNoteStatus,
+  canCancelShippingNoteStatus,
+  canLockShippingNoteStatus,
   canMutateBuyingChargeAtStatus,
   canMutateSellingChargeForDraft,
+  canReopenShippingNoteForCorrectionStatus,
+  canUnlockShippingNoteStatus,
   isExpectedAccountingTransitionSource,
 } from "./status-policy";
 import {
@@ -49,6 +68,8 @@ import {
   TAX_COMPLETENESS_ERROR,
 } from "./tax/completeness";
 import { recomputeVatForCommercialChange } from "./tax/mutations";
+
+const CANCELLATION_REASON_REQUIRED = "Cancellation reason is required.";
 
 function normalizeOptionalDate(value: Date | undefined): Date | null {
   return value ?? null;
@@ -112,6 +133,242 @@ function ensureAccountingTransitionAccess(
 
   if (!isExpectedAccountingTransitionSource(note.status, expectedStatus)) {
     throw new AuthorizationError();
+  }
+
+  return note;
+}
+
+async function getApprovalTransitionSnapshot(
+  id: string,
+): Promise<{
+  id: string;
+  status: ShippingNoteStatus;
+  approvedById: string | null;
+  approvedAt: Date | null;
+} | null> {
+  const [note] = await db
+    .select({
+      id: shippingNotes.id,
+      status: shippingNotes.status,
+      approvedById: shippingNotes.approvedById,
+      approvedAt: shippingNotes.approvedAt,
+    })
+    .from(shippingNotes)
+    .where(and(eq(shippingNotes.id, id), isNull(shippingNotes.deletedAt)))
+    .limit(1);
+
+  return note ?? null;
+}
+
+async function getLockTransitionSnapshot(
+  id: string,
+): Promise<{
+  id: string;
+  status: ShippingNoteStatus;
+  lockedById: string | null;
+  lockedAt: Date | null;
+  lockReason: string | null;
+} | null> {
+  const [note] = await db
+    .select({
+      id: shippingNotes.id,
+      status: shippingNotes.status,
+      lockedById: shippingNotes.lockedById,
+      lockedAt: shippingNotes.lockedAt,
+      lockReason: shippingNotes.lockReason,
+    })
+    .from(shippingNotes)
+    .where(and(eq(shippingNotes.id, id), isNull(shippingNotes.deletedAt)))
+    .limit(1);
+
+  return note ?? null;
+}
+
+async function getCancellationTransitionSnapshot(
+  id: string,
+): Promise<{
+  id: string;
+  status: ShippingNoteStatus;
+  createdById: string | null;
+  cancelledById: string | null;
+  cancelledAt: Date | null;
+  cancelReason: string | null;
+} | null> {
+  const [note] = await db
+    .select({
+      id: shippingNotes.id,
+      status: shippingNotes.status,
+      createdById: shippingNotes.createdById,
+      cancelledById: shippingNotes.cancelledById,
+      cancelledAt: shippingNotes.cancelledAt,
+      cancelReason: shippingNotes.cancelReason,
+    })
+    .from(shippingNotes)
+    .where(and(eq(shippingNotes.id, id), isNull(shippingNotes.deletedAt)))
+    .limit(1);
+
+  return note ?? null;
+}
+
+async function getReopenTransitionSnapshot(
+  id: string,
+): Promise<{
+  id: string;
+  status: ShippingNoteStatus;
+  checkedById: string | null;
+  checkedAt: Date | null;
+  approvedById: string | null;
+  approvedAt: Date | null;
+  lockedById: string | null;
+  lockedAt: Date | null;
+  lockReason: string | null;
+} | null> {
+  const [note] = await db
+    .select({
+      id: shippingNotes.id,
+      status: shippingNotes.status,
+      checkedById: shippingNotes.checkedById,
+      checkedAt: shippingNotes.checkedAt,
+      approvedById: shippingNotes.approvedById,
+      approvedAt: shippingNotes.approvedAt,
+      lockedById: shippingNotes.lockedById,
+      lockedAt: shippingNotes.lockedAt,
+      lockReason: shippingNotes.lockReason,
+    })
+    .from(shippingNotes)
+    .where(and(eq(shippingNotes.id, id), isNull(shippingNotes.deletedAt)))
+    .limit(1);
+
+  return note ?? null;
+}
+
+function ensureApprovalTransitionAccess(
+  note: Awaited<ReturnType<typeof getApprovalTransitionSnapshot>>,
+): NonNullable<Awaited<ReturnType<typeof getApprovalTransitionSnapshot>>> {
+  if (!note) {
+    throw new AuthorizationError();
+  }
+
+  if (!canApproveShippingNoteStatus(note.status)) {
+    throw new AuthorizationError();
+  }
+
+  return note;
+}
+
+function ensureLockTransitionAccess(
+  note: Awaited<ReturnType<typeof getLockTransitionSnapshot>>,
+): NonNullable<Awaited<ReturnType<typeof getLockTransitionSnapshot>>> {
+  if (!note) {
+    throw new AuthorizationError();
+  }
+
+  if (!canLockShippingNoteStatus(note.status)) {
+    throw new AuthorizationError();
+  }
+
+  return note;
+}
+
+function ensureUnlockTransitionAccess(
+  note: Awaited<ReturnType<typeof getLockTransitionSnapshot>>,
+): NonNullable<Awaited<ReturnType<typeof getLockTransitionSnapshot>>> {
+  if (!note) {
+    throw new AuthorizationError();
+  }
+
+  if (!canUnlockShippingNoteStatus(note.status)) {
+    throw new AuthorizationError();
+  }
+
+  return note;
+}
+
+function requireCancellationReason(reason: string | undefined): string {
+  if (!reason) {
+    throw new Error(CANCELLATION_REASON_REQUIRED);
+  }
+
+  return reason;
+}
+
+function ensureNormalCancellationAccess(
+  note: Awaited<ReturnType<typeof getCancellationTransitionSnapshot>>,
+  user: DbUser,
+  expectedStatus: CancelShippingNoteInput["expectedStatus"],
+  cancelReason: string | undefined,
+): NonNullable<Awaited<ReturnType<typeof getCancellationTransitionSnapshot>>> {
+  if (!note) {
+    throw new AuthorizationError();
+  }
+
+  if (
+    note.status !== expectedStatus ||
+    !canCancelShippingNoteStatus(note.status)
+  ) {
+    throw new AuthorizationError();
+  }
+
+  if (note.status === "draft") {
+    if (user.role === "sale" && note.createdById === user.id) {
+      return note;
+    }
+
+    if (user.role === "admin") {
+      requireCancellationReason(cancelReason);
+      return note;
+    }
+
+    throw new AuthorizationError();
+  }
+
+  if (note.status === "submitted" || note.status === "accounting_reviewing") {
+    if (user.role !== "accountant" && user.role !== "admin") {
+      throw new AuthorizationError();
+    }
+
+    requireCancellationReason(cancelReason);
+    return note;
+  }
+
+  throw new AuthorizationError();
+}
+
+function ensureFinalizedCancellationAccess(
+  note: Awaited<ReturnType<typeof getCancellationTransitionSnapshot>>,
+  expectedStatus: CancelFinalizedShippingNoteInput["expectedStatus"],
+): NonNullable<Awaited<ReturnType<typeof getCancellationTransitionSnapshot>>> {
+  if (!note) {
+    throw new AuthorizationError();
+  }
+
+  if (
+    note.status !== expectedStatus ||
+    !canCancelFinalizedShippingNoteStatus(note.status)
+  ) {
+    throw new AuthorizationError();
+  }
+
+  return note;
+}
+
+function ensureReopenTransitionAccess(
+  note: Awaited<ReturnType<typeof getReopenTransitionSnapshot>>,
+  expectedStatus: ReopenShippingNoteForCorrectionInput["expectedStatus"],
+): NonNullable<Awaited<ReturnType<typeof getReopenTransitionSnapshot>>> {
+  if (!note) {
+    throw new AuthorizationError();
+  }
+
+  if (
+    note.status !== expectedStatus ||
+    !canReopenShippingNoteForCorrectionStatus(note.status)
+  ) {
+    throw new AuthorizationError();
+  }
+
+  if (note.lockedById || note.lockedAt || note.lockReason) {
+    throw new Error("Cannot reopen shipping note with active lock metadata.");
   }
 
   return note;
@@ -340,6 +597,7 @@ export async function markShippingNoteChecked(
 
   try {
     return await db.transaction(async (tx) => {
+      const checkedAt = new Date();
       const chargeTaxRows = await tx
         .select({
           amountVnd: shippingNoteCharges.amountVnd,
@@ -370,6 +628,7 @@ export async function markShippingNoteChecked(
         .set({
           status: "checked",
           checkedById: user.id,
+          checkedAt,
         })
         .where(
           and(
@@ -392,6 +651,7 @@ export async function markShippingNoteChecked(
         after: {
           ...updated,
           checkedById: user.id,
+          checkedAt,
         },
       });
 
@@ -407,6 +667,407 @@ export async function markShippingNoteChecked(
     }
 
     throw new Error("Failed to mark shipping note as checked.");
+  }
+}
+
+export async function approveShippingNote(
+  input: ApproveShippingNoteInput,
+  user: DbUser,
+): Promise<ShippingNoteDetail> {
+  requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_APPROVE);
+
+  const current = ensureApprovalTransitionAccess(
+    await getApprovalTransitionSnapshot(input.id),
+  );
+
+  try {
+    return await db.transaction(async (tx) => {
+      const approvalTime = new Date();
+      const [updated] = await tx
+        .update(shippingNotes)
+        .set({
+          status: "approved",
+          approvedById: user.id,
+          approvedAt: approvalTime,
+          updatedAt: approvalTime,
+        })
+        .where(
+          and(
+            eq(shippingNotes.id, input.id),
+            eq(shippingNotes.status, "checked"),
+            isNull(shippingNotes.deletedAt),
+          ),
+        )
+        .returning(shippingNoteDetailSelect);
+
+      if (!updated) {
+        throw new AuthorizationError();
+      }
+
+      await logAuditEvent(tx, {
+        actorUserId: user.id,
+        action: "shipping_note.approve",
+        entityType: "shipping_note",
+        entityId: updated.id,
+        before: current,
+        after: {
+          id: updated.id,
+          status: "approved",
+          approvedById: user.id,
+          approvedAt: approvalTime,
+        },
+      });
+
+      return updated;
+    });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
+
+    throw new Error("Failed to approve shipping note.");
+  }
+}
+
+export async function lockShippingNote(
+  input: LockShippingNoteInput,
+  user: DbUser,
+): Promise<ShippingNoteDetail> {
+  requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_LOCK);
+  const parsedInput = lockShippingNoteInputSchema.parse(input);
+
+  const current = ensureLockTransitionAccess(
+    await getLockTransitionSnapshot(parsedInput.id),
+  );
+
+  try {
+    return await db.transaction(async (tx) => {
+      const lockTime = new Date();
+      const lockReason = parsedInput.lockReason ?? null;
+      const [updated] = await tx
+        .update(shippingNotes)
+        .set({
+          status: "locked",
+          lockedById: user.id,
+          lockedAt: lockTime,
+          lockReason,
+          updatedAt: lockTime,
+        })
+        .where(
+          and(
+            eq(shippingNotes.id, parsedInput.id),
+            eq(shippingNotes.status, "approved"),
+            isNull(shippingNotes.deletedAt),
+          ),
+        )
+        .returning(shippingNoteDetailSelect);
+
+      if (!updated) {
+        throw new AuthorizationError();
+      }
+
+      await logAuditEvent(tx, {
+        actorUserId: user.id,
+        action: "shipping_note.lock",
+        entityType: "shipping_note",
+        entityId: updated.id,
+        before: current,
+        after: {
+          id: updated.id,
+          status: "locked",
+          lockedById: user.id,
+          lockedAt: lockTime,
+          lockReason,
+        },
+      });
+
+      return updated;
+    });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
+
+    throw new Error("Failed to lock shipping note.");
+  }
+}
+
+export async function unlockShippingNote(
+  input: UnlockShippingNoteInput,
+  user: DbUser,
+): Promise<ShippingNoteDetail> {
+  requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_UNLOCK);
+  const parsedInput = unlockShippingNoteInputSchema.parse(input);
+
+  const current = ensureUnlockTransitionAccess(
+    await getLockTransitionSnapshot(parsedInput.id),
+  );
+
+  try {
+    return await db.transaction(async (tx) => {
+      const unlockTime = new Date();
+      const [updated] = await tx
+        .update(shippingNotes)
+        .set({
+          status: "approved",
+          lockedById: null,
+          lockedAt: null,
+          lockReason: null,
+          updatedAt: unlockTime,
+        })
+        .where(
+          and(
+            eq(shippingNotes.id, parsedInput.id),
+            eq(shippingNotes.status, "locked"),
+            isNull(shippingNotes.deletedAt),
+          ),
+        )
+        .returning(shippingNoteDetailSelect);
+
+      if (!updated) {
+        throw new AuthorizationError();
+      }
+
+      await logAuditEvent(tx, {
+        actorUserId: user.id,
+        action: "shipping_note.unlock",
+        entityType: "shipping_note",
+        entityId: updated.id,
+        before: current,
+        after: {
+          id: updated.id,
+          status: "approved",
+          lockedById: null,
+          lockedAt: null,
+          lockReason: null,
+        },
+        reason: parsedInput.unlockReason,
+      });
+
+      return updated;
+    });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
+
+    throw new Error("Failed to unlock shipping note.");
+  }
+}
+
+export async function cancelShippingNote(
+  input: CancelShippingNoteInput,
+  user: DbUser,
+): Promise<ShippingNoteDetail> {
+  requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_CANCEL);
+  const parsedInput = cancelShippingNoteInputSchema.parse(input);
+  const cancelReason = parsedInput.cancelReason ?? null;
+
+  const current = ensureNormalCancellationAccess(
+    await getCancellationTransitionSnapshot(parsedInput.id),
+    user,
+    parsedInput.expectedStatus,
+    parsedInput.cancelReason,
+  );
+
+  try {
+    return await db.transaction(async (tx) => {
+      const cancellationTime = new Date();
+      const [updated] = await tx
+        .update(shippingNotes)
+        .set({
+          status: "cancelled",
+          cancelledById: user.id,
+          cancelledAt: cancellationTime,
+          cancelReason,
+          updatedAt: cancellationTime,
+        })
+        .where(
+          and(
+            eq(shippingNotes.id, parsedInput.id),
+            eq(shippingNotes.status, parsedInput.expectedStatus),
+            isNull(shippingNotes.deletedAt),
+          ),
+        )
+        .returning(shippingNoteDetailSelect);
+
+      if (!updated) {
+        throw new AuthorizationError();
+      }
+
+      await logAuditEvent(tx, {
+        actorUserId: user.id,
+        action: "shipping_note.cancel",
+        entityType: "shipping_note",
+        entityId: updated.id,
+        before: {
+          id: current.id,
+          status: current.status,
+          cancelledById: current.cancelledById,
+          cancelledAt: current.cancelledAt,
+          cancelReason: current.cancelReason,
+        },
+        after: {
+          id: updated.id,
+          status: "cancelled",
+          cancelledById: user.id,
+          cancelledAt: cancellationTime,
+          cancelReason,
+        },
+        reason: cancelReason,
+      });
+
+      return updated;
+    });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
+
+    throw new Error("Failed to cancel shipping note.");
+  }
+}
+
+export async function cancelFinalizedShippingNote(
+  input: CancelFinalizedShippingNoteInput,
+  user: DbUser,
+): Promise<ShippingNoteDetail> {
+  requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_CANCEL_FINALIZED);
+  const parsedInput = cancelFinalizedShippingNoteInputSchema.parse(input);
+
+  const current = ensureFinalizedCancellationAccess(
+    await getCancellationTransitionSnapshot(parsedInput.id),
+    parsedInput.expectedStatus,
+  );
+
+  try {
+    return await db.transaction(async (tx) => {
+      const cancellationTime = new Date();
+      const [updated] = await tx
+        .update(shippingNotes)
+        .set({
+          status: "cancelled",
+          cancelledById: user.id,
+          cancelledAt: cancellationTime,
+          cancelReason: parsedInput.cancelReason,
+          updatedAt: cancellationTime,
+        })
+        .where(
+          and(
+            eq(shippingNotes.id, parsedInput.id),
+            eq(shippingNotes.status, parsedInput.expectedStatus),
+            isNull(shippingNotes.deletedAt),
+          ),
+        )
+        .returning(shippingNoteDetailSelect);
+
+      if (!updated) {
+        throw new AuthorizationError();
+      }
+
+      await logAuditEvent(tx, {
+        actorUserId: user.id,
+        action: "shipping_note.cancel",
+        entityType: "shipping_note",
+        entityId: updated.id,
+        before: {
+          id: current.id,
+          status: current.status,
+          cancelledById: current.cancelledById,
+          cancelledAt: current.cancelledAt,
+          cancelReason: current.cancelReason,
+        },
+        after: {
+          id: updated.id,
+          status: "cancelled",
+          cancelledById: user.id,
+          cancelledAt: cancellationTime,
+          cancelReason: parsedInput.cancelReason,
+        },
+        reason: parsedInput.cancelReason,
+      });
+
+      return updated;
+    });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
+
+    throw new Error("Failed to cancel finalized shipping note.");
+  }
+}
+
+export async function reopenShippingNoteForCorrection(
+  input: ReopenShippingNoteForCorrectionInput,
+  user: DbUser,
+): Promise<ShippingNoteDetail> {
+  requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_REOPEN_FOR_CORRECTION);
+  const parsedInput = reopenShippingNoteForCorrectionInputSchema.parse(input);
+
+  const current = ensureReopenTransitionAccess(
+    await getReopenTransitionSnapshot(parsedInput.id),
+    parsedInput.expectedStatus,
+  );
+
+  try {
+    return await db.transaction(async (tx) => {
+      const reopenTime = new Date();
+      const [updated] = await tx
+        .update(shippingNotes)
+        .set({
+          status: "accounting_reviewing",
+          checkedById: null,
+          checkedAt: null,
+          approvedById: null,
+          approvedAt: null,
+          updatedAt: reopenTime,
+        })
+        .where(
+          and(
+            eq(shippingNotes.id, parsedInput.id),
+            eq(shippingNotes.status, parsedInput.expectedStatus),
+            isNull(shippingNotes.deletedAt),
+          ),
+        )
+        .returning(shippingNoteDetailSelect);
+
+      if (!updated) {
+        throw new AuthorizationError();
+      }
+
+      await logAuditEvent(tx, {
+        actorUserId: user.id,
+        action: "shipping_note.reopen_for_correction",
+        entityType: "shipping_note",
+        entityId: updated.id,
+        before: {
+          id: current.id,
+          status: current.status,
+          checkedById: current.checkedById,
+          checkedAt: current.checkedAt,
+          approvedById: current.approvedById,
+          approvedAt: current.approvedAt,
+        },
+        after: {
+          id: updated.id,
+          status: "accounting_reviewing",
+          checkedById: null,
+          checkedAt: null,
+          approvedById: null,
+          approvedAt: null,
+        },
+        reason: parsedInput.reason,
+      });
+
+      return updated;
+    });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
+
+    throw new Error("Failed to reopen shipping note for correction.");
   }
 }
 

@@ -36,7 +36,13 @@ describe("role and permission matrix", () => {
   it("allows sale users to create and edit their own notes only", () => {
     expect(hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_CREATE_OWN)).toBe(true);
     expect(hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_EDIT_OWN)).toBe(true);
+    expect(hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_CANCEL)).toBe(true);
     expect(hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_READ_ALL)).toBe(false);
+    expect(hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_APPROVE)).toBe(false);
+    expect(hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_LOCK)).toBe(false);
+    expect(hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_UNLOCK)).toBe(false);
+    expect(hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_CANCEL_FINALIZED)).toBe(false);
+    expect(hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_REOPEN_FOR_CORRECTION)).toBe(false);
     expect(hasPermission("sale", PERMISSIONS.BUYING_CHARGES_READ)).toBe(false);
     expect(hasPermission("sale", PERMISSIONS.BUYING_CHARGES_MANAGE)).toBe(false);
     expect(hasPermission("sale", PERMISSIONS.FINANCIAL_SUMMARY_READ)).toBe(false);
@@ -55,6 +61,12 @@ describe("role and permission matrix", () => {
     expect(hasPermission("accountant", PERMISSIONS.SHIPPING_NOTES_READ_ALL)).toBe(true);
     expect(hasPermission("accountant", PERMISSIONS.SHIPPING_NOTES_ACCOUNTING_REVIEW)).toBe(true);
     expect(hasPermission("accountant", PERMISSIONS.SHIPPING_NOTES_MARK_CHECKED)).toBe(true);
+    expect(hasPermission("accountant", PERMISSIONS.SHIPPING_NOTES_CANCEL)).toBe(true);
+    expect(hasPermission("accountant", PERMISSIONS.SHIPPING_NOTES_APPROVE)).toBe(false);
+    expect(hasPermission("accountant", PERMISSIONS.SHIPPING_NOTES_LOCK)).toBe(false);
+    expect(hasPermission("accountant", PERMISSIONS.SHIPPING_NOTES_UNLOCK)).toBe(false);
+    expect(hasPermission("accountant", PERMISSIONS.SHIPPING_NOTES_CANCEL_FINALIZED)).toBe(false);
+    expect(hasPermission("accountant", PERMISSIONS.SHIPPING_NOTES_REOPEN_FOR_CORRECTION)).toBe(false);
     expect(hasPermission("accountant", PERMISSIONS.ACCOUNTING_READ)).toBe(true);
     expect(hasPermission("accountant", PERMISSIONS.BUYING_CHARGES_READ)).toBe(true);
     expect(hasPermission("accountant", PERMISSIONS.BUYING_CHARGES_MANAGE)).toBe(true);
@@ -78,6 +90,13 @@ describe("role and permission matrix", () => {
     for (const permission of ALL_PERMISSIONS) {
       expect(hasPermission("admin", permission)).toBe(true);
     }
+
+    expect(hasPermission("admin", PERMISSIONS.SHIPPING_NOTES_APPROVE)).toBe(true);
+    expect(hasPermission("admin", PERMISSIONS.SHIPPING_NOTES_LOCK)).toBe(true);
+    expect(hasPermission("admin", PERMISSIONS.SHIPPING_NOTES_UNLOCK)).toBe(true);
+    expect(hasPermission("admin", PERMISSIONS.SHIPPING_NOTES_CANCEL)).toBe(true);
+    expect(hasPermission("admin", PERMISSIONS.SHIPPING_NOTES_CANCEL_FINALIZED)).toBe(true);
+    expect(hasPermission("admin", PERMISSIONS.SHIPPING_NOTES_REOPEN_FOR_CORRECTION)).toBe(true);
   });
 
   it("matches getPermissionsForRole admin coverage to all permissions", () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildInternalPdfFileName,
   buildInternalXlsxFileName,
   formatUtcTimestamp,
   sanitizeFilenamePart,
@@ -36,6 +37,13 @@ function exportDto(jobsheetNo: string): InternalShippingNoteExportDto {
       totalSellingVnd: "0.00",
       totalBuyingVnd: "0.00",
       grossProfitVnd: "0.00",
+      sellingSubtotalExcludingVatVnd: "0.00",
+      sellingVatVnd: "0.00",
+      sellingTotalIncludingVatVnd: "0.00",
+      buyingSubtotalExcludingVatVnd: "0.00",
+      buyingVatVnd: "0.00",
+      buyingTotalIncludingVatVnd: "0.00",
+      grossProfitExcludingVatVnd: "0.00",
       sellingTotalsByCurrency: [],
       buyingTotalsByCurrency: [],
     },
@@ -62,6 +70,15 @@ describe("internal XLSX export filenames", () => {
       exportDto(" ABC  001/SEA "),
       generatedAt,
     )).toBe("ShippingNote_ABC_001_SEA_20260729-050607.xlsx");
+  });
+
+  it("builds deterministic internal PDF filenames", () => {
+    const generatedAt = new Date(Date.UTC(2026, 6, 29, 5, 6, 7));
+
+    expect(buildInternalPdfFileName(
+      exportDto(" ABC  001/SEA "),
+      generatedAt,
+    )).toBe("ShippingNote_ABC_001_SEA_20260729-050607.pdf");
   });
 
   it("falls back when the jobsheet number has no usable filename characters", () => {

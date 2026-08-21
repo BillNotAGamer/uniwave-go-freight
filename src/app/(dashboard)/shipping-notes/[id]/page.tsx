@@ -22,12 +22,31 @@ import { SellingChargesList } from "@/features/shipping-notes/components/selling
 import { SellingChargeForm } from "@/features/shipping-notes/components/selling-charge-form";
 import { SellingChargeSummaryView } from "@/features/shipping-notes/components/selling-charge-summary";
 import { AccountingReviewControls } from "@/features/shipping-notes/components/accounting-review-controls";
+import { CancellationControls } from "@/features/shipping-notes/components/cancellation-controls";
+import { CorrectionControls } from "@/features/shipping-notes/components/correction-controls";
+import { InternalExportActions } from "@/features/shipping-notes/components/internal-export-actions";
+import { AccountingTaxChargeTable } from "@/features/shipping-notes/tax/components/accounting-tax-charge-table";
+import { TaxCompletenessPanel } from "@/features/shipping-notes/tax/components/tax-completeness-panel";
 import {
+  getCancellationMetadataForNoteForUser,
   getFinancialSummaryForNoteForUser,
   getShippingNoteForUser,
   listBuyingChargesForNoteForUser,
   getSellingChargesAndSummaryForNoteForUser,
 } from "@/features/shipping-notes/queries";
+import { listChargeTaxDetailsForNoteForUser } from "@/features/shipping-notes/tax/queries";
+import {
+  canShowTaxMutationControls,
+  getMarkCheckedDisabledReason,
+  getTaxCompletenessCounts,
+} from "@/features/shipping-notes/tax/ui-policy";
+import {
+  canCancelFinalizedShippingNoteStatus,
+  canCancelShippingNoteStatus,
+  canReopenShippingNoteForCorrectionStatus,
+  isInternalXlsxExportEligibleStatus,
+} from "@/features/shipping-notes/status-policy";
+import { listTaxRulesForUser } from "@/features/tax-rules/queries";
 
 function formatDateTime(value: Date | null | undefined): string {
   return value ? new Date(value).toLocaleString() : "-";
@@ -62,8 +81,12 @@ export default async function ShippingNoteDetailPage({
     user.role,
     PERMISSIONS.FINANCIAL_SUMMARY_READ,
   );
-  const canOpenInternalPrintView =
-    note.status === "checked" &&
+  const canReadTaxSummary = hasPermission(
+    user.role,
+    PERMISSIONS.TAX_SUMMARY_READ,
+  );
+  const canOpenInternalExports =
+    isInternalXlsxExportEligibleStatus(note.status) &&
     hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_EXPORT_INTERNAL);
   const canManageBuyingCharges =
     hasPermission(user.role, PERMISSIONS.BUYING_CHARGES_MANAGE) &&
@@ -77,24 +100,101 @@ export default async function ShippingNoteDetailPage({
     user.role,
     PERMISSIONS.SHIPPING_NOTES_MARK_CHECKED,
   );
+  const canApprove = hasPermission(
+    user.role,
+    PERMISSIONS.SHIPPING_NOTES_APPROVE,
+  );
+  const canLock = hasPermission(
+    user.role,
+    PERMISSIONS.SHIPPING_NOTES_LOCK,
+  );
+  const canUnlock = hasPermission(
+    user.role,
+    PERMISSIONS.SHIPPING_NOTES_UNLOCK,
+  );
+  const canReopenForCorrection =
+    canReopenShippingNoteForCorrectionStatus(note.status) &&
+    hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_REOPEN_FOR_CORRECTION);
+  const hasNormalCancelPermission = hasPermission(
+    user.role,
+    PERMISSIONS.SHIPPING_NOTES_CANCEL,
+  );
+  const hasFinalizedCancelPermission = hasPermission(
+    user.role,
+    PERMISSIONS.SHIPPING_NOTES_CANCEL_FINALIZED,
+  );
+  const canCancelOwnDraft =
+    note.status === "draft" &&
+    user.role === "sale" &&
+    note.createdById === user.id &&
+    hasNormalCancelPermission;
+  const canCancelDraftAsAdmin =
+    note.status === "draft" &&
+    user.role === "admin" &&
+    hasNormalCancelPermission;
+  const canCancelActiveAccountingStatus =
+    canCancelShippingNoteStatus(note.status) &&
+    note.status !== "draft" &&
+    (user.role === "accountant" || user.role === "admin") &&
+    hasNormalCancelPermission;
+  const canCancelNormal =
+    canCancelOwnDraft || canCancelDraftAsAdmin || canCancelActiveAccountingStatus;
+  const canCancelFinalized =
+    canCancelFinalizedShippingNoteStatus(note.status) &&
+    hasFinalizedCancelPermission;
+  const cancelReasonRequired = !canCancelOwnDraft;
+  const showCancellationControls =
+    canCancelNormal ||
+    canCancelFinalized ||
+    (note.status === "locked" && user.role === "admin");
+  const canMutateTax = canShowTaxMutationControls({
+    role: user.role,
+    status: note.status,
+  });
   const showAccountingReviewPanel =
-    (canStartAccountingReview || canMarkChecked) &&
+    (canStartAccountingReview || canMarkChecked || canApprove || canLock || canUnlock) &&
     (note.status === "submitted" ||
       note.status === "accounting_reviewing" ||
-      note.status === "checked");
+      note.status === "checked" ||
+      note.status === "approved" ||
+      note.status === "locked");
   const canViewFinancialArea = canReadBuyingCharges || canReadFinancialSummary;
   const shouldFetchFinancialSummary =
     canReadFinancialSummary &&
-    note.status !== "draft" &&
-    note.status !== "cancelled";
+    note.status !== "draft";
 
   const { charges: sellingCharges, summary: sellingSummary } = await getSellingChargesAndSummaryForNoteForUser(id, user);
   const buyingCharges = canReadBuyingCharges
     ? await listBuyingChargesForNoteForUser(id, user)
     : null;
+  const taxDetails = canReadTaxSummary
+    ? await listChargeTaxDetailsForNoteForUser(id, user)
+    : [];
+  const activeTaxRules = canReadTaxSummary
+    ? await listTaxRulesForUser(user)
+    : [];
+  const taxCounts = getTaxCompletenessCounts(taxDetails);
+  const markCheckedDisabledReason = canReadTaxSummary
+    ? getMarkCheckedDisabledReason({
+      status: note.status,
+      canMarkChecked,
+      taxComplete: taxCounts.taxComplete,
+    })
+    : null;
+  const sellingTaxDetails = taxDetails.filter(
+    (charge) => charge.section === "selling",
+  );
+  const buyingTaxDetails = taxDetails.filter(
+    (charge) => charge.section === "buying",
+  );
   const financialSummary = shouldFetchFinancialSummary
     ? await getFinancialSummaryForNoteForUser(id, user)
     : null;
+  const cancellationMetadata =
+    note.status === "cancelled" &&
+    hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_READ_ALL)
+      ? await getCancellationMetadataForNoteForUser(id, user)
+      : null;
 
   return (
     <PageContainer>
@@ -108,16 +208,11 @@ export default async function ShippingNoteDetailPage({
         }
       >
         <div className="flex items-center gap-2">
-          {canOpenInternalPrintView ? (
-            <Link
-              className="inline-flex rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-              href={`/shipping-notes/${note.id}/print/internal`}
-              prefetch={false}
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              Internal print view
-            </Link>
+          {canOpenInternalExports ? (
+            <InternalExportActions
+              noteId={note.id}
+              printHref={`/shipping-notes/${note.id}/print/internal`}
+            />
           ) : null}
           <Link
             className="text-sm text-slate-600 underline-offset-4 hover:underline px-2"
@@ -247,6 +342,18 @@ export default async function ShippingNoteDetailPage({
 
           <SellingChargeSummaryView summary={sellingSummary} />
 
+          {canReadTaxSummary ? (
+            <AccountingTaxChargeTable
+              title="Selling Charge Tax Classification"
+              section="selling"
+              status={note.status}
+              role={user.role}
+              charges={sellingTaxDetails}
+              activeTaxRules={activeTaxRules}
+              canMutateTax={canMutateTax}
+            />
+          ) : null}
+
           {canMutateCharges ? (
             <SellingChargeForm shippingNoteId={note.id} />
           ) : null}
@@ -270,10 +377,20 @@ export default async function ShippingNoteDetailPage({
               {!canManageBuyingCharges ? (
                 <p className="text-sm text-slate-600">
                   Buying charge changes are available only when the shipping note
-                  status is exactly submitted.
+                  status is submitted or accounting reviewing.
                 </p>
               ) : null}
             </div>
+
+            {canReadTaxSummary ? (
+              <TaxCompletenessPanel
+                status={note.status}
+                taxComplete={taxCounts.taxComplete}
+                unclassifiedSellingCount={taxCounts.unclassifiedSellingCount}
+                unclassifiedBuyingCount={taxCounts.unclassifiedBuyingCount}
+                canMarkChecked={canMarkChecked}
+              />
+            ) : null}
 
             {showAccountingReviewPanel ? (
               <AccountingReviewControls
@@ -281,6 +398,10 @@ export default async function ShippingNoteDetailPage({
                 status={note.status}
                 canStartReview={canStartAccountingReview}
                 canMarkChecked={canMarkChecked}
+                canApprove={canApprove}
+                canLock={canLock}
+                canUnlock={canUnlock}
+                markCheckedDisabledReason={markCheckedDisabledReason}
               />
             ) : null}
 
@@ -295,6 +416,18 @@ export default async function ShippingNoteDetailPage({
               />
             ) : null}
 
+            {canReadTaxSummary ? (
+              <AccountingTaxChargeTable
+                title="Buying Charge Tax Classification"
+                section="buying"
+                status={note.status}
+                role={user.role}
+                charges={buyingTaxDetails}
+                activeTaxRules={activeTaxRules}
+                canMutateTax={canMutateTax}
+              />
+            ) : null}
+
             {canReadBuyingCharges ? (
               <BuyingChargeForm
                 shippingNoteId={note.id}
@@ -302,6 +435,50 @@ export default async function ShippingNoteDetailPage({
               />
             ) : null}
           </section>
+        ) : null}
+
+        {cancellationMetadata ? (
+          <section className="grid gap-4 border-t border-slate-200 pt-6">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Cancellation
+              </p>
+              <h2 className="text-lg font-semibold tracking-tight">Cancellation History</h2>
+            </div>
+            <dl className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 sm:grid-cols-3">
+              <div>
+                <dt className="font-medium text-slate-900">Cancelled</dt>
+                <dd>{formatDateTime(cancellationMetadata.cancelledAt)}</dd>
+              </div>
+              <div>
+                <dt className="font-medium text-slate-900">Cancelled By</dt>
+                <dd>{cancellationMetadata.cancelledById ?? "-"}</dd>
+              </div>
+              <div>
+                <dt className="font-medium text-slate-900">Reason</dt>
+                <dd>{cancellationMetadata.cancelReason ?? "-"}</dd>
+              </div>
+            </dl>
+          </section>
+        ) : null}
+
+        {canReopenForCorrection &&
+        (note.status === "checked" || note.status === "approved") ? (
+          <CorrectionControls
+            noteId={note.id}
+            status={note.status}
+          />
+        ) : null}
+
+        {showCancellationControls ? (
+          <CancellationControls
+            noteId={note.id}
+            status={note.status}
+            canCancelNormal={canCancelNormal}
+            canCancelFinalized={canCancelFinalized}
+            reasonRequired={cancelReasonRequired}
+            showLockedGuidance={note.status === "locked" && user.role === "admin"}
+          />
         ) : null}
 
         {canEditDraft ? (

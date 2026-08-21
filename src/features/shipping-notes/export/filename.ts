@@ -33,3 +33,13 @@ export function buildInternalXlsxFileName(
 
   return `ShippingNote_${jobsheetPart}_${timestampPart}.xlsx`;
 }
+
+export function buildInternalPdfFileName(
+  exportData: InternalShippingNoteExportDto,
+  generatedAt = new Date(),
+): string {
+  const jobsheetPart = sanitizeFilenamePart(exportData.note.jobsheetNo);
+  const timestampPart = formatUtcTimestamp(generatedAt);
+
+  return `ShippingNote_${jobsheetPart}_${timestampPart}.pdf`;
+}

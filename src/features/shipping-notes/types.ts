@@ -36,6 +36,12 @@ export type ShippingNoteDetail = ShippingNoteListItem & {
 
 export type ShippingNoteActor = Pick<User, "id" | "role">;
 
+export type ShippingNoteCancellationMetadata = {
+  cancelledById: string | null;
+  cancelledAt: Date | null;
+  cancelReason: string | null;
+};
+
 /** Safe selling charge fields returned by queries. */
 export type SellingChargeDetail = {
   id: string;

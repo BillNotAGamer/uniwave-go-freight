@@ -135,3 +135,53 @@ After creating or editing selling charges, verify:
 2. The summary remains visible and read-only on submitted notes.
 3. Accountant and admin roles can view the summary.
 4. Sale roles can view the summary only on their own accessible notes.
+
+## 8. VAT/tax UI QA (Phase 6B.2)
+
+### Sale
+
+Sign in as a `sale` user and verify:
+
+1. The sidebar does not show Tax Rules.
+2. Directly opening `/tax-rules` does not expose tax-rule data.
+3. Shipping Note detail does not show tax columns, VAT percentages, VAT amounts, tax summaries, override reasons, or unclassified buying counts.
+4. Buying charges and gross profit remain hidden.
+5. Existing draft creation, selling charge entry, and submission remain usable.
+
+### Accountant
+
+Sign in as an `accountant` user and verify:
+
+1. `/tax-rules` is accessible and read-only.
+2. Only active rules appear.
+3. Submitted and accounting-reviewing notes show tax completeness.
+4. Selling and buying charge tax tables show Unclassified for null snapshots.
+5. Assigning an active rule updates treatment, VAT percentage, VAT amount, total including VAT, and completeness.
+6. Override VAT appears only for classified taxable charges and requires a reason.
+7. Zero-rated and non-taxable charges do not show override controls.
+8. Draft and checked notes show tax read-only messaging and no mutation controls.
+9. Incomplete accounting-reviewing notes cannot be marked checked from the UI.
+10. Complete accounting-reviewing notes can be marked checked, with the server still enforcing completeness.
+
+### Admin
+
+Sign in as an `admin` user and verify:
+
+1. `/tax-rules` shows active and inactive rules.
+2. Create, edit, and deactivate controls are visible.
+3. Deactivation confirmation states that new assignments stop and existing snapshots remain unchanged.
+4. Deactivated rules are not available in charge assignment selects.
+5. Admin can assign and override charge tax during submitted/accounting_reviewing statuses.
+6. Checked tax data is read-only and cannot be overridden.
+
+### Audit
+
+After tax UI tests, verify audit rows exist for:
+
+- `tax_rule.create`
+- `tax_rule.update`
+- `tax_rule.deactivate`
+- `shipping_note_charge.tax_assign`
+- `shipping_note_charge.tax_override`
+
+Do not print passwords, session tokens, or database secrets.

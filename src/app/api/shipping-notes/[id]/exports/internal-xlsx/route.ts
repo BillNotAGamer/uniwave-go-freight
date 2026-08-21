@@ -76,7 +76,7 @@ function toExportError(error: unknown): ExportError {
 
   if (
     error instanceof Error &&
-    error.message.includes("checked' status")
+    error.message.includes("to be exported")
   ) {
     return new ExportError(
       EXPORT_ERROR_CODES.STATUS_NOT_ELIGIBLE,

@@ -1,4 +1,4 @@
-import { Package, PlusCircle, LayoutDashboard } from "lucide-react";
+import { Package, PlusCircle, LayoutDashboard, Percent } from "lucide-react";
 import type { Role } from "@/lib/permissions/roles";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions/permissions";
 
@@ -32,6 +32,14 @@ export function getNavLinks(role: Role): NavItem[] {
       title: "Accounting",
       href: "/dashboard", // Currently /dashboard is just a generic landing, but keeping this simple
       icon: LayoutDashboard,
+    });
+  }
+
+  if (hasPermission(role, PERMISSIONS.TAX_RULES_READ)) {
+    links.push({
+      title: "Tax Rules",
+      href: "/tax-rules",
+      icon: Percent,
     });
   }
 

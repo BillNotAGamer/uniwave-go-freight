@@ -25,6 +25,49 @@ export const CURRENT_ACCOUNTING_TRANSITIONS = [
   to: ShippingNoteStatus;
 }[];
 
+export const APPROVE_SOURCE_STATUSES = [
+  "checked",
+] as const satisfies readonly ShippingNoteStatus[];
+
+export const INTERNAL_XLSX_EXPORT_ELIGIBLE_STATUSES = [
+  "checked",
+  "approved",
+  "locked",
+] as const satisfies readonly ShippingNoteStatus[];
+
+export const LOCK_SOURCE_STATUSES = [
+  "approved",
+] as const satisfies readonly ShippingNoteStatus[];
+
+export const UNLOCK_SOURCE_STATUSES = [
+  "locked",
+] as const satisfies readonly ShippingNoteStatus[];
+
+export const NORMAL_CANCEL_SOURCE_STATUSES = [
+  "draft",
+  "submitted",
+  "accounting_reviewing",
+] as const satisfies readonly ShippingNoteStatus[];
+
+export const FINALIZED_CANCEL_SOURCE_STATUSES = [
+  "checked",
+  "approved",
+] as const satisfies readonly ShippingNoteStatus[];
+
+export const REOPEN_FOR_CORRECTION_SOURCE_STATUSES = [
+  "checked",
+  "approved",
+] as const satisfies readonly ShippingNoteStatus[];
+
+export const NORMAL_BUSINESS_WORKFLOW_TARGET_STATUSES = [
+  "submitted",
+  "accounting_reviewing",
+  "checked",
+  "approved",
+  "locked",
+  "cancelled",
+] as const satisfies readonly ShippingNoteStatus[];
+
 export function canAccessDraftMutationSubject(
   note: ShippingNotePolicySubject,
   actor: ShippingNotePolicyActor,
@@ -70,6 +113,61 @@ export function isSupportedCurrentAccountingTransition(
 
 export function isInternalXlsxExportEligibleStatus(
   status: ShippingNoteStatus,
+): status is (typeof INTERNAL_XLSX_EXPORT_ELIGIBLE_STATUSES)[number] {
+  return statusInList(status, INTERNAL_XLSX_EXPORT_ELIGIBLE_STATUSES);
+}
+
+function statusInList(
+  status: ShippingNoteStatus,
+  allowedStatuses: readonly ShippingNoteStatus[],
 ): boolean {
-  return status === "checked";
+  return allowedStatuses.some((allowedStatus) => allowedStatus === status);
+}
+
+export function canApproveShippingNoteStatus(
+  status: ShippingNoteStatus,
+): boolean {
+  return statusInList(status, APPROVE_SOURCE_STATUSES);
+}
+
+export function canLockShippingNoteStatus(
+  status: ShippingNoteStatus,
+): boolean {
+  return statusInList(status, LOCK_SOURCE_STATUSES);
+}
+
+export function canUnlockShippingNoteStatus(
+  status: ShippingNoteStatus,
+): boolean {
+  return statusInList(status, UNLOCK_SOURCE_STATUSES);
+}
+
+export function canCancelShippingNoteStatus(
+  status: ShippingNoteStatus,
+): boolean {
+  return statusInList(status, NORMAL_CANCEL_SOURCE_STATUSES);
+}
+
+export function canCancelFinalizedShippingNoteStatus(
+  status: ShippingNoteStatus,
+): boolean {
+  return statusInList(status, FINALIZED_CANCEL_SOURCE_STATUSES);
+}
+
+export function canReopenShippingNoteForCorrectionStatus(
+  status: ShippingNoteStatus,
+): boolean {
+  return statusInList(status, REOPEN_FOR_CORRECTION_SOURCE_STATUSES);
+}
+
+export function isNormalBusinessWorkflowTargetStatus(
+  status: ShippingNoteStatus,
+): boolean {
+  return statusInList(status, NORMAL_BUSINESS_WORKFLOW_TARGET_STATUSES);
+}
+
+export function hasNormalOutboundBusinessTransition(
+  status: ShippingNoteStatus,
+): boolean {
+  return status !== "cancelled" && status !== "exported";
 }
