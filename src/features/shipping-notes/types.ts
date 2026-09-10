@@ -18,12 +18,30 @@ export type ShippingNoteListItem = {
 };
 
 export type ShippingNoteDetail = ShippingNoteListItem & {
+  shipperPartnerId: string | null;
+  consigneePartnerId: string | null;
+  customerPartnerId: string | null;
+  agentPartnerId: string | null;
   mawbHawbNo: string | null;
   customerText: string | null;
   agentText: string | null;
+  domesticOrigin: string | null;
+  domesticDestination: string | null;
+  airOrigin: string | null;
+  airDestination: string | null;
+  /** Legacy aliases retained while existing callers still use AOL/AOD. */
   aol: string | null;
   aod: string | null;
+  portOfLoading: string | null;
+  portOfDischarge: string | null;
   finalDestination: string | null;
+  mawbNo: string | null;
+  hawbNo: string | null;
+  mblNo: string | null;
+  hblNo: string | null;
+  flightNo: string | null;
+  vesselName: string | null;
+  voyageNo: string | null;
   etd: Date | null;
   eta: Date | null;
   volumeValue: string | null;
@@ -55,6 +73,11 @@ export type SellingChargeDetail = {
   exchangeRate: string;
   amountOriginal: string;
   amountVnd: string;
+  serviceCatalogItemId: string | null;
+  catalogCodeSnapshot: string | null;
+  catalogNameSnapshot: string | null;
+  catalogUnitSnapshot: string | null;
+  catalogVatRateSnapshot: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -72,6 +95,11 @@ export type BuyingChargeDetail = {
   exchangeRate: string;
   amountOriginal: string;
   amountVnd: string;
+  serviceCatalogItemId: string | null;
+  catalogCodeSnapshot: string | null;
+  catalogNameSnapshot: string | null;
+  catalogUnitSnapshot: string | null;
+  catalogVatRateSnapshot: string | null;
   vendorOrAgentText: string | null;
   createdAt: Date;
   updatedAt: Date;

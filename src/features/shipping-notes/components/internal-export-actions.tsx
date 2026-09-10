@@ -87,7 +87,7 @@ export function InternalExportActions({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button
-        className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:disabled:bg-slate-950 dark:disabled:text-slate-600"
         disabled={pendingKind !== null}
         onClick={() => void handleDownload("xlsx")}
         type="button"
@@ -96,7 +96,7 @@ export function InternalExportActions({
         {pendingKind === "xlsx" ? "Exporting XLSX" : "Export XLSX"}
       </button>
       <button
-        className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:disabled:bg-slate-950 dark:disabled:text-slate-600"
         disabled={pendingKind !== null}
         onClick={() => void handleDownload("pdf")}
         type="button"
@@ -105,7 +105,7 @@ export function InternalExportActions({
         {pendingKind === "pdf" ? "Exporting PDF" : "Export PDF"}
       </button>
       <Link
-        className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+        className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
         href={printHref}
         prefetch={false}
         rel="noopener noreferrer"
@@ -115,7 +115,7 @@ export function InternalExportActions({
         Print
       </Link>
       {error ? (
-        <p className="w-full text-sm text-red-700" role="status">
+        <p className="w-full text-sm text-red-700 dark:text-red-400" role="status">
           {error}
         </p>
       ) : null}

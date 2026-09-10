@@ -16,7 +16,7 @@ describe("hosted database migration verification", () => {
       from drizzle.__drizzle_migrations
     `);
 
-    expect(Number(row?.count ?? 0)).toBeGreaterThanOrEqual(3);
+    expect(Number(row?.count ?? 0)).toBeGreaterThanOrEqual(6);
   });
 
   it("has core business tables, auth tables, soft-delete columns, and audit tables", async () => {
@@ -196,5 +196,93 @@ describe("hosted database migration verification", () => {
     expect(columns.find((row) => row.column_name === "cancelled_at")?.udt_name).toBe(
       "timestamp",
     );
+  });
+
+  it("has durable export artifact and Drive upload foundation columns", async () => {
+    await ensureDatabaseReady();
+
+    const columns = await queryRows<{
+      column_name: string;
+      is_nullable: string;
+      udt_name: string;
+      column_default: string | null;
+    }>(sql`
+      select column_name, is_nullable, udt_name, column_default
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'shipping_note_exports'
+        and column_name in (
+          'artifact_storage_key',
+          'artifact_size_bytes',
+          'artifact_mime_type',
+          'drive_upload_status',
+          'drive_uploaded_at',
+          'drive_folder_id',
+          'drive_error_message'
+        )
+    `);
+
+    const columnKeys = new Set(columns.map((row) => row.column_name));
+    expect(columnKeys).toEqual(new Set([
+      "artifact_storage_key",
+      "artifact_size_bytes",
+      "artifact_mime_type",
+      "drive_upload_status",
+      "drive_uploaded_at",
+      "drive_folder_id",
+      "drive_error_message",
+    ]));
+
+    for (const column of columns) {
+      if (column.column_name === "drive_upload_status") {
+        expect(column.is_nullable).toBe("NO");
+        expect(column.udt_name).toBe("drive_upload_status");
+        expect(column.column_default).toContain("'not_uploaded'");
+      } else {
+        expect(column.is_nullable).toBe("YES");
+      }
+    }
+
+    const enumValues = await queryRows<{ enumlabel: string }>(sql`
+      select enumlabel
+      from pg_enum
+      where enumtypid = 'drive_upload_status'::regtype
+      order by enumsortorder
+    `);
+
+    expect(enumValues.map((row) => row.enumlabel)).toStrictEqual([
+      "not_uploaded",
+      "uploading",
+      "uploaded",
+      "upload_failed",
+    ]);
+
+    const indexes = await queryRows<{ indexname: string }>(sql`
+      select indexname
+      from pg_indexes
+      where schemaname = 'public'
+        and tablename = 'shipping_note_exports'
+        and indexname = 'shipping_note_exports_artifact_storage_key_uidx'
+    `);
+
+    expect(indexes.map((row) => row.indexname)).toStrictEqual([
+      "shipping_note_exports_artifact_storage_key_uidx",
+    ]);
+  });
+
+  it("has audit viewer pagination index", async () => {
+    await ensureDatabaseReady();
+
+    const indexes = await queryRows<{ indexname: string; indexdef: string }>(sql`
+      select indexname, indexdef
+      from pg_indexes
+      where schemaname = 'public'
+        and tablename = 'audit_logs'
+        and indexname = 'audit_logs_created_at_id_idx'
+    `);
+
+    expect(indexes).toHaveLength(1);
+    expect(indexes[0]?.indexdef).toContain("created_at DESC");
+    expect(indexes[0]?.indexdef).toContain("id DESC");
   });
 });

@@ -11,9 +11,9 @@ export function AppSidebar({ role }: { role: Role }) {
   const links = getNavLinks(role);
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
+    <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-card text-card-foreground md:flex">
       <div className="flex h-16 shrink-0 items-center px-6">
-        <span className="text-lg font-bold text-slate-900">Uniwave Go</span>
+        <span className="text-lg font-bold text-foreground">Uniwave Go</span>
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <nav className="flex flex-col gap-1">
@@ -26,8 +26,8 @@ export function AppSidebar({ role }: { role: Role }) {
                 className={cn(
                   "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   isActive
-                    ? "bg-indigo-50 text-indigo-700"
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+                    ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border dark:border-indigo-800/40"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 <link.icon className="h-4 w-4" />

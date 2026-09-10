@@ -36,6 +36,7 @@ export const INTERNAL_XLSX_EXPORT_ELIGIBLE_STATUSES = [
 ] as const satisfies readonly ShippingNoteStatus[];
 
 export const LOCK_SOURCE_STATUSES = [
+  "checked",
   "approved",
 ] as const satisfies readonly ShippingNoteStatus[];
 
@@ -170,4 +171,17 @@ export function hasNormalOutboundBusinessTransition(
   status: ShippingNoteStatus,
 ): boolean {
   return status !== "cancelled" && status !== "exported";
+}
+
+export const IMMUTABLE_SHIPPING_NOTE_STATUSES = [
+  "locked",
+  "cancelled",
+] as const satisfies readonly ShippingNoteStatus[];
+
+export function isShippingNoteImmutable(status: ShippingNoteStatus): boolean {
+  return statusInList(status, IMMUTABLE_SHIPPING_NOTE_STATUSES);
+}
+
+export function canCloseShippingNoteStatus(status: ShippingNoteStatus): boolean {
+  return canLockShippingNoteStatus(status);
 }

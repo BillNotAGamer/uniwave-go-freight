@@ -6,6 +6,7 @@ import { shippingNoteDraftInputSchema } from "@/features/shipping-notes/validato
 import type { ShippingNoteDetail } from "@/features/shipping-notes/types";
 
 import { db } from "../setup/database";
+import { assertAuthorizedIntegrationDatabaseTarget } from "../setup/database-authorization";
 
 export function draftInput(runId: string, label: string) {
   return shippingNoteDraftInputSchema.parse({
@@ -30,10 +31,13 @@ export async function createDraftFor(
   runId: string,
   label: string,
 ): Promise<ShippingNoteDetail> {
+  assertAuthorizedIntegrationDatabaseTarget();
   return createShippingNoteDraft(draftInput(runId, label), user);
 }
 
 export async function softDeleteNote(noteId: string): Promise<void> {
+  assertAuthorizedIntegrationDatabaseTarget();
+
   await db
     .update(shippingNotes)
     .set({ deletedAt: new Date() })

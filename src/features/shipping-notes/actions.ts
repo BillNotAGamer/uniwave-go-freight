@@ -4,6 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireAuthenticatedUser } from "@/lib/auth/session";
+import { searchPartners } from "@/features/partners/queries";
+import {
+  searchServiceCatalogItems,
+  SERVICE_CATALOG_LOOKUP_LIMIT,
+} from "@/features/service-catalog/queries";
+import type { ServiceCatalogLookupItem } from "@/features/service-catalog/types";
 
 import { readFormString } from "./form-data";
 import {
@@ -31,6 +37,7 @@ import {
   cancelShippingNoteInputSchema,
   createBuyingChargeInputSchema,
   createShippingNoteDraftInputSchema,
+  partnerLookupSearchSchema,
   deleteBuyingChargeInputSchema,
   createSellingChargeInputSchema,
   lockShippingNoteInputSchema,
@@ -50,6 +57,60 @@ export type ShippingNoteActionResult =
   | { ok: true }
   | { ok: false; error: string };
 
+export type ShippingNotePartnerLookupResult = {
+  id: string;
+  companyName: string;
+  vendorCode: string | null;
+  categoryNames: string[];
+};
+
+export type ShippingNoteServiceCatalogLookupResult = ServiceCatalogLookupItem;
+
+/**
+ * Safe, authenticated Partner lookup for Shipping Note party selection.
+ * The underlying Partner query owns authorization and active/deleted filtering.
+ */
+export async function searchShippingNotePartnersAction(
+  searchTerm: string,
+): Promise<ShippingNotePartnerLookupResult[]> {
+  const session = await requireAuthenticatedUser();
+  const parsed = partnerLookupSearchSchema.safeParse(searchTerm);
+
+  if (!parsed.success) {
+    return [];
+  }
+
+  const partners = await searchPartners(parsed.data, session.user, {
+    activeOnly: true,
+    limit: 12,
+  });
+
+  return partners.map((partner) => ({
+    id: partner.id,
+    companyName: partner.companyName,
+    vendorCode: partner.vendorCode,
+    categoryNames: partner.categories.map((category) => category.name),
+  }));
+}
+
+/** Authenticated, authorized and bounded lookup for charge catalog selection. */
+export async function searchShippingNoteServiceCatalogAction(
+  searchTerm: string,
+): Promise<ShippingNoteServiceCatalogLookupResult[]> {
+  const session = await requireAuthenticatedUser();
+  const parsed = partnerLookupSearchSchema.safeParse(searchTerm);
+
+  if (!parsed.success) {
+    return [];
+  }
+
+  return searchServiceCatalogItems(
+    parsed.data,
+    session.user,
+    SERVICE_CATALOG_LOOKUP_LIMIT,
+  );
+}
+
 function parseBooleanishError(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -67,14 +128,31 @@ export async function createShippingNoteDraftAction(
   const parsed = createShippingNoteDraftInputSchema.safeParse({
     jobsheetNo: readFormString(formData, "jobsheetNo"),
     shippingMode: readFormString(formData, "shippingMode"),
+    shipperPartnerId: readFormString(formData, "shipperPartnerId"),
+    consigneePartnerId: readFormString(formData, "consigneePartnerId"),
+    customerPartnerId: readFormString(formData, "customerPartnerId"),
+    agentPartnerId: readFormString(formData, "agentPartnerId"),
     mawbHawbNo: readFormString(formData, "mawbHawbNo"),
     shipperText: readFormString(formData, "shipperText"),
     consigneeText: readFormString(formData, "consigneeText"),
     customerText: readFormString(formData, "customerText"),
     agentText: readFormString(formData, "agentText"),
+    domesticOrigin: readFormString(formData, "domesticOrigin"),
+    domesticDestination: readFormString(formData, "domesticDestination"),
+    airOrigin: readFormString(formData, "airOrigin"),
+    airDestination: readFormString(formData, "airDestination"),
     aol: readFormString(formData, "aol"),
     aod: readFormString(formData, "aod"),
+    portOfLoading: readFormString(formData, "portOfLoading"),
+    portOfDischarge: readFormString(formData, "portOfDischarge"),
     finalDestination: readFormString(formData, "finalDestination"),
+    mawbNo: readFormString(formData, "mawbNo"),
+    hawbNo: readFormString(formData, "hawbNo"),
+    mblNo: readFormString(formData, "mblNo"),
+    hblNo: readFormString(formData, "hblNo"),
+    flightNo: readFormString(formData, "flightNo"),
+    vesselName: readFormString(formData, "vesselName"),
+    voyageNo: readFormString(formData, "voyageNo"),
     etd: readFormString(formData, "etd"),
     eta: readFormString(formData, "eta"),
     volumeValue: readFormString(formData, "volumeValue"),
@@ -113,14 +191,31 @@ export async function updateShippingNoteDraftAction(
     id: readFormString(formData, "id"),
     jobsheetNo: readFormString(formData, "jobsheetNo"),
     shippingMode: readFormString(formData, "shippingMode"),
+    shipperPartnerId: readFormString(formData, "shipperPartnerId"),
+    consigneePartnerId: readFormString(formData, "consigneePartnerId"),
+    customerPartnerId: readFormString(formData, "customerPartnerId"),
+    agentPartnerId: readFormString(formData, "agentPartnerId"),
     mawbHawbNo: readFormString(formData, "mawbHawbNo"),
     shipperText: readFormString(formData, "shipperText"),
     consigneeText: readFormString(formData, "consigneeText"),
     customerText: readFormString(formData, "customerText"),
     agentText: readFormString(formData, "agentText"),
+    domesticOrigin: readFormString(formData, "domesticOrigin"),
+    domesticDestination: readFormString(formData, "domesticDestination"),
+    airOrigin: readFormString(formData, "airOrigin"),
+    airDestination: readFormString(formData, "airDestination"),
     aol: readFormString(formData, "aol"),
     aod: readFormString(formData, "aod"),
+    portOfLoading: readFormString(formData, "portOfLoading"),
+    portOfDischarge: readFormString(formData, "portOfDischarge"),
     finalDestination: readFormString(formData, "finalDestination"),
+    mawbNo: readFormString(formData, "mawbNo"),
+    hawbNo: readFormString(formData, "hawbNo"),
+    mblNo: readFormString(formData, "mblNo"),
+    hblNo: readFormString(formData, "hblNo"),
+    flightNo: readFormString(formData, "flightNo"),
+    vesselName: readFormString(formData, "vesselName"),
+    voyageNo: readFormString(formData, "voyageNo"),
     etd: readFormString(formData, "etd"),
     eta: readFormString(formData, "eta"),
     volumeValue: readFormString(formData, "volumeValue"),
@@ -309,6 +404,8 @@ export async function lockShippingNoteAction(
   return { ok: true };
 }
 
+export const closeShippingNoteAction = lockShippingNoteAction;
+
 export async function unlockShippingNoteAction(
   _state: ShippingNoteActionResult,
   formData: FormData,
@@ -472,6 +569,7 @@ export async function createSellingChargeAction(
 
   const parsed = createSellingChargeInputSchema.safeParse({
     shippingNoteId: readFormString(formData, "shippingNoteId"),
+    serviceCatalogItemId: readFormString(formData, "serviceCatalogItemId"),
     chargeName: readFormString(formData, "chargeName"),
     description: readFormString(formData, "description"),
     quantity: readFormString(formData, "quantity"),
@@ -506,6 +604,7 @@ export async function updateSellingChargeAction(
 
   const parsed = updateSellingChargeInputSchema.safeParse({
     id: readFormString(formData, "id"),
+    serviceCatalogItemId: readFormString(formData, "serviceCatalogItemId"),
     chargeName: readFormString(formData, "chargeName"),
     description: readFormString(formData, "description"),
     quantity: readFormString(formData, "quantity"),
@@ -570,6 +669,7 @@ export async function createBuyingChargeAction(
 
   const parsed = createBuyingChargeInputSchema.safeParse({
     shippingNoteId: readFormString(formData, "shippingNoteId"),
+    serviceCatalogItemId: readFormString(formData, "serviceCatalogItemId"),
     chargeName: readFormString(formData, "chargeName"),
     description: readFormString(formData, "description"),
     quantity: readFormString(formData, "quantity"),
@@ -612,6 +712,7 @@ export async function updateBuyingChargeAction(
 
   const parsed = updateBuyingChargeInputSchema.safeParse({
     id: readFormString(formData, "id"),
+    serviceCatalogItemId: readFormString(formData, "serviceCatalogItemId"),
     chargeName: readFormString(formData, "chargeName"),
     description: readFormString(formData, "description"),
     quantity: readFormString(formData, "quantity"),

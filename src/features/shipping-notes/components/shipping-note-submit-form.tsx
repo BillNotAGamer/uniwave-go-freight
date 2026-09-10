@@ -28,12 +28,12 @@ export function ShippingNoteSubmitForm({
     <form className="flex flex-col gap-3" action={formAction}>
       <input type="hidden" name="id" value={noteId} />
       {state.ok ? null : (
-        <p className="text-sm text-red-700" role="alert">
+        <p className="text-sm text-red-700 dark:text-red-400" role="alert">
           {state.error}
         </p>
       )}
       <button
-        className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+        className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
         type="submit"
       >
         {submitLabel}

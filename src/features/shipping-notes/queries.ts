@@ -1,6 +1,17 @@
 import "server-only";
 
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNull,
+  lt,
+  type SQL,
+} from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { requireAnyPermission } from "@/lib/permissions/require-permission";
@@ -22,6 +33,7 @@ import type {
   ShippingNoteListItem,
   SellingChargeSummary,
 } from "./types";
+import type { ShippingNotesListFilters } from "./list-filters";
 import {
   summarizeFinancialCharges,
   summarizeSellingCharges,
@@ -47,6 +59,36 @@ function getShippingNoteAccessConditions(user: DbUser) {
   return conditions;
 }
 
+export function escapeShippingNoteJobsheetLikePattern(value: string): string {
+  return value.replace(/[%_\\]/g, "\\$&");
+}
+
+export function buildShippingNotesListWhere(
+  user: DbUser,
+  filters: ShippingNotesListFilters = {},
+): SQL {
+  const conditions = getShippingNoteAccessConditions(user);
+
+  if (filters.jobsheet) {
+    conditions.push(
+      ilike(
+        shippingNotes.jobsheetNo,
+        `%${escapeShippingNoteJobsheetLikePattern(filters.jobsheet)}%`,
+      ),
+    );
+  }
+
+  if (filters.etdFrom) {
+    conditions.push(gte(shippingNotes.etd, filters.etdFrom));
+  }
+
+  if (filters.etdToExclusive) {
+    conditions.push(lt(shippingNotes.etd, filters.etdToExclusive));
+  }
+
+  return and(...conditions)!;
+}
+
 const shippingNoteListColumns = {
   id: shippingNotes.id,
   jobsheetNo: shippingNotes.jobsheetNo,
@@ -59,12 +101,29 @@ const shippingNoteListColumns = {
 
 const shippingNoteDetailColumns = {
   ...shippingNoteListColumns,
+  shipperPartnerId: shippingNotes.shipperPartnerId,
+  consigneePartnerId: shippingNotes.consigneePartnerId,
+  customerPartnerId: shippingNotes.customerPartnerId,
+  agentPartnerId: shippingNotes.agentPartnerId,
   mawbHawbNo: shippingNotes.mawbHawbNo,
   customerText: shippingNotes.customerText,
   agentText: shippingNotes.agentText,
+  domesticOrigin: shippingNotes.domesticOrigin,
+  domesticDestination: shippingNotes.domesticDestination,
+  airOrigin: shippingNotes.aol,
+  airDestination: shippingNotes.aod,
   aol: shippingNotes.aol,
   aod: shippingNotes.aod,
+  portOfLoading: shippingNotes.portOfLoading,
+  portOfDischarge: shippingNotes.portOfDischarge,
   finalDestination: shippingNotes.finalDestination,
+  mawbNo: shippingNotes.mawbNo,
+  hawbNo: shippingNotes.hawbNo,
+  mblNo: shippingNotes.mblNo,
+  hblNo: shippingNotes.hblNo,
+  flightNo: shippingNotes.flightNo,
+  vesselName: shippingNotes.vesselName,
+  voyageNo: shippingNotes.voyageNo,
   etd: shippingNotes.etd,
   eta: shippingNotes.eta,
   volumeValue: shippingNotes.volumeValue,
@@ -77,13 +136,14 @@ const shippingNoteDetailColumns = {
 
 export async function listShippingNotesForUser(
   user: DbUser,
+  filters: ShippingNotesListFilters = {},
 ): Promise<ShippingNoteListItem[]> {
-  const conditions = getShippingNoteAccessConditions(user);
+  const where = buildShippingNotesListWhere(user, filters);
 
   return db
     .select(shippingNoteListColumns)
     .from(shippingNotes)
-    .where(and(...conditions))
+    .where(where)
     .orderBy(desc(shippingNotes.createdAt));
 }
 
@@ -158,6 +218,11 @@ const sellingChargeColumns = {
   exchangeRate: shippingNoteCharges.exchangeRate,
   amountOriginal: shippingNoteCharges.amountOriginal,
   amountVnd: shippingNoteCharges.amountVnd,
+  serviceCatalogItemId: shippingNoteCharges.serviceCatalogItemId,
+  catalogCodeSnapshot: shippingNoteCharges.catalogCodeSnapshot,
+  catalogNameSnapshot: shippingNoteCharges.catalogNameSnapshot,
+  catalogUnitSnapshot: shippingNoteCharges.catalogUnitSnapshot,
+  catalogVatRateSnapshot: shippingNoteCharges.catalogVatRateSnapshot,
   createdAt: shippingNoteCharges.createdAt,
   updatedAt: shippingNoteCharges.updatedAt,
 } as const;
@@ -175,6 +240,11 @@ const buyingChargeColumns = {
   exchangeRate: shippingNoteCharges.exchangeRate,
   amountOriginal: shippingNoteCharges.amountOriginal,
   amountVnd: shippingNoteCharges.amountVnd,
+  serviceCatalogItemId: shippingNoteCharges.serviceCatalogItemId,
+  catalogCodeSnapshot: shippingNoteCharges.catalogCodeSnapshot,
+  catalogNameSnapshot: shippingNoteCharges.catalogNameSnapshot,
+  catalogUnitSnapshot: shippingNoteCharges.catalogUnitSnapshot,
+  catalogVatRateSnapshot: shippingNoteCharges.catalogVatRateSnapshot,
   vendorOrAgentText: shippingNoteCharges.vendorOrAgentText,
   createdAt: shippingNoteCharges.createdAt,
   updatedAt: shippingNoteCharges.updatedAt,
@@ -214,6 +284,7 @@ export async function listSellingChargesForNoteForUser(
       ),
     )
     .orderBy(asc(shippingNoteCharges.createdAt));
+
 }
 
 export async function getSellingChargesAndSummaryForNoteForUser(
@@ -248,6 +319,7 @@ export async function listBuyingChargesForNoteForUser(
       ),
     )
     .orderBy(asc(shippingNoteCharges.createdAt));
+
 }
 
 export async function getFinancialSummaryForNoteForUser(

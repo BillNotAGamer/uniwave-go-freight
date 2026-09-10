@@ -1,4 +1,12 @@
-import { Package, PlusCircle, LayoutDashboard, Percent } from "lucide-react";
+import {
+  ClipboardList,
+  FileText,
+  LayoutDashboard,
+  Package,
+  Percent,
+  PlusCircle,
+  Users,
+} from "lucide-react";
 import type { Role } from "@/lib/permissions/roles";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions/permissions";
 
@@ -17,6 +25,12 @@ export function getNavLinks(role: Role): NavItem[] {
     title: "Shipping Notes",
     href: "/shipping-notes",
     icon: Package,
+  });
+
+  links.push({
+    title: "Documents",
+    href: "/documents",
+    icon: FileText,
   });
 
   if (hasPermission(role, PERMISSIONS.SHIPPING_NOTES_CREATE_OWN)) {
@@ -40,6 +54,22 @@ export function getNavLinks(role: Role): NavItem[] {
       title: "Tax Rules",
       href: "/tax-rules",
       icon: Percent,
+    });
+  }
+
+  if (hasPermission(role, PERMISSIONS.USERS_MANAGE)) {
+    links.push({
+      title: "Users",
+      href: "/admin/users",
+      icon: Users,
+    });
+  }
+
+  if (hasPermission(role, PERMISSIONS.AUDIT_LOGS_READ)) {
+    links.push({
+      title: "Audit",
+      href: "/admin/audit",
+      icon: ClipboardList,
     });
   }
 

@@ -1,0 +1,12 @@
+{
+  "acceptedAdvisory": "GHSA-qq9h-g4jm-xgf3",
+  "minimumPatchedVersion": "1.6.22",
+  "emailAndPassword": {
+    "enabled": true
+  },
+  "passwordlessEmail": {
+    "magicLinkEnabled": false,
+    "emailOtpEnabled": false,
+    "passwordlessEmailSignInEnabled": false
+  }
+}

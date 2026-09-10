@@ -2,23 +2,36 @@
   "name": "uniwave-go-freight",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "node --conditions=react-server ./node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts",
+    "test:e2e": "node scripts/run-browser-e2e.mjs",
+    "test:e2e:headed": "node scripts/run-browser-e2e.mjs --headed",
+    "test:e2e:auth": "node scripts/run-auth-browser-e2e.mjs",
+    "test:e2e:auth:headed": "node scripts/run-auth-browser-e2e.mjs --headed",
+    "verify:live-artifacts": "node --conditions=react-server --import tsx scripts/live-artifact-verification.ts",
+    "ci:security-audit": "node scripts/ci-security-audit.mjs",
+    "test:integration": "node ./node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts",
     "test:all": "npm test && npm run test:integration",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "admin:create-first": "node --conditions=react-server --import tsx scripts/create-first-admin.ts",
+    "bootstrap:first-admin": "node --conditions=react-server --import tsx scripts/bootstrap-first-admin.ts",
+    "partners:import": "node --conditions=react-server --import tsx scripts/import-partners.ts",
+    "service-catalog:import": "node --conditions=react-server --import tsx scripts/import-service-catalog.ts",
     "dev:user:create": "node --conditions=react-server --import tsx scripts/create-dev-user.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node --import tsx scripts/guarded-db-migrate.ts",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1116.0",
     "@neondatabase/serverless": "^1.1.0",
     "@radix-ui/react-dialog": "^1.1.19",
     "@react-pdf/renderer": "^4.6.1",
@@ -26,8 +39,9 @@
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "exceljs": "^4.4.0",
+    "googleapis": "^176.0.0",
     "lucide-react": "^1.25.0",
-    "next": "16.2.9",
+    "next": "16.3.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "server-only": "^0.0.1",
@@ -36,7 +50,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
+    "@playwright/test": "^1.62.1",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^20",
     "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19",
@@ -46,8 +61,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "pdf-parse": "^1.1.1",
-    "tailwindcss": "^4",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5",
-    "vitest": "^2.1.9"
+    "vitest": "^3.2.7"
   }
 }

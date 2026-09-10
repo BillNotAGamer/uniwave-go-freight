@@ -6,6 +6,7 @@ import { users, type User } from "@/lib/db/schema";
 import type { Role } from "@/lib/permissions/roles";
 
 import { db } from "../setup/database";
+import { assertAuthorizedIntegrationDatabaseTarget } from "../setup/database-authorization";
 import { toEmailToken } from "../helpers/run-id";
 
 export type IntegrationActors = {
@@ -24,6 +25,8 @@ export async function createIntegrationUser(input: {
   isActive?: boolean;
   deleted?: boolean;
 }): Promise<User> {
+  assertAuthorizedIntegrationDatabaseTarget();
+
   const token = toEmailToken(input.runId);
   const email = `${input.label}.${token}@integration.test`;
 
@@ -80,6 +83,8 @@ export async function createIntegrationActors(
 }
 
 export async function reloadUser(id: string): Promise<User> {
+  assertAuthorizedIntegrationDatabaseTarget();
+
   const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
 
   if (!user) {

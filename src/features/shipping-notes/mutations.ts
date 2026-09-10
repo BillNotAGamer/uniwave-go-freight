@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { logAuditEvent } from "@/lib/audit/log";
@@ -10,6 +10,8 @@ import {
 } from "@/lib/permissions/require-permission";
 import { PERMISSIONS } from "@/lib/permissions/permissions";
 import {
+  businessPartners,
+  serviceCatalogItems,
   shippingNotes,
   shippingNoteCharges,
   type User as DbUser,
@@ -57,6 +59,7 @@ import {
   canCancelFinalizedShippingNoteStatus,
   canCancelShippingNoteStatus,
   canLockShippingNoteStatus,
+  LOCK_SOURCE_STATUSES,
   canMutateBuyingChargeAtStatus,
   canMutateSellingChargeForDraft,
   canReopenShippingNoteForCorrectionStatus,
@@ -68,6 +71,21 @@ import {
   TAX_COMPLETENESS_ERROR,
 } from "./tax/completeness";
 import { recomputeVatForCommercialChange } from "./tax/mutations";
+import {
+  getRequestedShippingNotePartnerIds,
+  resolveShippingNotePartySnapshots,
+  type ShippingNotePartyInput,
+  type ShippingNotePartyPersistence,
+} from "./party-snapshots";
+import {
+  assertValidShippingNoteModeFields,
+  canonicalizeShippingNoteModeFields,
+} from "./mode-rules";
+import {
+  resolveChargeCatalogPersistence,
+  type ChargeCatalogPersistence,
+  type ChargeCatalogSelection,
+} from "./accounting/catalog-charge";
 
 const CANCELLATION_REASON_REQUIRED = "Cancellation reason is required.";
 
@@ -81,6 +99,26 @@ function normalizeOptionalText(value: string | undefined): string | null {
 
 function normalizeOptionalNumber(value: number | undefined): string | null {
   return value === undefined ? null : value.toString();
+}
+
+async function resolvePartyPersistence(
+  input: ShippingNotePartyInput,
+  queryClient: Pick<typeof db, "select">,
+): Promise<ShippingNotePartyPersistence> {
+  const requestedPartnerIds = getRequestedShippingNotePartnerIds(input);
+  const partners = requestedPartnerIds.length === 0
+    ? []
+    : await queryClient
+        .select({
+          id: businessPartners.id,
+          companyName: businessPartners.companyName,
+          isActive: businessPartners.isActive,
+          deletedAt: businessPartners.deletedAt,
+        })
+        .from(businessPartners)
+        .where(inArray(businessPartners.id, requestedPartnerIds));
+
+  return resolveShippingNotePartySnapshots(input, partners);
 }
 
 function requireShippingNoteAccess(
@@ -378,30 +416,42 @@ export async function createShippingNoteDraft(
   input: CreateShippingNoteDraftInput,
   user: DbUser,
 ): Promise<ShippingNoteDetail> {
+  const canonicalInput = canonicalizeShippingNoteModeFields(input);
+  assertValidShippingNoteModeFields(canonicalInput);
+
   requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_CREATE_OWN);
 
-  await assertJobsheetNoIsUnique(input.jobsheetNo);
+  await assertJobsheetNoIsUnique(canonicalInput.jobsheetNo);
 
   try {
     return await db.transaction(async (tx) => {
+      const partyPersistence = await resolvePartyPersistence(canonicalInput, tx);
       const [created] = await tx
         .insert(shippingNotes)
         .values({
-          jobsheetNo: input.jobsheetNo,
-          shippingMode: input.shippingMode,
-          mawbHawbNo: normalizeOptionalText(input.mawbHawbNo),
-          shipperText: normalizeOptionalText(input.shipperText),
-          consigneeText: normalizeOptionalText(input.consigneeText),
-          customerText: normalizeOptionalText(input.customerText),
-          agentText: normalizeOptionalText(input.agentText),
-          aol: normalizeOptionalText(input.aol),
-          aod: normalizeOptionalText(input.aod),
-          finalDestination: normalizeOptionalText(input.finalDestination),
-          etd: normalizeOptionalDate(input.etd),
-          eta: normalizeOptionalDate(input.eta),
-          volumeValue: normalizeOptionalNumber(input.volumeValue),
-          volumeUnit: input.volumeUnit ?? null,
-          exchangeRate: (input.exchangeRate ?? 1).toString(),
+          jobsheetNo: canonicalInput.jobsheetNo,
+          shippingMode: canonicalInput.shippingMode,
+          mawbHawbNo: normalizeOptionalText(canonicalInput.mawbHawbNo),
+          ...partyPersistence,
+          domesticOrigin: normalizeOptionalText(canonicalInput.domesticOrigin),
+          domesticDestination: normalizeOptionalText(canonicalInput.domesticDestination),
+          aol: normalizeOptionalText(canonicalInput.aol),
+          aod: normalizeOptionalText(canonicalInput.aod),
+          portOfLoading: normalizeOptionalText(canonicalInput.portOfLoading),
+          portOfDischarge: normalizeOptionalText(canonicalInput.portOfDischarge),
+          finalDestination: normalizeOptionalText(canonicalInput.finalDestination),
+          mawbNo: normalizeOptionalText(canonicalInput.mawbNo),
+          hawbNo: normalizeOptionalText(canonicalInput.hawbNo),
+          mblNo: normalizeOptionalText(canonicalInput.mblNo),
+          hblNo: normalizeOptionalText(canonicalInput.hblNo),
+          flightNo: normalizeOptionalText(canonicalInput.flightNo),
+          vesselName: normalizeOptionalText(canonicalInput.vesselName),
+          voyageNo: normalizeOptionalText(canonicalInput.voyageNo),
+          etd: normalizeOptionalDate(canonicalInput.etd),
+          eta: normalizeOptionalDate(canonicalInput.eta),
+          volumeValue: normalizeOptionalNumber(canonicalInput.volumeValue),
+          volumeUnit: canonicalInput.volumeUnit ?? null,
+          exchangeRate: (canonicalInput.exchangeRate ?? 1).toString(),
           status: "draft",
           createdById: user.id,
         })
@@ -435,34 +485,46 @@ export async function updateShippingNoteDraft(
   input: UpdateShippingNoteDraftInput,
   user: DbUser,
 ): Promise<ShippingNoteDetail> {
+  const canonicalInput = canonicalizeShippingNoteModeFields(input);
+  assertValidShippingNoteModeFields(canonicalInput);
+
   requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_EDIT_OWN);
 
   const current = ensureDraftAccess(await getShippingNoteById(id), user);
 
-  if (input.jobsheetNo !== current.jobsheetNo) {
-    await assertJobsheetNoIsUnique(input.jobsheetNo, id);
+  if (canonicalInput.jobsheetNo !== current.jobsheetNo) {
+    await assertJobsheetNoIsUnique(canonicalInput.jobsheetNo, id);
   }
 
   try {
     return await db.transaction(async (tx) => {
+      const partyPersistence = await resolvePartyPersistence(canonicalInput, tx);
       const [updated] = await tx
         .update(shippingNotes)
         .set({
-          jobsheetNo: input.jobsheetNo,
-          shippingMode: input.shippingMode,
-          mawbHawbNo: normalizeOptionalText(input.mawbHawbNo),
-          shipperText: normalizeOptionalText(input.shipperText),
-          consigneeText: normalizeOptionalText(input.consigneeText),
-          customerText: normalizeOptionalText(input.customerText),
-          agentText: normalizeOptionalText(input.agentText),
-          aol: normalizeOptionalText(input.aol),
-          aod: normalizeOptionalText(input.aod),
-          finalDestination: normalizeOptionalText(input.finalDestination),
-          etd: normalizeOptionalDate(input.etd),
-          eta: normalizeOptionalDate(input.eta),
-          volumeValue: normalizeOptionalNumber(input.volumeValue),
-          volumeUnit: input.volumeUnit ?? null,
-          exchangeRate: (input.exchangeRate ?? 1).toString(),
+          jobsheetNo: canonicalInput.jobsheetNo,
+          shippingMode: canonicalInput.shippingMode,
+          mawbHawbNo: normalizeOptionalText(canonicalInput.mawbHawbNo),
+          ...partyPersistence,
+          domesticOrigin: normalizeOptionalText(canonicalInput.domesticOrigin),
+          domesticDestination: normalizeOptionalText(canonicalInput.domesticDestination),
+          aol: normalizeOptionalText(canonicalInput.aol),
+          aod: normalizeOptionalText(canonicalInput.aod),
+          portOfLoading: normalizeOptionalText(canonicalInput.portOfLoading),
+          portOfDischarge: normalizeOptionalText(canonicalInput.portOfDischarge),
+          finalDestination: normalizeOptionalText(canonicalInput.finalDestination),
+          mawbNo: normalizeOptionalText(canonicalInput.mawbNo),
+          hawbNo: normalizeOptionalText(canonicalInput.hawbNo),
+          mblNo: normalizeOptionalText(canonicalInput.mblNo),
+          hblNo: normalizeOptionalText(canonicalInput.hblNo),
+          flightNo: normalizeOptionalText(canonicalInput.flightNo),
+          vesselName: normalizeOptionalText(canonicalInput.vesselName),
+          voyageNo: normalizeOptionalText(canonicalInput.voyageNo),
+          etd: normalizeOptionalDate(canonicalInput.etd),
+          eta: normalizeOptionalDate(canonicalInput.eta),
+          volumeValue: normalizeOptionalNumber(canonicalInput.volumeValue),
+          volumeUnit: canonicalInput.volumeUnit ?? null,
+          exchangeRate: (canonicalInput.exchangeRate ?? 1).toString(),
         })
         .where(and(eq(shippingNotes.id, id), eq(shippingNotes.status, "draft")))
         .returning(shippingNoteDetailSelect);
@@ -756,7 +818,7 @@ export async function lockShippingNote(
         .where(
           and(
             eq(shippingNotes.id, parsedInput.id),
-            eq(shippingNotes.status, "approved"),
+            inArray(shippingNotes.status, [...LOCK_SOURCE_STATUSES]),
             isNull(shippingNotes.deletedAt),
           ),
         )
@@ -791,6 +853,8 @@ export async function lockShippingNote(
     throw new Error("Failed to lock shipping note.");
   }
 }
+
+export const closeShippingNote = lockShippingNote;
 
 export async function unlockShippingNote(
   input: UnlockShippingNoteInput,
@@ -1088,9 +1152,50 @@ const chargeReturnColumns = {
   exchangeRate: shippingNoteCharges.exchangeRate,
   amountOriginal: shippingNoteCharges.amountOriginal,
   amountVnd: shippingNoteCharges.amountVnd,
+  serviceCatalogItemId: shippingNoteCharges.serviceCatalogItemId,
+  catalogCodeSnapshot: shippingNoteCharges.catalogCodeSnapshot,
+  catalogNameSnapshot: shippingNoteCharges.catalogNameSnapshot,
+  catalogUnitSnapshot: shippingNoteCharges.catalogUnitSnapshot,
+  catalogVatRateSnapshot: shippingNoteCharges.catalogVatRateSnapshot,
+  vatOverrideRate: shippingNoteCharges.vatOverrideRate,
   createdAt: shippingNoteCharges.createdAt,
   updatedAt: shippingNoteCharges.updatedAt,
 } as const;
+
+type ChargeMutationTransaction = Parameters<
+  Parameters<typeof db.transaction>[0]
+>[0];
+
+async function loadChargeCatalogPersistence(
+  tx: ChargeMutationTransaction,
+  input: ChargeCatalogSelection,
+): Promise<ChargeCatalogPersistence> {
+  if (!input.serviceCatalogItemId) {
+    return resolveChargeCatalogPersistence(input, null);
+  }
+
+  const [item] = await tx
+    .select({
+      id: serviceCatalogItems.id,
+      code: serviceCatalogItems.code,
+      name: serviceCatalogItems.name,
+      primaryUnit: serviceCatalogItems.primaryUnit,
+      vatRate: serviceCatalogItems.vatRate,
+      isActive: serviceCatalogItems.isActive,
+      deletedAt: serviceCatalogItems.deletedAt,
+    })
+    .from(serviceCatalogItems)
+    .where(
+      and(
+        eq(serviceCatalogItems.id, input.serviceCatalogItemId),
+        eq(serviceCatalogItems.isActive, true),
+        isNull(serviceCatalogItems.deletedAt),
+      ),
+    )
+    .limit(1);
+
+  return resolveChargeCatalogPersistence(input, item ?? null);
+}
 
 const buyingChargeReturnColumns = {
   ...chargeReturnColumns,
@@ -1148,15 +1253,15 @@ export async function createSellingChargeForNote(
 
   try {
     return await db.transaction(async (tx) => {
+      const catalog = await loadChargeCatalogPersistence(tx, input);
       const [created] = await tx
         .insert(shippingNoteCharges)
         .values({
           shippingNoteId: note.id,
           section: "selling",
-          chargeName: input.chargeName,
+          ...catalog,
           description: normalizeOptionalText(input.description),
           quantity: amounts.quantity,
-          unit: input.unit,
           unitPrice: amounts.unitPrice,
           currency: input.currency,
           exchangeRate: amounts.exchangeRate,
@@ -1217,6 +1322,12 @@ export async function updateSellingCharge(
       amountVnd: shippingNoteCharges.amountVnd,
       vatPercent: shippingNoteCharges.vatPercent,
       taxTreatmentSnapshot: shippingNoteCharges.taxTreatmentSnapshot,
+      serviceCatalogItemId: shippingNoteCharges.serviceCatalogItemId,
+      catalogCodeSnapshot: shippingNoteCharges.catalogCodeSnapshot,
+      catalogNameSnapshot: shippingNoteCharges.catalogNameSnapshot,
+      catalogUnitSnapshot: shippingNoteCharges.catalogUnitSnapshot,
+      catalogVatRateSnapshot: shippingNoteCharges.catalogVatRateSnapshot,
+      vatOverrideRate: shippingNoteCharges.vatOverrideRate,
     })
     .from(shippingNoteCharges)
     .where(
@@ -1247,13 +1358,13 @@ export async function updateSellingCharge(
 
   try {
     return await db.transaction(async (tx) => {
+      const catalog = await loadChargeCatalogPersistence(tx, input);
       const [updated] = await tx
         .update(shippingNoteCharges)
         .set({
-          chargeName: input.chargeName,
+          ...catalog,
           description: normalizeOptionalText(input.description),
           quantity: amounts.quantity,
-          unit: input.unit,
           unitPrice: amounts.unitPrice,
           currency: input.currency,
           exchangeRate: amounts.exchangeRate,
@@ -1389,15 +1500,15 @@ export async function createBuyingChargeForNote(
 
   try {
     return await db.transaction(async (tx) => {
+      const catalog = await loadChargeCatalogPersistence(tx, input);
       const [created] = await tx
         .insert(shippingNoteCharges)
         .values({
           shippingNoteId: note.id,
           section: "buying",
-          chargeName: input.chargeName,
+          ...catalog,
           description: normalizeOptionalText(input.description),
           quantity: amounts.quantity,
-          unit: input.unit,
           unitPrice: amounts.unitPrice,
           currency: input.currency,
           exchangeRate: amounts.exchangeRate,
@@ -1459,6 +1570,12 @@ export async function updateBuyingCharge(
       vendorOrAgentText: shippingNoteCharges.vendorOrAgentText,
       vatPercent: shippingNoteCharges.vatPercent,
       taxTreatmentSnapshot: shippingNoteCharges.taxTreatmentSnapshot,
+      serviceCatalogItemId: shippingNoteCharges.serviceCatalogItemId,
+      catalogCodeSnapshot: shippingNoteCharges.catalogCodeSnapshot,
+      catalogNameSnapshot: shippingNoteCharges.catalogNameSnapshot,
+      catalogUnitSnapshot: shippingNoteCharges.catalogUnitSnapshot,
+      catalogVatRateSnapshot: shippingNoteCharges.catalogVatRateSnapshot,
+      vatOverrideRate: shippingNoteCharges.vatOverrideRate,
     })
     .from(shippingNoteCharges)
     .where(
@@ -1487,13 +1604,13 @@ export async function updateBuyingCharge(
 
   try {
     return await db.transaction(async (tx) => {
+      const catalog = await loadChargeCatalogPersistence(tx, input);
       const [updated] = await tx
         .update(shippingNoteCharges)
         .set({
-          chargeName: input.chargeName,
+          ...catalog,
           description: normalizeOptionalText(input.description),
           quantity: amounts.quantity,
-          unit: input.unit,
           unitPrice: amounts.unitPrice,
           currency: input.currency,
           exchangeRate: amounts.exchangeRate,

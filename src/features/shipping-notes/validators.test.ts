@@ -25,11 +25,45 @@ const baseSellingChargeInput = {
   currency: "VND",
 } as const;
 
+const validDomesticInput = {
+  jobsheetNo: "DOM-001",
+  shippingMode: "domestic_truck",
+  domesticOrigin: "HCM",
+  domesticDestination: "DAD",
+} as const;
+
+const validAirInput = {
+  jobsheetNo: "AIR-001",
+  shippingMode: "air_export",
+  aol: "SGN",
+  aod: "NRT",
+  finalDestination: "Tokyo",
+  mawbNo: "123-45678901",
+  hawbNo: "HAWB-001",
+  flightNo: "VN300",
+  etd: "2026-06-01T08:00:00Z",
+  eta: "2026-06-01T14:00:00Z",
+} as const;
+
+const validSeaInput = {
+  jobsheetNo: "SEA-001",
+  shippingMode: "sea_export",
+  portOfLoading: "VNSGN",
+  portOfDischarge: "NLRTM",
+  finalDestination: "Rotterdam",
+  mblNo: "MBL-001",
+  hblNo: "HBL-001",
+  vesselName: "Pacific Dawn",
+  voyageNo: "PD-26",
+  etd: "2026-06-01T08:00:00Z",
+  eta: "2026-06-20T14:00:00Z",
+} as const;
+
 describe("shipping note validation schemas", () => {
   it("normalizes draft jobsheet numbers and trims provided optional text", () => {
     const parsed = shippingNoteDraftInputSchema.parse({
+      ...validSeaInput,
       jobsheetNo: " js   001 ",
-      shippingMode: "sea_export",
       mawbHawbNo: "  MAWB-1  ",
       volumeValue: "12.5",
       volumeUnit: "cbm",
@@ -47,8 +81,8 @@ describe("shipping note validation schemas", () => {
 
   it("rejects explicit blank optional text at the pure schema boundary", () => {
     expect(() => shippingNoteDraftInputSchema.parse({
+      ...validSeaInput,
       jobsheetNo: "JS-1",
-      shippingMode: "sea_export",
       shipperText: "   ",
     })).toThrow();
   });
@@ -59,15 +93,73 @@ describe("shipping note validation schemas", () => {
       shippingMode: "rail",
     })).toThrow();
     expect(() => shippingNoteDraftInputSchema.parse({
+      ...validSeaInput,
       jobsheetNo: "JS-1",
-      shippingMode: "sea_export",
       volumeUnit: "pallet",
     })).toThrow();
     expect(() => shippingNoteDraftInputSchema.parse({
+      ...validSeaInput,
       jobsheetNo: "JS-1",
-      shippingMode: "sea_export",
       exchangeRate: 0,
     })).toThrow();
+  });
+
+  it("normalizes optional C4 party, routing, document, and transport fields", () => {
+    const parsed = shippingNoteDraftInputSchema.parse({
+      ...validAirInput,
+      jobsheetNo: "C4-1",
+      shipperPartnerId: " partner-shipper ",
+      consigneePartnerId: " partner-consignee ",
+      domesticOrigin: " Ho Chi Minh City ",
+      domesticDestination: " Da Nang ",
+      airOrigin: " SGN ",
+      airDestination: " LAX ",
+      aod: " LAX ",
+      finalDestination: " Tokyo ",
+      portOfLoading: " VNSGN ",
+      portOfDischarge: " USLAX ",
+      mawbNo: " 123-45678901 ",
+      hawbNo: " HAWB-1 ",
+      mblNo: " MBL-1 ",
+      hblNo: " HBL-1 ",
+      flightNo: " VN123 ",
+      vesselName: " Vessel One ",
+      voyageNo: " V001 ",
+    });
+
+    expect(parsed).toMatchObject({
+      shipperPartnerId: "partner-shipper",
+      consigneePartnerId: "partner-consignee",
+      domesticOrigin: undefined,
+      domesticDestination: undefined,
+      aol: "SGN",
+      aod: "LAX",
+      airOrigin: undefined,
+      airDestination: undefined,
+      portOfLoading: undefined,
+      portOfDischarge: undefined,
+      mawbNo: "123-45678901",
+      hawbNo: "HAWB-1",
+      mblNo: undefined,
+      hblNo: undefined,
+      flightNo: "VN123",
+      vesselName: undefined,
+      voyageNo: undefined,
+    });
+  });
+
+  it("preserves text-only party callers while enforcing Domestic routing", () => {
+    const parsed = shippingNoteDraftInputSchema.parse({
+      ...validDomesticInput,
+      jobsheetNo: "C4-LEGACY",
+      shipperText: "Legacy shipper",
+      consigneeText: "Legacy consignee",
+    });
+
+    expect(parsed.shipperText).toBe("Legacy shipper");
+    expect(parsed.shipperPartnerId).toBeUndefined();
+    expect(parsed.domesticOrigin).toBe("HCM");
+    expect(parsed.mawbNo).toBeUndefined();
   });
 
   it("requires non-blank identifiers for update and transition actions", () => {

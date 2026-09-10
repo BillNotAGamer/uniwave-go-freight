@@ -29,6 +29,55 @@
       "when": 1786611842025,
       "tag": "0003_hard_titania",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787352538881,
+      "tag": "0004_clean_power_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787558879118,
+      "tag": "0005_perpetual_goblin_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788754084931,
+      "tag": "0006_cold_kulan_gath",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788801055614,
+      "tag": "0007_fuzzy_steve_rogers",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788947735230,
+      "tag": "0008_sparkling_husk",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788970367109,
+      "tag": "0009_flowery_switch",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788982663227,
+      "tag": "0010_soft_lorna_dane",
+      "breakpoints": true
     }
   ]
 }

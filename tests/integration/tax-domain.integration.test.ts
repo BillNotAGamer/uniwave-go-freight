@@ -292,7 +292,7 @@ describe("hosted tax domain services", () => {
       overrideChargeVatPercent(
         overrideChargeVatPercentInputSchema.parse({
           chargeId: charge.id,
-          vatPercent: "12.50",
+          vatPercent: "5",
           reason: "Contract-specific VAT percentage",
         }),
         actors.saleA,
@@ -302,15 +302,17 @@ describe("hosted tax domain services", () => {
     const overridden = await overrideChargeVatPercent(
       overrideChargeVatPercentInputSchema.parse({
         chargeId: charge.id,
-        vatPercent: "12.50",
+        vatPercent: "5",
         reason: "Contract-specific VAT percentage",
       }),
       actors.accountant,
     );
 
     expect(overridden).toMatchObject({
-      vatPercent: "12.50",
-      vatAmount: "12.50",
+      vatPercent: "5.00",
+      vatAmount: "5.00",
+      vatOverrideRate: "5.00",
+      effectiveAccountingVatRate: "5.00",
       isOverride: true,
       overrideReason: "Contract-specific VAT percentage",
       taxComplete: true,
@@ -367,7 +369,7 @@ describe("hosted tax domain services", () => {
       overrideChargeVatPercent(
         overrideChargeVatPercentInputSchema.parse({
           chargeId: charge.id,
-          vatPercent: "11.00",
+          vatPercent: "10.00",
           reason: "Too late",
         }),
         actors.accountant,

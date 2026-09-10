@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentSession } from "@/lib/auth/session";
+import { ArtifactStorageError } from "@/lib/artifact-storage/errors";
 import { AuthorizationError } from "@/lib/permissions/require-permission";
+import { persistGeneratedExportArtifact } from "@/features/shipping-notes/export/artifacts";
 import { getInternalShippingNoteExportDataForUser } from "@/features/shipping-notes/export/queries";
 import {
   buildInternalXlsxFileName,
@@ -64,6 +66,14 @@ function isSameOriginRequest(request: NextRequest): boolean {
 function toExportError(error: unknown): ExportError {
   if (error instanceof ExportError) {
     return error;
+  }
+
+  if (error instanceof ArtifactStorageError) {
+    return new ExportError(
+      error.code,
+      500,
+      "Internal XLSX artifact storage failed.",
+    );
   }
 
   if (error instanceof AuthorizationError) {
@@ -139,11 +149,21 @@ export async function POST(
       exportData,
       generatedAt,
     );
+    const storedArtifact = await persistGeneratedExportArtifact({
+      exportId: exportRecord.id,
+      exportType: "excel",
+      bytes: generated.buffer,
+      mimeType: INTERNAL_XLSX_MIME_TYPE,
+      checksumSha256: generated.checksumSha256,
+    });
 
     await markInternalXlsxExportGenerated({
       exportId: exportRecord.id,
       fileName: generated.fileName,
       checksumSha256: generated.checksumSha256,
+      artifactStorageKey: storedArtifact.artifactStorageKey,
+      artifactSizeBytes: storedArtifact.artifactSizeBytes,
+      artifactMimeType: storedArtifact.artifactMimeType,
       sellingChargeCount: exportData.summary.sellingChargeCount,
       buyingChargeCount: exportData.summary.buyingChargeCount,
       generatedAt,

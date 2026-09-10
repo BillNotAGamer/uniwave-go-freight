@@ -31,7 +31,7 @@ export default async function TaxRulesPage() {
         description="Manage and review manual VAT/tax rules for charge classification."
       />
 
-      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
         <TaxRulesTable rules={rules} canManage={canManage} />
       </div>
     </PageContainer>

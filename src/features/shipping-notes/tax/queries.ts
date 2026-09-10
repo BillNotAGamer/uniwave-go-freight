@@ -12,6 +12,7 @@ import { calculateLineTotalIncludingVat } from "./calculations";
 import { isChargeTaxComplete, summarizeTaxCompleteness } from "./completeness";
 import type { ChargeTaxDetail, TaxCompletenessResult } from "./types";
 import type { FinancialSummary, FinancialSummaryChargeRow } from "../types";
+import { getPersistedChargeAccountingVat } from "../accounting/vat";
 
 const chargeTaxColumns = {
   chargeId: shippingNoteCharges.id,
@@ -27,6 +28,12 @@ const chargeTaxColumns = {
   vatAmount: shippingNoteCharges.vatAmount,
   isOverride: shippingNoteCharges.isOverride,
   overrideReason: shippingNoteCharges.overrideReason,
+  vatOverrideRate: shippingNoteCharges.vatOverrideRate,
+  serviceCatalogItemId: shippingNoteCharges.serviceCatalogItemId,
+  catalogCodeSnapshot: shippingNoteCharges.catalogCodeSnapshot,
+  catalogNameSnapshot: shippingNoteCharges.catalogNameSnapshot,
+  catalogUnitSnapshot: shippingNoteCharges.catalogUnitSnapshot,
+  catalogVatRateSnapshot: shippingNoteCharges.catalogVatRateSnapshot,
 } as const;
 
 export async function listChargeTaxDetailsForNoteForUser(
@@ -49,14 +56,18 @@ export async function listChargeTaxDetailsForNoteForUser(
     )
     .orderBy(asc(shippingNoteCharges.createdAt), asc(shippingNoteCharges.id));
 
-  return rows.map((row) => ({
-    ...row,
-    lineTotalIncludingVatVnd: calculateLineTotalIncludingVat(
-      row.amountVnd,
-      row.vatAmount,
-    ),
-    taxComplete: isChargeTaxComplete(row),
-  }));
+  return rows.map((row) => {
+    const accountingVat = getPersistedChargeAccountingVat(row);
+    return {
+      ...row,
+      ...accountingVat,
+      lineTotalIncludingVatVnd: calculateLineTotalIncludingVat(
+        row.amountVnd,
+        row.vatAmount,
+      ),
+      taxComplete: isChargeTaxComplete(row),
+    };
+  });
 }
 
 export async function getTaxCompletenessForNoteForUser(

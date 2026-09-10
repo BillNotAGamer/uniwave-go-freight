@@ -57,11 +57,11 @@ export function LoginForm() {
   return (
     <form className="space-y-5" onSubmit={handleSubmit}>
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-slate-700" htmlFor="email">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200" htmlFor="email">
           Email
         </label>
         <input
-          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
+          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-indigo-500 dark:focus:ring-indigo-500/30"
           id="email"
           name="email"
           type="text"
@@ -75,14 +75,14 @@ export function LoginForm() {
 
       <div className="space-y-2">
         <label
-          className="block text-sm font-medium text-slate-700"
+          className="block text-sm font-medium text-slate-700 dark:text-slate-200"
           htmlFor="password"
         >
           Password
         </label>
         <div className="relative">
           <input
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 pr-10 text-sm text-slate-900 outline-none transition focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 pr-10 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-indigo-500 dark:focus:ring-indigo-500/30"
             id="password"
             name="password"
             type={showPassword ? "text" : "password"}
@@ -94,7 +94,7 @@ export function LoginForm() {
           />
           <button
             type="button"
-            className="absolute right-0 top-0 flex h-full items-center justify-center px-3 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 rounded-md"
+            className="absolute right-0 top-0 flex h-full items-center justify-center px-3 text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 rounded-md dark:text-slate-500 dark:hover:text-slate-300 dark:focus:ring-indigo-500/30"
             onClick={() => setShowPassword(!showPassword)}
             aria-label={showPassword ? "Hide password" : "Show password"}
           >
@@ -108,7 +108,7 @@ export function LoginForm() {
       </div>
 
       {error ? (
-        <div className="flex items-center gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700" role="alert">
+        <div className="flex items-center gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:border dark:border-red-900/60 dark:bg-red-950/50 dark:text-red-300" role="alert">
           <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
           <p>{error}</p>
         </div>

@@ -35,7 +35,18 @@ import {
   markInternalXlsxExportGenerated,
 } from "@/features/shipping-notes/export/mutations";
 import { generateInternalShippingNotePdf } from "@/features/shipping-notes/export/pdf/generator";
+import { persistGeneratedExportArtifact } from "@/features/shipping-notes/export/artifacts";
+import { uploadShippingNoteExportToDrive } from "@/features/shipping-notes/export/drive/service";
+import { getHistoricalExportDownloadForUser } from "@/features/shipping-notes/export/download";
+import { listShippingNoteExportHistoryForUser } from "@/features/shipping-notes/export/history";
+import { DRIVE_UPLOAD_STALE_AFTER_MS } from "@/features/shipping-notes/export/drive/service";
 import { EXPORT_ERROR_CODES } from "@/features/shipping-notes/export/errors";
+import { calculateArtifactSha256 } from "@/lib/artifact-storage/checksum";
+import { ARTIFACT_STORAGE_ERROR_CODES } from "@/lib/artifact-storage/errors";
+import { FakeArtifactStorage } from "@/lib/artifact-storage/fake";
+import { getVerifiedArtifactBytes } from "@/lib/artifact-storage/verified";
+import { DRIVE_ERROR_CODES, DriveError } from "@/lib/drive/errors";
+import { FakeDriveArtifactUploader } from "@/lib/drive/fake";
 import {
   getFinancialSummaryForNoteForUser,
   getShippingNoteForUser,
@@ -260,6 +271,46 @@ async function getExportRecord(exportId: string) {
   }
 
   return row;
+}
+
+async function createDurableGeneratedXlsxExport(input: {
+  noteId: string;
+  fileName: string;
+  actor: typeof actors.accountant | typeof actors.admin;
+  storage: FakeArtifactStorage;
+  body?: Buffer;
+}) {
+  const body = input.body ?? Buffer.from(`${input.fileName}-artifact`);
+  const checksumSha256 = calculateArtifactSha256(body);
+  const pending = await createPendingInternalXlsxExportRecord({
+    shippingNoteId: input.noteId,
+    fileName: input.fileName,
+    user: input.actor,
+  });
+  const storedArtifact = await persistGeneratedExportArtifact({
+    exportId: pending.id,
+    exportType: "excel",
+    bytes: body,
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    checksumSha256,
+    storage: input.storage,
+  });
+
+  await markInternalXlsxExportGenerated({
+    exportId: pending.id,
+    fileName: input.fileName,
+    checksumSha256,
+    artifactStorageKey: storedArtifact.artifactStorageKey,
+    artifactSizeBytes: storedArtifact.artifactSizeBytes,
+    artifactMimeType: storedArtifact.artifactMimeType,
+    sellingChargeCount: 1,
+    buyingChargeCount: 1,
+    generatedAt: new Date(),
+    user: input.actor,
+  });
+
+  return getExportRecord(pending.id);
 }
 
 async function getActiveBuyingChargeId(noteId: string): Promise<string> {
@@ -644,6 +695,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       updateBuyingCharge(
         buyingChargeId,
         updateBuyingChargeInputSchema.parse({
+          id: buyingChargeId,
           chargeName: `${runId}-IMMUTABLE-BUY`,
           description: `${runId} immutable buying`,
           quantity: "2.000",
@@ -783,6 +835,9 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       exportId: pending.id,
       fileName: generated.fileName,
       checksumSha256: generated.checksumSha256,
+      artifactStorageKey: `shipping-note-exports/${pending.id}/artifact.pdf`,
+      artifactSizeBytes: generated.buffer.byteLength,
+      artifactMimeType: "application/pdf",
       sellingChargeCount: exportData.summary.sellingChargeCount,
       buyingChargeCount: exportData.summary.buyingChargeCount,
       generatedAt,
@@ -837,6 +892,184 @@ describe("accounting review transitions, export eligibility, and audits", () => 
     expect(auditRows.some(
       (row) => row.action === "shipping_note.export.pdf.failed",
     )).toBe(true);
+  });
+
+  it("persists generated XLSX artifact storage metadata using fake storage", async () => {
+    const checked = await createCheckedNote("ARTIFACT-XLSX");
+    const storage = new FakeArtifactStorage();
+    const fileName = `${runId}-artifact.xlsx`;
+    const pending = await createPendingInternalXlsxExportRecord({
+      shippingNoteId: checked.id,
+      fileName,
+      user: actors.accountant,
+    });
+    const bytes = Buffer.from("xlsx artifact bytes");
+    const checksumSha256 = calculateArtifactSha256(bytes);
+    const storedArtifact = await persistGeneratedExportArtifact({
+      exportId: pending.id,
+      exportType: "excel",
+      bytes,
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      checksumSha256,
+      storage,
+    });
+    const generatedAt = new Date();
+
+    await markInternalXlsxExportGenerated({
+      exportId: pending.id,
+      fileName,
+      checksumSha256,
+      artifactStorageKey: storedArtifact.artifactStorageKey,
+      artifactSizeBytes: storedArtifact.artifactSizeBytes,
+      artifactMimeType: storedArtifact.artifactMimeType,
+      sellingChargeCount: 1,
+      buyingChargeCount: 1,
+      generatedAt,
+      user: actors.accountant,
+    });
+
+    const exportRecord = await getExportRecord(pending.id);
+    expect(exportRecord).toMatchObject({
+      exportType: "excel",
+      status: "generated",
+      driveUploadStatus: "not_uploaded",
+      artifactStorageKey: storedArtifact.artifactStorageKey,
+      artifactSizeBytes: bytes.byteLength,
+      artifactMimeType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      checksum: checksumSha256,
+    });
+    await expect(getVerifiedArtifactBytes(exportRecord, storage)).resolves.toEqual(bytes);
+  });
+
+  it("persists generated PDF artifact storage metadata using fake storage", async () => {
+    const checked = await createCheckedNote("ARTIFACT-PDF");
+    const storage = new FakeArtifactStorage();
+    const fileName = `${runId}-artifact.pdf`;
+    const pending = await createPendingInternalPdfExportRecord({
+      shippingNoteId: checked.id,
+      fileName,
+      user: actors.admin,
+    });
+    const bytes = Buffer.from("pdf artifact bytes");
+    const checksumSha256 = calculateArtifactSha256(bytes);
+    const storedArtifact = await persistGeneratedExportArtifact({
+      exportId: pending.id,
+      exportType: "pdf",
+      bytes,
+      mimeType: "application/pdf",
+      checksumSha256,
+      storage,
+    });
+    const generatedAt = new Date();
+
+    await markInternalPdfExportGenerated({
+      exportId: pending.id,
+      fileName,
+      checksumSha256,
+      artifactStorageKey: storedArtifact.artifactStorageKey,
+      artifactSizeBytes: storedArtifact.artifactSizeBytes,
+      artifactMimeType: storedArtifact.artifactMimeType,
+      sellingChargeCount: 1,
+      buyingChargeCount: 1,
+      generatedAt,
+      user: actors.admin,
+    });
+
+    const exportRecord = await getExportRecord(pending.id);
+    expect(exportRecord).toMatchObject({
+      exportType: "pdf",
+      status: "generated",
+      driveUploadStatus: "not_uploaded",
+      artifactStorageKey: storedArtifact.artifactStorageKey,
+      artifactSizeBytes: bytes.byteLength,
+      artifactMimeType: "application/pdf",
+      checksum: checksumSha256,
+    });
+    await expect(getVerifiedArtifactBytes(exportRecord, storage)).resolves.toEqual(bytes);
+  });
+
+  it("marks export failed when artifact storage fails and leaves note status unchanged", async () => {
+    const checked = await createCheckedNote("ARTIFACT-FAIL");
+    const storage = new FakeArtifactStorage();
+    storage.failNextPut();
+    const fileName = `${runId}-artifact-failed.pdf`;
+    const pending = await createPendingInternalPdfExportRecord({
+      shippingNoteId: checked.id,
+      fileName,
+      user: actors.admin,
+    });
+    const bytes = Buffer.from("pdf artifact bytes");
+
+    await expect(persistGeneratedExportArtifact({
+      exportId: pending.id,
+      exportType: "pdf",
+      bytes,
+      mimeType: "application/pdf",
+      checksumSha256: calculateArtifactSha256(bytes),
+      storage,
+    })).rejects.toMatchObject({
+      code: ARTIFACT_STORAGE_ERROR_CODES.WRITE_FAILED,
+    });
+
+    await markInternalPdfExportFailed({
+      exportId: pending.id,
+      errorCode: EXPORT_ERROR_CODES.ARTIFACT_STORAGE_WRITE_FAILED,
+      fileName,
+      user: actors.admin,
+    });
+
+    expect(await getExportRecord(pending.id)).toMatchObject({
+      status: "failed",
+      artifactStorageKey: null,
+      artifactSizeBytes: null,
+      artifactMimeType: null,
+      errorMessage: EXPORT_ERROR_CODES.ARTIFACT_STORAGE_WRITE_FAILED,
+    });
+    expect((await getCancellationTransitionMetadata(checked.id)).status).toBe("checked");
+  });
+
+  it("rejects checksum mismatch and historical metadata-only artifact reads", async () => {
+    const checked = await createCheckedNote("ARTIFACT-HISTORICAL");
+    const storage = new FakeArtifactStorage();
+    const [historicalExport] = await db
+      .insert(shippingNoteExports)
+      .values({
+        shippingNoteId: checked.id,
+        exportType: "excel",
+        version: 2,
+        status: "generated",
+        fileName: `${runId}-historical.xlsx`,
+        checksum: "HISTORICAL",
+        generatedById: actors.accountant.id,
+        generatedAt: new Date(),
+      })
+      .returning();
+
+    if (!historicalExport) {
+      throw new Error("Expected historical export fixture.");
+    }
+
+    await expect(getVerifiedArtifactBytes(historicalExport, storage)).rejects.toMatchObject({
+      code: ARTIFACT_STORAGE_ERROR_CODES.READ_FAILED,
+    });
+
+    await storage.put({
+      key: `shipping-note-exports/${historicalExport.id}/artifact.xlsx`,
+      body: Buffer.from("actual"),
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      checksumSha256: calculateArtifactSha256(Buffer.from("actual")),
+      exportId: historicalExport.id,
+    });
+
+    await expect(getVerifiedArtifactBytes({
+      artifactStorageKey: `shipping-note-exports/${historicalExport.id}/artifact.xlsx`,
+      checksum: calculateArtifactSha256(Buffer.from("different")),
+    }, storage)).rejects.toMatchObject({
+      code: ARTIFACT_STORAGE_ERROR_CODES.CHECKSUM_MISMATCH,
+    });
   });
 
   it("keeps internal export available after unlocking back to approved", async () => {
@@ -949,7 +1182,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
     expect(reopenAudit?.before).toMatchObject({
       status: "checked",
       checkedById: beforeMetadata.checkedById,
-      checkedAt: beforeMetadata.checkedAt,
+      checkedAt: beforeMetadata.checkedAt?.toISOString(),
       approvedById: null,
       approvedAt: null,
     });
@@ -990,9 +1223,9 @@ describe("accounting review transitions, export eligibility, and audits", () => 
     expect(reopenAudit?.before).toMatchObject({
       status: "approved",
       checkedById: beforeMetadata.checkedById,
-      checkedAt: beforeMetadata.checkedAt,
+      checkedAt: beforeMetadata.checkedAt?.toISOString(),
       approvedById: beforeMetadata.approvedById,
-      approvedAt: beforeMetadata.approvedAt,
+      approvedAt: beforeMetadata.approvedAt?.toISOString(),
     });
     expect(reopenAudit?.after).toMatchObject({
       status: "accounting_reviewing",
@@ -1089,6 +1322,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
     const updatedBuying = await updateBuyingCharge(
       buyingChargeId,
       updateBuyingChargeInputSchema.parse({
+        id: buyingChargeId,
         chargeName: `${runId}-REOPENED-BUY`,
         description: `${runId} reopened buying correction`,
         quantity: "2.000",
@@ -1103,7 +1337,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
 
     const correctionTaxRule = await createTaxRuleFixture({
       runId,
-      label: "REOPEN-BUY-TAX",
+      label: "RBT",
       actor: actors.admin,
       chargeSection: "buying",
       vatPercent: "8.00",
@@ -1137,6 +1371,10 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       exportId: originalPending.id,
       fileName: originalFileName,
       checksumSha256: "abc123reopenoriginal",
+      artifactStorageKey: `shipping-note-exports/${originalPending.id}/artifact.xlsx`,
+      artifactSizeBytes: 123,
+      artifactMimeType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       sellingChargeCount: 1,
       buyingChargeCount: 1,
       generatedAt: new Date(),
@@ -1170,6 +1408,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
     await updateBuyingCharge(
       buyingChargeId,
       updateBuyingChargeInputSchema.parse({
+        id: buyingChargeId,
         chargeName: `${runId}-REOPEN-EXPORT-BUY`,
         description: `${runId} rechecked export buying`,
         quantity: "1.000",
@@ -1211,6 +1450,10 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       exportId: newPending.id,
       fileName: newFileName,
       checksumSha256: "abc123reopenrechecked",
+      artifactStorageKey: `shipping-note-exports/${newPending.id}/artifact.xlsx`,
+      artifactSizeBytes: 124,
+      artifactMimeType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       sellingChargeCount: 1,
       buyingChargeCount: 1,
       generatedAt: new Date(),
@@ -1551,6 +1794,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       updateBuyingCharge(
         buyingChargeId,
         updateBuyingChargeInputSchema.parse({
+          id: buyingChargeId,
           chargeName: `${runId}-CANCELLED-BUY`,
           description: `${runId} cancelled buying`,
           quantity: "2.000",
@@ -1624,6 +1868,10 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       exportId: pending.id,
       fileName,
       checksumSha256: "abc123cancelledexport",
+      artifactStorageKey: `shipping-note-exports/${pending.id}/artifact.xlsx`,
+      artifactSizeBytes: 125,
+      artifactMimeType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       sellingChargeCount: 1,
       buyingChargeCount: 1,
       generatedAt,
@@ -1664,6 +1912,409 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       version: beforeCancelExport.version,
       status: beforeCancelExport.status,
       checksum: beforeCancelExport.checksum,
+    });
+  });
+
+  it("uploads a durable generated export to Drive with Admin-only authorization and audit", async () => {
+    const checked = await createCheckedNote("DRIVE-UPLOAD-HAPPY");
+    const storage = new FakeArtifactStorage();
+    const exportRecord = await createDurableGeneratedXlsxExport({
+      noteId: checked.id,
+      fileName: `${runId}-drive-happy.xlsx`,
+      actor: actors.accountant,
+      storage,
+    });
+    const drive = new FakeDriveArtifactUploader();
+
+    await expect(
+      uploadShippingNoteExportToDrive(exportRecord.id, actors.saleA, {
+        driveUploader: drive,
+        artifactStorage: storage,
+        rootFolderId: "fake-root-folder",
+      }),
+    ).rejects.toBeInstanceOf(AuthorizationError);
+    await expect(
+      uploadShippingNoteExportToDrive(exportRecord.id, actors.accountant, {
+        driveUploader: drive,
+        artifactStorage: storage,
+        rootFolderId: "fake-root-folder",
+      }),
+    ).rejects.toBeInstanceOf(AuthorizationError);
+
+    const result = await uploadShippingNoteExportToDrive(
+      exportRecord.id,
+      actors.admin,
+      {
+        driveUploader: drive,
+        artifactStorage: storage,
+        rootFolderId: "fake-root-folder",
+      },
+    );
+
+    expect(result).toMatchObject({
+      exportId: exportRecord.id,
+      driveUploadStatus: "uploaded",
+      driveFileId: "fake-drive-file-1",
+    });
+
+    const uploadedRecord = await getExportRecord(exportRecord.id);
+    expect(uploadedRecord).toMatchObject({
+      status: "generated",
+      driveUploadStatus: "uploaded",
+      driveFileId: "fake-drive-file-1",
+      driveUrl: "https://drive.google.test/file/1",
+      driveFolderId: "fake-root-folder",
+      driveErrorMessage: null,
+    });
+    expect(uploadedRecord.driveUploadedAt).toBeInstanceOf(Date);
+
+    const uploadAuditRows = await listAuditLogsForEntity(
+      "shipping_note_export",
+      exportRecord.id,
+    );
+    const uploadAudit = uploadAuditRows.find(
+      (row) => row.action === "shipping_note.export.drive.uploaded",
+    );
+    expect(uploadAudit?.actorUserId).toBe(actors.admin.id);
+    expect(uploadAudit?.after).toMatchObject({
+      exportId: exportRecord.id,
+      shippingNoteId: checked.id,
+      exportType: "excel",
+      version: 2,
+      driveFileId: "fake-drive-file-1",
+      driveFolderId: "fake-root-folder",
+      currentShippingNoteStatus: "checked",
+      reconciledFromDrive: false,
+    });
+  });
+
+  it("records sanitized Drive failure and allows retry from upload_failed", async () => {
+    const approved = await createApprovedNote("DRIVE-RETRY");
+    const storage = new FakeArtifactStorage();
+    const exportRecord = await createDurableGeneratedXlsxExport({
+      noteId: approved.id,
+      fileName: `${runId}-drive-retry.xlsx`,
+      actor: actors.accountant,
+      storage,
+    });
+    const drive = new FakeDriveArtifactUploader();
+    drive.failNextUpload(new DriveError(
+      DRIVE_ERROR_CODES.TEMPORARY_FAILURE,
+      503,
+      "Temporary fake Drive failure.",
+      { retryable: true },
+    ));
+
+    await expect(
+      uploadShippingNoteExportToDrive(exportRecord.id, actors.admin, {
+        driveUploader: drive,
+        artifactStorage: storage,
+        rootFolderId: "fake-root-folder",
+      }),
+    ).rejects.toMatchObject({
+      code: DRIVE_ERROR_CODES.TEMPORARY_FAILURE,
+    });
+
+    expect(await getExportRecord(exportRecord.id)).toMatchObject({
+      status: "generated",
+      driveUploadStatus: "upload_failed",
+      driveErrorMessage: DRIVE_ERROR_CODES.TEMPORARY_FAILURE,
+    });
+
+    await uploadShippingNoteExportToDrive(exportRecord.id, actors.admin, {
+      driveUploader: drive,
+      artifactStorage: storage,
+      rootFolderId: "fake-root-folder",
+    });
+
+    expect(await getExportRecord(exportRecord.id)).toMatchObject({
+      status: "generated",
+      driveUploadStatus: "uploaded",
+      driveErrorMessage: null,
+    });
+
+    const auditRows = await listAuditLogsForEntity(
+      "shipping_note_export",
+      exportRecord.id,
+    );
+    expect(auditRows.map((row) => row.action)).toEqual(
+      expect.arrayContaining([
+        "shipping_note.export.drive.failed",
+        "shipping_note.export.drive.uploaded",
+      ]),
+    );
+  });
+
+  it("reconciles an existing Drive artifact and preserves current note status", async () => {
+    const locked = await createLockedNote("DRIVE-RECONCILE", "Drive reconcile lock");
+    const storage = new FakeArtifactStorage();
+    const exportRecord = await createDurableGeneratedXlsxExport({
+      noteId: locked.id,
+      fileName: `${runId}-drive-reconcile.xlsx`,
+      actor: actors.accountant,
+      storage,
+    });
+    const drive = new FakeDriveArtifactUploader();
+    drive.seedFile({
+      id: "existing-drive-file",
+      name: exportRecord.fileName,
+      webViewLink: "https://drive.google.test/existing",
+      appProperties: {
+        uniwaveExportId: exportRecord.id,
+        uniwaveShippingNoteId: exportRecord.shippingNoteId,
+        uniwaveExportType: exportRecord.exportType,
+        uniwaveExportVersion: exportRecord.version.toString(),
+        uniwaveChecksumSha256: exportRecord.checksum ?? "",
+      },
+      parents: ["fake-root-folder"],
+    });
+
+    await uploadShippingNoteExportToDrive(exportRecord.id, actors.admin, {
+      driveUploader: drive,
+      artifactStorage: storage,
+      rootFolderId: "fake-root-folder",
+    });
+
+    expect(drive.uploads).toHaveLength(0);
+    expect(await getLockTransitionMetadata(locked.id)).toMatchObject({
+      status: "locked",
+      lockedById: actors.admin.id,
+    });
+    expect(await getExportRecord(exportRecord.id)).toMatchObject({
+      driveUploadStatus: "uploaded",
+      driveFileId: "existing-drive-file",
+      driveUrl: "https://drive.google.test/existing",
+    });
+  });
+
+  it("allows historical reopened and cancelled artifacts without changing note status", async () => {
+    const approvedForReopen = await createApprovedNote("DRIVE-REOPEN-HISTORICAL");
+    const reopenStorage = new FakeArtifactStorage();
+    const reopenExport = await createDurableGeneratedXlsxExport({
+      noteId: approvedForReopen.id,
+      fileName: `${runId}-drive-reopen.xlsx`,
+      actor: actors.accountant,
+      storage: reopenStorage,
+    });
+    await reopenShippingNoteForCorrection(
+      {
+        id: approvedForReopen.id,
+        expectedStatus: "approved",
+        reason: "Historical Drive upload test correction",
+      },
+      actors.admin,
+    );
+
+    await uploadShippingNoteExportToDrive(reopenExport.id, actors.admin, {
+      driveUploader: new FakeDriveArtifactUploader(),
+      artifactStorage: reopenStorage,
+      rootFolderId: "fake-root-folder",
+    });
+    expect((await getApprovalTransitionMetadata(approvedForReopen.id)).status).toBe(
+      "accounting_reviewing",
+    );
+
+    const approvedForCancel = await createApprovedNote("DRIVE-CANCEL-HISTORICAL");
+    const cancelStorage = new FakeArtifactStorage();
+    const cancelExport = await createDurableGeneratedXlsxExport({
+      noteId: approvedForCancel.id,
+      fileName: `${runId}-drive-cancel.xlsx`,
+      actor: actors.accountant,
+      storage: cancelStorage,
+    });
+    await cancelFinalizedShippingNote(
+      {
+        id: approvedForCancel.id,
+        expectedStatus: "approved",
+        cancelReason: "Historical Drive upload test cancellation",
+      },
+      actors.admin,
+    );
+
+    await uploadShippingNoteExportToDrive(cancelExport.id, actors.admin, {
+      driveUploader: new FakeDriveArtifactUploader(),
+      artifactStorage: cancelStorage,
+      rootFolderId: "fake-root-folder",
+    });
+
+    expect((await getCancellationTransitionMetadata(approvedForCancel.id)).status).toBe(
+      "cancelled",
+    );
+  });
+
+  it("prevents concurrent Drive claim from overwriting an uploading record", async () => {
+    const checked = await createCheckedNote("DRIVE-CONFLICT");
+    const storage = new FakeArtifactStorage();
+    const exportRecord = await createDurableGeneratedXlsxExport({
+      noteId: checked.id,
+      fileName: `${runId}-drive-conflict.xlsx`,
+      actor: actors.accountant,
+      storage,
+    });
+    await db
+      .update(shippingNoteExports)
+      .set({ driveUploadStatus: "uploading" })
+      .where(eq(shippingNoteExports.id, exportRecord.id));
+
+    await expect(
+      uploadShippingNoteExportToDrive(exportRecord.id, actors.admin, {
+        driveUploader: new FakeDriveArtifactUploader(),
+        artifactStorage: storage,
+        rootFolderId: "fake-root-folder",
+      }),
+    ).rejects.toMatchObject({
+      code: DRIVE_ERROR_CODES.UPLOAD_IN_PROGRESS,
+    });
+  });
+
+  it("protects export history and historical durable download", async () => {
+    const checked = await createCheckedNote("HISTORY-DOWNLOAD");
+    const storage = new FakeArtifactStorage();
+    const exportRecord = await createDurableGeneratedXlsxExport({
+      noteId: checked.id,
+      fileName: `${runId}-history-download.xlsx`,
+      actor: actors.accountant,
+      storage,
+      body: Buffer.from("history artifact"),
+    });
+
+    await expect(
+      listShippingNoteExportHistoryForUser(checked.id, actors.saleA),
+    ).rejects.toBeInstanceOf(AuthorizationError);
+
+    const accountantHistory = await listShippingNoteExportHistoryForUser(
+      checked.id,
+      actors.accountant,
+    );
+    const adminHistory = await listShippingNoteExportHistoryForUser(
+      checked.id,
+      actors.admin,
+    );
+
+    expect(accountantHistory[0]).toMatchObject({
+      id: exportRecord.id,
+      artifactAvailable: true,
+    });
+    expect(accountantHistory[0]).not.toHaveProperty("driveFolderId");
+    expect(accountantHistory[0]).not.toHaveProperty("artifactStorageKey");
+    expect(adminHistory[0]).toMatchObject({
+      id: exportRecord.id,
+      artifactAvailable: true,
+    });
+
+    await expect(
+      getHistoricalExportDownloadForUser(exportRecord.id, actors.saleA, {
+        artifactStorage: storage,
+      }),
+    ).rejects.toBeInstanceOf(AuthorizationError);
+
+    const download = await getHistoricalExportDownloadForUser(
+      exportRecord.id,
+      actors.accountant,
+      { artifactStorage: storage },
+    );
+    expect(download.fileName).toBe(`${runId}-history-download.xlsx`);
+    expect(download.bytes).toEqual(Buffer.from("history artifact"));
+  });
+
+  it("keeps reopened and cancelled historical artifacts downloadable without mutating note status", async () => {
+    const approvedForReopen = await createApprovedNote("HISTORY-REOPEN");
+    const reopenStorage = new FakeArtifactStorage();
+    const reopenExport = await createDurableGeneratedXlsxExport({
+      noteId: approvedForReopen.id,
+      fileName: `${runId}-history-reopen.xlsx`,
+      actor: actors.accountant,
+      storage: reopenStorage,
+    });
+    await reopenShippingNoteForCorrection(
+      {
+        id: approvedForReopen.id,
+        expectedStatus: "approved",
+        reason: "Historical download after reopen",
+      },
+      actors.admin,
+    );
+
+    await expect(getHistoricalExportDownloadForUser(
+      reopenExport.id,
+      actors.accountant,
+      { artifactStorage: reopenStorage },
+    )).resolves.toMatchObject({ exportId: reopenExport.id });
+    expect((await getApprovalTransitionMetadata(approvedForReopen.id)).status).toBe(
+      "accounting_reviewing",
+    );
+
+    const approvedForCancel = await createApprovedNote("HISTORY-CANCEL");
+    const cancelStorage = new FakeArtifactStorage();
+    const cancelExport = await createDurableGeneratedXlsxExport({
+      noteId: approvedForCancel.id,
+      fileName: `${runId}-history-cancel.xlsx`,
+      actor: actors.accountant,
+      storage: cancelStorage,
+    });
+    await cancelFinalizedShippingNote(
+      {
+        id: approvedForCancel.id,
+        expectedStatus: "approved",
+        cancelReason: "Historical download after cancellation",
+      },
+      actors.admin,
+    );
+
+    await expect(getHistoricalExportDownloadForUser(
+      cancelExport.id,
+      actors.admin,
+      { artifactStorage: cancelStorage },
+    )).resolves.toMatchObject({ exportId: cancelExport.id });
+    expect((await getCancellationTransitionMetadata(approvedForCancel.id)).status).toBe(
+      "cancelled",
+    );
+  });
+
+  it("recovers stale Drive uploading by reconciling before duplicate creation", async () => {
+    const checked = await createCheckedNote("HISTORY-STALE-RECONCILE");
+    const storage = new FakeArtifactStorage();
+    const exportRecord = await createDurableGeneratedXlsxExport({
+      noteId: checked.id,
+      fileName: `${runId}-stale-reconcile.xlsx`,
+      actor: actors.accountant,
+      storage,
+    });
+    const staleUpdatedAt = new Date(Date.now() - DRIVE_UPLOAD_STALE_AFTER_MS);
+    await db
+      .update(shippingNoteExports)
+      .set({
+        driveUploadStatus: "uploading",
+        updatedAt: staleUpdatedAt,
+      })
+      .where(eq(shippingNoteExports.id, exportRecord.id));
+
+    const drive = new FakeDriveArtifactUploader();
+    drive.seedFile({
+      id: "existing-stale-drive-file",
+      name: exportRecord.fileName,
+      webViewLink: "https://drive.google.test/stale-existing",
+      appProperties: {
+        uniwaveExportId: exportRecord.id,
+        uniwaveShippingNoteId: exportRecord.shippingNoteId,
+        uniwaveExportType: exportRecord.exportType,
+        uniwaveExportVersion: exportRecord.version.toString(),
+        uniwaveChecksumSha256: exportRecord.checksum ?? "",
+      },
+      parents: ["fake-root-folder"],
+    });
+
+    await uploadShippingNoteExportToDrive(exportRecord.id, actors.admin, {
+      driveUploader: drive,
+      artifactStorage: storage,
+      rootFolderId: "fake-root-folder",
+      now: new Date(),
+    });
+
+    expect(drive.uploads).toHaveLength(0);
+    expect(await getExportRecord(exportRecord.id)).toMatchObject({
+      driveUploadStatus: "uploaded",
+      driveFileId: "existing-stale-drive-file",
     });
   });
 

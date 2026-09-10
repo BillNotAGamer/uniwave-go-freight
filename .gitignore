@@ -8,6 +8,8 @@
 
 # testing
 /coverage
+/playwright-report
+/test-results
 
 # logs
 npm-debug.log*
@@ -18,7 +20,6 @@ yarn-error.log*
 # env files
 .env*
 !.env.example
-!.env.local
 
 # misc
 .DS_Store

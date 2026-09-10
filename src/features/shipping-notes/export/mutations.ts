@@ -22,6 +22,9 @@ function buildGeneratedExportAuditSnapshot(input: {
   exportId: string;
   fileName: string;
   checksum: string;
+  artifactStorageKey: string;
+  artifactSizeBytes: number;
+  artifactMimeType: string;
   sellingChargeCount: number;
   buyingChargeCount: number;
 }) {
@@ -31,6 +34,9 @@ function buildGeneratedExportAuditSnapshot(input: {
     templateVersion: INTERNAL_XLSX_TEMPLATE_VERSION,
     fileName: input.fileName,
     checksum: input.checksum,
+    artifactStorageKey: input.artifactStorageKey,
+    artifactSizeBytes: input.artifactSizeBytes,
+    artifactMimeType: input.artifactMimeType,
     sellingChargeCount: input.sellingChargeCount,
     buyingChargeCount: input.buyingChargeCount,
   };
@@ -52,6 +58,9 @@ function buildGeneratedPdfExportAuditSnapshot(input: {
   exportId: string;
   fileName: string;
   checksum: string;
+  artifactStorageKey: string;
+  artifactSizeBytes: number;
+  artifactMimeType: string;
   generatedAt: Date;
   sellingChargeCount: number;
   buyingChargeCount: number;
@@ -63,6 +72,9 @@ function buildGeneratedPdfExportAuditSnapshot(input: {
     layoutVersion: INTERNAL_PDF_LAYOUT_VERSION,
     fileName: input.fileName,
     checksum: input.checksum,
+    artifactStorageKey: input.artifactStorageKey,
+    artifactSizeBytes: input.artifactSizeBytes,
+    artifactMimeType: input.artifactMimeType,
     generatedAt: input.generatedAt.toISOString(),
     sellingChargeCount: input.sellingChargeCount,
     buyingChargeCount: input.buyingChargeCount,
@@ -92,6 +104,7 @@ export function buildPendingInternalXlsxExportRecordValues(input: {
     exportType: "excel" as const,
     version: INTERNAL_XLSX_METADATA_VERSION,
     status: "pending" as const,
+    driveUploadStatus: "not_uploaded" as const,
     fileName: input.fileName,
     generatedById: input.generatedById,
     errorMessage: null,
@@ -101,6 +114,9 @@ export function buildPendingInternalXlsxExportRecordValues(input: {
 export function buildGeneratedInternalXlsxExportRecordValues(input: {
   fileName: string;
   checksumSha256: string;
+  artifactStorageKey: string;
+  artifactSizeBytes: number;
+  artifactMimeType: string;
   generatedById: string;
   generatedAt: Date;
 }) {
@@ -109,6 +125,9 @@ export function buildGeneratedInternalXlsxExportRecordValues(input: {
     status: "generated" as const,
     fileName: input.fileName,
     checksum: input.checksumSha256,
+    artifactStorageKey: input.artifactStorageKey,
+    artifactSizeBytes: input.artifactSizeBytes,
+    artifactMimeType: input.artifactMimeType,
     errorMessage: null,
     generatedById: input.generatedById,
     generatedAt: input.generatedAt,
@@ -125,6 +144,9 @@ export function buildFailedInternalXlsxExportRecordValues(input: {
     status: "failed" as const,
     fileName: input.fileName,
     checksum: null,
+    artifactStorageKey: null,
+    artifactSizeBytes: null,
+    artifactMimeType: null,
     errorMessage: input.errorCode,
     generatedById: input.generatedById,
     generatedAt: null,
@@ -141,6 +163,7 @@ export function buildPendingInternalPdfExportRecordValues(input: {
     exportType: "pdf" as const,
     version: INTERNAL_PDF_METADATA_VERSION,
     status: "pending" as const,
+    driveUploadStatus: "not_uploaded" as const,
     fileName: input.fileName,
     generatedById: input.generatedById,
     errorMessage: null,
@@ -150,6 +173,9 @@ export function buildPendingInternalPdfExportRecordValues(input: {
 export function buildGeneratedInternalPdfExportRecordValues(input: {
   fileName: string;
   checksumSha256: string;
+  artifactStorageKey: string;
+  artifactSizeBytes: number;
+  artifactMimeType: string;
   generatedById: string;
   generatedAt: Date;
 }) {
@@ -158,6 +184,9 @@ export function buildGeneratedInternalPdfExportRecordValues(input: {
     status: "generated" as const,
     fileName: input.fileName,
     checksum: input.checksumSha256,
+    artifactStorageKey: input.artifactStorageKey,
+    artifactSizeBytes: input.artifactSizeBytes,
+    artifactMimeType: input.artifactMimeType,
     errorMessage: null,
     generatedById: input.generatedById,
     generatedAt: input.generatedAt,
@@ -174,6 +203,9 @@ export function buildFailedInternalPdfExportRecordValues(input: {
     status: "failed" as const,
     fileName: input.fileName,
     checksum: null,
+    artifactStorageKey: null,
+    artifactSizeBytes: null,
+    artifactMimeType: null,
     errorMessage: input.errorCode,
     generatedById: input.generatedById,
     generatedAt: null,
@@ -226,6 +258,9 @@ export async function markInternalXlsxExportGenerated(input: {
   exportId: string;
   fileName: string;
   checksumSha256: string;
+  artifactStorageKey: string;
+  artifactSizeBytes: number;
+  artifactMimeType: string;
   sellingChargeCount: number;
   buyingChargeCount: number;
   generatedAt: Date;
@@ -247,6 +282,9 @@ export async function markInternalXlsxExportGenerated(input: {
       .set(buildGeneratedInternalXlsxExportRecordValues({
         fileName: input.fileName,
         checksumSha256: input.checksumSha256,
+        artifactStorageKey: input.artifactStorageKey,
+        artifactSizeBytes: input.artifactSizeBytes,
+        artifactMimeType: input.artifactMimeType,
         generatedById: input.user.id,
         generatedAt: input.generatedAt,
       }))
@@ -266,6 +304,9 @@ export async function markInternalXlsxExportGenerated(input: {
         exportId: updated.id,
         fileName: input.fileName,
         checksum: input.checksumSha256,
+        artifactStorageKey: input.artifactStorageKey,
+        artifactSizeBytes: input.artifactSizeBytes,
+        artifactMimeType: input.artifactMimeType,
         sellingChargeCount: input.sellingChargeCount,
         buyingChargeCount: input.buyingChargeCount,
       }),
@@ -279,6 +320,9 @@ export async function markInternalPdfExportGenerated(input: {
   exportId: string;
   fileName: string;
   checksumSha256: string;
+  artifactStorageKey: string;
+  artifactSizeBytes: number;
+  artifactMimeType: string;
   sellingChargeCount: number;
   buyingChargeCount: number;
   generatedAt: Date;
@@ -300,6 +344,9 @@ export async function markInternalPdfExportGenerated(input: {
       .set(buildGeneratedInternalPdfExportRecordValues({
         fileName: input.fileName,
         checksumSha256: input.checksumSha256,
+        artifactStorageKey: input.artifactStorageKey,
+        artifactSizeBytes: input.artifactSizeBytes,
+        artifactMimeType: input.artifactMimeType,
         generatedById: input.user.id,
         generatedAt: input.generatedAt,
       }))
@@ -319,6 +366,9 @@ export async function markInternalPdfExportGenerated(input: {
         exportId: updated.id,
         fileName: input.fileName,
         checksum: input.checksumSha256,
+        artifactStorageKey: input.artifactStorageKey,
+        artifactSizeBytes: input.artifactSizeBytes,
+        artifactMimeType: input.artifactMimeType,
         generatedAt: input.generatedAt,
         sellingChargeCount: input.sellingChargeCount,
         buyingChargeCount: input.buyingChargeCount,

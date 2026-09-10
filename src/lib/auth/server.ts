@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { authSchema, users } from "@/lib/db/schema";
 import { db } from "@/lib/db/client";
 import { env } from "@/lib/env";
+import { betterAuthSecurityPolicy } from "@/lib/auth/better-auth-security-policy";
 
 const allowDevBootstrapSignUp =
   process.env.NODE_ENV !== "production" &&
@@ -40,7 +41,7 @@ export const auth = betterAuth({
     },
   },
   emailAndPassword: {
-    enabled: true,
+    enabled: betterAuthSecurityPolicy.emailAndPassword.enabled,
     disableSignUp: !allowDevBootstrapSignUp,
     minPasswordLength: 8,
   },

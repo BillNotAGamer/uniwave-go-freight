@@ -20,7 +20,6 @@ import {
 import type { TaxTreatment } from "../constants";
 import type { ChargeTaxDetail, ChargeTaxSnapshot } from "./types";
 import {
-  assertTaxTreatmentPercentConsistency,
   calculateLineTotalIncludingVat,
   calculateVatAmount,
 } from "./calculations";
@@ -29,6 +28,11 @@ import type {
   AssignChargeTaxRuleInput,
   OverrideChargeVatPercentInput,
 } from "./validators";
+import {
+  buildAccountingVatOverride,
+  buildTaxRuleAccountingVat,
+  getPersistedChargeAccountingVat,
+} from "../accounting/vat";
 
 const TAX_MUTABLE_STATUSES = ["submitted", "accounting_reviewing"] as const;
 
@@ -46,6 +50,12 @@ const chargeTaxReturnColumns = {
   vatAmount: shippingNoteCharges.vatAmount,
   isOverride: shippingNoteCharges.isOverride,
   overrideReason: shippingNoteCharges.overrideReason,
+  vatOverrideRate: shippingNoteCharges.vatOverrideRate,
+  serviceCatalogItemId: shippingNoteCharges.serviceCatalogItemId,
+  catalogCodeSnapshot: shippingNoteCharges.catalogCodeSnapshot,
+  catalogNameSnapshot: shippingNoteCharges.catalogNameSnapshot,
+  catalogUnitSnapshot: shippingNoteCharges.catalogUnitSnapshot,
+  catalogVatRateSnapshot: shippingNoteCharges.catalogVatRateSnapshot,
 } as const;
 
 const joinedChargeColumns = {
@@ -62,6 +72,12 @@ const joinedChargeColumns = {
   vatAmount: shippingNoteCharges.vatAmount,
   isOverride: shippingNoteCharges.isOverride,
   overrideReason: shippingNoteCharges.overrideReason,
+  vatOverrideRate: shippingNoteCharges.vatOverrideRate,
+  serviceCatalogItemId: shippingNoteCharges.serviceCatalogItemId,
+  catalogCodeSnapshot: shippingNoteCharges.catalogCodeSnapshot,
+  catalogNameSnapshot: shippingNoteCharges.catalogNameSnapshot,
+  catalogUnitSnapshot: shippingNoteCharges.catalogUnitSnapshot,
+  catalogVatRateSnapshot: shippingNoteCharges.catalogVatRateSnapshot,
   noteStatus: shippingNotes.status,
 } as const;
 
@@ -79,16 +95,13 @@ type JoinedCharge = {
   vatAmount: string;
   isOverride: boolean;
   overrideReason: string | null;
+  vatOverrideRate: string | null;
+  serviceCatalogItemId: string | null;
+  catalogCodeSnapshot: string | null;
+  catalogNameSnapshot: string | null;
+  catalogUnitSnapshot: string | null;
+  catalogVatRateSnapshot: string | null;
   noteStatus: string;
-};
-
-type TaxRuleAssignmentSource = {
-  id: string;
-  code: string;
-  name: string;
-  chargeSection: "selling" | "buying";
-  taxTreatment: TaxTreatment;
-  vatPercent: string;
 };
 
 type TaxMutationTransaction = Parameters<
@@ -109,6 +122,12 @@ type ChargeTaxReturnRow = {
   vatAmount: string;
   isOverride: boolean;
   overrideReason: string | null;
+  vatOverrideRate: string | null;
+  serviceCatalogItemId: string | null;
+  catalogCodeSnapshot: string | null;
+  catalogNameSnapshot: string | null;
+  catalogUnitSnapshot: string | null;
+  catalogVatRateSnapshot: string | null;
 };
 
 function requireActiveActor(user: DbUser): void {
@@ -133,12 +152,15 @@ function toAuditTaxSnapshot(charge: JoinedCharge): ChargeTaxSnapshot {
     vatAmount: charge.vatAmount,
     isOverride: charge.isOverride,
     overrideReason: charge.overrideReason,
+    vatOverrideRate: charge.vatOverrideRate,
   };
 }
 
 function toChargeTaxDetail(row: ChargeTaxReturnRow): ChargeTaxDetail {
+  const accountingVat = getPersistedChargeAccountingVat(row);
   return {
     ...row,
+    ...accountingVat,
     lineTotalIncludingVatVnd: calculateLineTotalIncludingVat(
       row.amountVnd,
       row.vatAmount,
@@ -171,17 +193,6 @@ async function loadActiveChargeForTax(
   return charge as JoinedCharge;
 }
 
-function computeRuleVatAmount(
-  charge: Pick<JoinedCharge, "amountVnd">,
-  rule: Pick<TaxRuleAssignmentSource, "taxTreatment" | "vatPercent">,
-): string {
-  return calculateVatAmount({
-    amountVnd: charge.amountVnd,
-    vatPercent: rule.vatPercent,
-    treatment: rule.taxTreatment,
-  });
-}
-
 export async function assignChargeTaxRule(
   input: AssignChargeTaxRuleInput,
   user: DbUser,
@@ -210,13 +221,10 @@ export async function assignChargeTaxRule(
       throw new AuthorizationError();
     }
 
-    const normalizedPercent = assertTaxTreatmentPercentConsistency(
-      rule.taxTreatment,
-      rule.vatPercent,
-    );
-    const vatAmount = computeRuleVatAmount(charge, {
+    const accountingVat = buildTaxRuleAccountingVat({
+      amountVnd: charge.amountVnd,
       taxTreatment: rule.taxTreatment,
-      vatPercent: normalizedPercent,
+      taxRuleVatRate: rule.vatPercent,
     });
 
     const [updated] = await tx
@@ -226,10 +234,7 @@ export async function assignChargeTaxRule(
         taxRuleCodeSnapshot: rule.code,
         taxRuleNameSnapshot: rule.name,
         taxTreatmentSnapshot: rule.taxTreatment,
-        vatPercent: normalizedPercent,
-        vatAmount,
-        isOverride: false,
-        overrideReason: null,
+        ...accountingVat,
       })
       .where(eq(shippingNoteCharges.id, charge.id))
       .returning(chargeTaxReturnColumns);
@@ -253,6 +258,7 @@ export async function assignChargeTaxRule(
         vatAmount: updated.vatAmount,
         isOverride: updated.isOverride,
         overrideReason: updated.overrideReason,
+        vatOverrideRate: updated.vatOverrideRate,
       },
     });
 
@@ -280,24 +286,76 @@ export async function overrideChargeVatPercent(
       throw new AuthorizationError();
     }
 
-    const normalizedPercent = assertTaxTreatmentPercentConsistency(
-      "taxable",
-      input.vatPercent,
-    );
-    const vatAmount = calculateVatAmount({
+    if (input.vatPercent === null) {
+      const [rule] = await tx
+        .select({
+          vatPercent: taxRules.vatPercent,
+          taxTreatment: taxRules.taxTreatment,
+        })
+        .from(taxRules)
+        .where(eq(taxRules.id, charge.taxRuleId))
+        .limit(1);
+
+      if (!rule) {
+        throw new AuthorizationError();
+      }
+
+      const accountingVat = buildTaxRuleAccountingVat({
+        amountVnd: charge.amountVnd,
+        taxTreatment: rule.taxTreatment,
+        taxRuleVatRate: rule.vatPercent,
+      });
+
+      const [updated] = await tx
+        .update(shippingNoteCharges)
+        .set({
+          ...accountingVat,
+        })
+        .where(eq(shippingNoteCharges.id, charge.id))
+        .returning(chargeTaxReturnColumns);
+
+      if (!updated) {
+        throw new Error("Failed to clear charge VAT override.");
+      }
+
+      await logAuditEvent(tx, {
+        actorUserId: user.id,
+        action: "shipping_note_charge.tax_override_clear",
+        entityType: "shipping_note_charge",
+        entityId: updated.chargeId,
+        before: toAuditTaxSnapshot(charge),
+        after: {
+          taxRuleId: updated.taxRuleId,
+          taxRuleCodeSnapshot: updated.taxRuleCodeSnapshot,
+          taxRuleNameSnapshot: updated.taxRuleNameSnapshot,
+          taxTreatmentSnapshot: updated.taxTreatmentSnapshot,
+          vatPercent: updated.vatPercent,
+          vatAmount: updated.vatAmount,
+          isOverride: updated.isOverride,
+          overrideReason: updated.overrideReason,
+          vatOverrideRate: updated.vatOverrideRate,
+        },
+        reason: input.reason ?? "Revert to Tax Rule baseline",
+      });
+
+      return toChargeTaxDetail(updated);
+    }
+
+    const reason = input.reason?.trim();
+    if (!reason) {
+      throw new Error("Reason is required when overriding VAT percentage.");
+    }
+
+    const accountingVat = buildAccountingVatOverride({
       amountVnd: charge.amountVnd,
-      vatPercent: normalizedPercent,
-      treatment: "taxable",
+      vatOverrideRate: input.vatPercent,
+      reason,
     });
-    const reason = input.reason.trim();
 
     const [updated] = await tx
       .update(shippingNoteCharges)
       .set({
-        vatPercent: normalizedPercent,
-        vatAmount,
-        isOverride: true,
-        overrideReason: reason,
+        ...accountingVat,
       })
       .where(eq(shippingNoteCharges.id, charge.id))
       .returning(chargeTaxReturnColumns);
@@ -321,6 +379,7 @@ export async function overrideChargeVatPercent(
         vatAmount: updated.vatAmount,
         isOverride: updated.isOverride,
         overrideReason: updated.overrideReason,
+        vatOverrideRate: updated.vatOverrideRate,
       },
       reason,
     });

@@ -1,7 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-const REQUIRED_ENV_KEYS = ["DATABASE_URL", "AUTH_SECRET", "AUTH_URL"] as const;
+import { assertAuthorizedIntegrationDatabaseTarget } from "./database-authorization";
+
+const REQUIRED_ENV_KEYS = ["AUTH_SECRET", "AUTH_URL"] as const;
 
 function unquote(value: string): string {
   const trimmed = value.trim();
@@ -57,6 +59,4 @@ if (missingKeys.length > 0) {
   );
 }
 
-if (!process.env.DATABASE_URL?.startsWith("postgres")) {
-  throw new Error("DATABASE_URL must be a PostgreSQL connection string.");
-}
+assertAuthorizedIntegrationDatabaseTarget();

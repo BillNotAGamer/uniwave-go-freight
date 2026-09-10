@@ -24,9 +24,16 @@ import { SellingChargeSummaryView } from "@/features/shipping-notes/components/s
 import { AccountingReviewControls } from "@/features/shipping-notes/components/accounting-review-controls";
 import { CancellationControls } from "@/features/shipping-notes/components/cancellation-controls";
 import { CorrectionControls } from "@/features/shipping-notes/components/correction-controls";
+import { ExportHistoryPanel } from "@/features/shipping-notes/components/export-history-panel";
 import { InternalExportActions } from "@/features/shipping-notes/components/internal-export-actions";
 import { AccountingTaxChargeTable } from "@/features/shipping-notes/tax/components/accounting-tax-charge-table";
 import { TaxCompletenessPanel } from "@/features/shipping-notes/tax/components/tax-completeness-panel";
+import { CustomsDeclarationsPanel } from "@/features/shipping-notes/customs-declarations/components/customs-declarations-panel";
+import {
+  canReadCustomsDeclarations,
+  canManageCustomsDeclarations,
+} from "@/features/shipping-notes/customs-declarations/ui-policy";
+import { listCustomsDeclarationsForNoteForUser } from "@/features/shipping-notes/customs-declarations/queries";
 import {
   getCancellationMetadataForNoteForUser,
   getFinancialSummaryForNoteForUser,
@@ -35,6 +42,7 @@ import {
   getSellingChargesAndSummaryForNoteForUser,
 } from "@/features/shipping-notes/queries";
 import { listChargeTaxDetailsForNoteForUser } from "@/features/shipping-notes/tax/queries";
+import { listShippingNoteExportHistoryForUser } from "@/features/shipping-notes/export/history";
 import {
   canShowTaxMutationControls,
   getMarkCheckedDisabledReason,
@@ -47,6 +55,13 @@ import {
   isInternalXlsxExportEligibleStatus,
 } from "@/features/shipping-notes/status-policy";
 import { listTaxRulesForUser } from "@/features/tax-rules/queries";
+import { ShippingNoteDocumentsPanel } from "@/features/shipping-notes/documents/components/shipping-note-documents-panel";
+import {
+  canMutateShippingNoteDocuments,
+  canReadShippingNoteDocuments,
+} from "@/features/shipping-notes/documents/policy";
+import { listShippingNoteDocumentsForUser } from "@/features/shipping-notes/documents/queries";
+import { getStorageAvailability } from "@/features/shipping-notes/documents/service";
 
 function formatDateTime(value: Date | null | undefined): string {
   return value ? new Date(value).toLocaleString() : "-";
@@ -88,6 +103,10 @@ export default async function ShippingNoteDetailPage({
   const canOpenInternalExports =
     isInternalXlsxExportEligibleStatus(note.status) &&
     hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_EXPORT_INTERNAL);
+  const canReadExportHistory = hasPermission(
+    user.role,
+    PERMISSIONS.SHIPPING_NOTES_EXPORT_INTERNAL,
+  );
   const canManageBuyingCharges =
     hasPermission(user.role, PERMISSIONS.BUYING_CHARGES_MANAGE) &&
     (note.status === "submitted" || note.status === "accounting_reviewing");
@@ -195,6 +214,24 @@ export default async function ShippingNoteDetailPage({
     hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_READ_ALL)
       ? await getCancellationMetadataForNoteForUser(id, user)
       : null;
+  const exportHistory = canReadExportHistory
+    ? await listShippingNoteExportHistoryForUser(id, user)
+    : [];
+  const canReadCustoms = canReadCustomsDeclarations(user.role);
+  const canManageCustoms = canManageCustomsDeclarations({
+    role: user.role,
+    status: note.status,
+  });
+  const customsDeclarations = canReadCustoms
+    ? await listCustomsDeclarationsForNoteForUser(id, user)
+    : [];
+
+  const canReadDocs = canReadShippingNoteDocuments(note, user);
+  const canMutateDocs = canMutateShippingNoteDocuments(note, user);
+  const documents = canReadDocs
+    ? await listShippingNoteDocumentsForUser(id, user)
+    : [];
+  const storageAvailability = getStorageAvailability();
 
   return (
     <PageContainer>
@@ -215,7 +252,7 @@ export default async function ShippingNoteDetailPage({
             />
           ) : null}
           <Link
-            className="text-sm text-slate-600 underline-offset-4 hover:underline px-2"
+            className="text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline px-2"
             href="/shipping-notes"
           >
             Back to list
@@ -223,102 +260,102 @@ export default async function ShippingNoteDetailPage({
         </div>
       </PageHeader>
 
-      <div className="flex w-full flex-col gap-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex w-full flex-col gap-6 rounded-lg border border-border bg-card p-6 shadow-sm">
 
         <section className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <div className="rounded-md border border-border bg-muted/40 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               Shipping
             </p>
-            <dl className="mt-3 space-y-2 text-sm text-slate-700">
+            <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
               <div>
-                <dt className="font-medium text-slate-900">Mode</dt>
+                <dt className="font-medium text-foreground">Mode</dt>
                 <dd>{note.shippingMode}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">MAWB / HAWB</dt>
+                <dt className="font-medium text-foreground">MAWB / HAWB</dt>
                 <dd>{note.mawbHawbNo ?? "-"}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">AOL</dt>
+                <dt className="font-medium text-foreground">AOL</dt>
                 <dd>{note.aol ?? "-"}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">AOD</dt>
+                <dt className="font-medium text-foreground">AOD</dt>
                 <dd>{note.aod ?? "-"}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">Final Destination</dt>
+                <dt className="font-medium text-foreground">Final Destination</dt>
                 <dd>{note.finalDestination ?? "-"}</dd>
               </div>
             </dl>
           </div>
 
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <div className="rounded-md border border-border bg-muted/40 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               Parties
             </p>
-            <dl className="mt-3 space-y-2 text-sm text-slate-700">
+            <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
               <div>
-                <dt className="font-medium text-slate-900">Shipper</dt>
+                <dt className="font-medium text-foreground">Shipper</dt>
                 <dd>{note.shipperText ?? "-"}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">Consignee</dt>
+                <dt className="font-medium text-foreground">Consignee</dt>
                 <dd>{note.consigneeText ?? "-"}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">Customer</dt>
+                <dt className="font-medium text-foreground">Customer</dt>
                 <dd>{note.customerText ?? "-"}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">Agent</dt>
+                <dt className="font-medium text-foreground">Agent</dt>
                 <dd>{note.agentText ?? "-"}</dd>
               </div>
             </dl>
           </div>
 
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <div className="rounded-md border border-border bg-muted/40 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               Shipment
             </p>
-            <dl className="mt-3 space-y-2 text-sm text-slate-700">
+            <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
               <div>
-                <dt className="font-medium text-slate-900">ETD</dt>
+                <dt className="font-medium text-foreground">ETD</dt>
                 <dd>{formatDateTime(note.etd)}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">ETA</dt>
+                <dt className="font-medium text-foreground">ETA</dt>
                 <dd>{formatDateTime(note.eta)}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">Volume</dt>
+                <dt className="font-medium text-foreground">Volume</dt>
                 <dd>
                   {note.volumeValue ?? "-"} {note.volumeUnit ?? ""}
                 </dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">Exchange Rate</dt>
+                <dt className="font-medium text-foreground">Exchange Rate</dt>
                 <dd>{note.exchangeRate}</dd>
               </div>
             </dl>
           </div>
 
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <div className="rounded-md border border-border bg-muted/40 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               Timeline
             </p>
-            <dl className="mt-3 space-y-2 text-sm text-slate-700">
+            <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
               <div>
-                <dt className="font-medium text-slate-900">Created</dt>
+                <dt className="font-medium text-foreground">Created</dt>
                 <dd>{formatDateTime(note.createdAt)}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">Submitted</dt>
+                <dt className="font-medium text-foreground">Submitted</dt>
                 <dd>{formatDateTime(note.submittedAt)}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">Updated</dt>
+                <dt className="font-medium text-foreground">Updated</dt>
                 <dd>{formatDateTime(note.updatedAt)}</dd>
               </div>
             </dl>
@@ -326,10 +363,10 @@ export default async function ShippingNoteDetailPage({
         </section>
 
         {/* Selling Charges Section */}
-        <section className="grid gap-4 border-t border-slate-200 pt-6">
+        <section className="grid gap-4 border-t border-border pt-6">
           <div className="space-y-2">
-            <h2 className="text-lg font-semibold tracking-tight">Selling Charges</h2>
-            <p className="text-sm text-slate-600">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">Selling Charges</h2>
+            <p className="text-sm text-muted-foreground">
               Selling charge lines for this shipping note.
             </p>
           </div>
@@ -360,22 +397,22 @@ export default async function ShippingNoteDetailPage({
         </section>
 
         {canViewFinancialArea ? (
-          <section className="grid gap-4 border-t border-slate-200 pt-6">
+          <section className="grid gap-4 border-t border-border pt-6">
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Financial Area
               </p>
-              <h2 className="text-lg font-semibold tracking-tight">Buying Charges</h2>
-              <p className="text-sm text-slate-600">
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">Buying Charges</h2>
+              <p className="text-sm text-muted-foreground">
                 Accountant and admin users can review buying charge lines here.
               </p>
               {financialSummary ? (
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-muted-foreground">
                   Gross Profit is derived from stored selling and buying totals.
                 </p>
               ) : null}
               {!canManageBuyingCharges ? (
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-muted-foreground">
                   Buying charge changes are available only when the shipping note
                   status is submitted or accounting reviewing.
                 </p>
@@ -434,28 +471,49 @@ export default async function ShippingNoteDetailPage({
                 canManageBuyingCharges={canManageBuyingCharges}
               />
             ) : null}
+
+            {canReadCustoms ? (
+              <CustomsDeclarationsPanel
+                shippingNoteId={note.id}
+                declarations={customsDeclarations}
+                canManage={canManageCustoms}
+              />
+            ) : null}
           </section>
         ) : null}
 
+        {canReadExportHistory ? (
+          <ExportHistoryPanel rows={exportHistory} viewerRole={user.role} />
+        ) : null}
+
+        {canReadDocs ? (
+          <ShippingNoteDocumentsPanel
+            shippingNoteId={note.id}
+            documents={documents}
+            canMutate={canMutateDocs}
+            storageAvailable={storageAvailability.available}
+          />
+        ) : null}
+
         {cancellationMetadata ? (
-          <section className="grid gap-4 border-t border-slate-200 pt-6">
+          <section className="grid gap-4 border-t border-border pt-6">
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Cancellation
               </p>
-              <h2 className="text-lg font-semibold tracking-tight">Cancellation History</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">Cancellation History</h2>
             </div>
-            <dl className="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 sm:grid-cols-3">
+            <dl className="grid gap-3 rounded-md border border-border bg-muted/40 p-4 text-sm text-muted-foreground sm:grid-cols-3">
               <div>
-                <dt className="font-medium text-slate-900">Cancelled</dt>
+                <dt className="font-medium text-foreground">Cancelled</dt>
                 <dd>{formatDateTime(cancellationMetadata.cancelledAt)}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">Cancelled By</dt>
+                <dt className="font-medium text-foreground">Cancelled By</dt>
                 <dd>{cancellationMetadata.cancelledById ?? "-"}</dd>
               </div>
               <div>
-                <dt className="font-medium text-slate-900">Reason</dt>
+                <dt className="font-medium text-foreground">Reason</dt>
                 <dd>{cancellationMetadata.cancelReason ?? "-"}</dd>
               </div>
             </dl>
@@ -482,10 +540,10 @@ export default async function ShippingNoteDetailPage({
         ) : null}
 
         {canEditDraft ? (
-          <section className="grid gap-6 border-t border-slate-200 pt-6">
+          <section className="grid gap-6 border-t border-border pt-6">
             <div className="space-y-2">
-              <h2 className="text-lg font-semibold tracking-tight">Edit draft</h2>
-              <p className="text-sm text-slate-600">
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">Edit draft</h2>
+              <p className="text-sm text-muted-foreground">
                 Draft-only edit path. Buying charges, tax settings, and audit logs are
                 intentionally unavailable in this phase.
               </p>
@@ -505,7 +563,7 @@ export default async function ShippingNoteDetailPage({
             />
           </section>
         ) : (
-          <p className="border-t border-slate-200 pt-6 text-sm text-slate-600">
+          <p className="border-t border-border pt-6 text-sm text-muted-foreground">
             This note is read-only in the current phase.
           </p>
         )}

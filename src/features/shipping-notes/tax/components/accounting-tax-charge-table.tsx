@@ -48,7 +48,7 @@ function SubmitButton({ label, pendingLabel }: {
 
   return (
     <button
-      className="inline-flex items-center justify-center rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+      className="inline-flex items-center justify-center rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
       type="submit"
       disabled={pending}
     >
@@ -63,15 +63,33 @@ function Badge({ children, tone = "slate" }: {
 }) {
   const className =
     tone === "emerald"
-      ? "rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700"
+      ? "rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border dark:border-emerald-900/60"
       : tone === "amber"
-        ? "rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800"
-        : "rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700";
+        ? "rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 dark:border dark:border-amber-900/60"
+        : "rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:border dark:border-slate-700";
 
   return <span className={className}>{children}</span>;
 }
 
 function AssignTaxRulePanel({
+  charge,
+  rules,
+}: {
+  charge: ChargeTaxDetail;
+  rules: TaxRuleDetail[];
+}) {
+  if (rules.length === 0) {
+    return (
+      <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-muted-foreground dark:border-slate-800 dark:bg-slate-900/50">
+        Chưa có Tax Rule khả dụng
+      </div>
+    );
+  }
+
+  return <AssignTaxRuleForm charge={charge} rules={rules} />;
+}
+
+function AssignTaxRuleForm({
   charge,
   rules,
 }: {
@@ -93,17 +111,17 @@ function AssignTaxRulePanel({
     : null;
 
   return (
-    <details className="rounded-md border border-slate-200 bg-slate-50 p-3">
-      <summary className="cursor-pointer text-xs font-medium text-slate-700">
+    <details className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/50">
+      <summary className="cursor-pointer text-xs font-medium text-slate-700 dark:text-slate-300">
         {charge.taxComplete ? "Change tax rule" : "Assign tax rule"}
       </summary>
       <form action={formAction} className="mt-3 grid gap-3">
         <input type="hidden" name="chargeId" value={charge.chargeId} />
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
           Tax rule
           <select
-            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-500/20"
             name="taxRuleId"
             value={selectedRuleId}
             onChange={(event) => setSelectedRuleId(event.target.value)}
@@ -118,37 +136,33 @@ function AssignTaxRulePanel({
         </label>
 
         {selectedRule ? (
-          <div className="rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">
+          <div className="rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
             <p>
-              Charge: <span className="font-medium text-slate-900">{charge.chargeName}</span>
+              Charge: <span className="font-medium text-slate-900 dark:text-slate-100">{charge.chargeName}</span>
             </p>
             <p>
-              Base excluding VAT: <span className="font-medium text-slate-900">{formatNumber(charge.amountVnd)}</span>
+              Base excluding VAT: <span className="font-medium text-slate-900 dark:text-slate-100">{formatNumber(charge.amountVnd)}</span>
             </p>
             <p>
-              Treatment: <span className="font-medium text-slate-900">{getTaxTreatmentLabel(selectedRule.taxTreatment)}</span>
+              Treatment: <span className="font-medium text-slate-900 dark:text-slate-100">{getTaxTreatmentLabel(selectedRule.taxTreatment)}</span>
             </p>
             <p>
-              Applied VAT: <span className="font-medium text-slate-900">{selectedRule.vatPercent}%</span>
+              Applied VAT: <span className="font-medium text-slate-900 dark:text-slate-100">{selectedRule.vatPercent}%</span>
             </p>
             <p>
-              Preview VAT amount: <span className="font-medium text-slate-900">{previewVat ? formatNumber(previewVat) : "-"}</span>
+              Preview VAT amount: <span className="font-medium text-slate-900 dark:text-slate-100">{previewVat ? formatNumber(previewVat) : "-"}</span>
             </p>
             {charge.isOverride ? (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 Reassigning a tax rule replaces the current override with the
                 rule&apos;s configured percentage.
               </p>
             ) : null}
           </div>
-        ) : (
-          <p className="text-sm text-amber-800">
-            No active rules are available for this charge section.
-          </p>
-        )}
+        ) : null}
 
         {!state.ok ? (
-          <p className="text-sm text-red-700" role="alert">
+          <p className="text-sm text-red-700 dark:text-red-400" role="alert">
             {state.error}
           </p>
         ) : null}
@@ -164,49 +178,63 @@ function OverrideVatPanel({ charge }: { charge: ChargeTaxDetail }) {
     overrideChargeVatPercentAction,
     initialState,
   );
+  const currentOverrideVal =
+    charge.isOverride && charge.vatOverrideRate !== null
+      ? String(Number(charge.vatOverrideRate))
+      : charge.isOverride
+        ? String(Number(charge.vatPercent))
+        : "none";
+  const [selectedVal, setSelectedVal] = useState(currentOverrideVal);
 
   return (
-    <details className="rounded-md border border-amber-200 bg-amber-50 p-3">
-      <summary className="cursor-pointer text-xs font-medium text-amber-900">
+    <details className="rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-950/40">
+      <summary className="cursor-pointer text-xs font-medium text-amber-900 dark:text-amber-300">
         Override VAT
       </summary>
       <form action={formAction} className="mt-3 grid gap-3">
         <input type="hidden" name="chargeId" value={charge.chargeId} />
-        <div className="rounded-md border border-amber-200 bg-white p-3 text-sm text-slate-700">
-          <p>Current rule: <span className="font-medium text-slate-900">{charge.taxRuleCodeSnapshot ?? "-"}</span></p>
-          <p>Current applied percentage: <span className="font-medium text-slate-900">{charge.vatPercent}%</span></p>
-          <p className="mt-2 text-amber-900">
+        <div className="rounded-md border border-amber-200 bg-white p-3 text-sm text-slate-700 dark:border-amber-900/50 dark:bg-slate-900 dark:text-slate-300">
+          <p>Current rule: <span className="font-medium text-slate-900 dark:text-slate-100">{charge.taxRuleCodeSnapshot ?? "-"}</span></p>
+          <p>Current applied percentage: <span className="font-medium text-slate-900 dark:text-slate-100">{charge.effectiveAccountingVatRate ? `${Number(charge.effectiveAccountingVatRate)}%` : `${Number(charge.vatPercent)}%`}</span></p>
+          <p className="mt-2 text-amber-900 dark:text-amber-300">
             This changes the applied VAT percentage for this charge but
             preserves the selected tax-rule snapshot. The reason will be
             recorded in the audit log.
           </p>
         </div>
 
-        <label className="block text-sm font-medium text-slate-700">
+        <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
           Override VAT percentage
-          <input
-            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+          <select
+            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-amber-500 dark:focus:ring-amber-500/20"
             name="vatPercent"
-            type="number"
-            min="0"
-            step="0.01"
-            defaultValue={charge.vatPercent}
+            value={selectedVal}
+            onChange={(e) => setSelectedVal(e.target.value)}
             required
-          />
+          >
+            <option value="none">Không override</option>
+            <option value="0">0%</option>
+            <option value="5">5%</option>
+            <option value="8">8%</option>
+            <option value="10">10%</option>
+          </select>
         </label>
 
-        <label className="block text-sm font-medium text-slate-700">
-          Reason
-          <textarea
-            className="mt-1 min-h-20 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
-            name="reason"
-            defaultValue={charge.overrideReason ?? ""}
-            required
-          />
-        </label>
+        {selectedVal !== "none" ? (
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+            Reason
+            <textarea
+              className="mt-1 min-h-20 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-amber-500 dark:focus:ring-amber-500/20"
+              name="reason"
+              defaultValue={charge.overrideReason ?? ""}
+              placeholder="Nhập lý do override..."
+              required
+            />
+          </label>
+        ) : null}
 
         {!state.ok ? (
-          <p className="text-sm text-red-700" role="alert">
+          <p className="text-sm text-red-700 dark:text-red-400" role="alert">
             {state.error}
           </p>
         ) : null}
@@ -243,7 +271,7 @@ export function AccountingTaxChargeTable({
 
   if (charges.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
+      <div className="rounded-md border border-dashed border-border bg-card p-4 text-sm text-muted-foreground">
         No active {section} charges require tax classification.
       </div>
     );
@@ -252,9 +280,9 @@ export function AccountingTaxChargeTable({
   return (
     <div className="grid gap-3">
       <div className="space-y-1">
-        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         {!canMutateTax ? (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             {status === "draft"
               ? "Tax classification is available after submission."
               : status === "checked"
@@ -264,20 +292,20 @@ export function AccountingTaxChargeTable({
         ) : null}
       </div>
 
-      <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+      <div className="overflow-x-auto rounded-md border border-border bg-card">
         <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
           <thead>
-            <tr className="text-xs uppercase tracking-[0.18em] text-slate-500">
-              <th className="border-b border-slate-200 px-3 py-2">Charge</th>
-              <th className="border-b border-slate-200 px-3 py-2">Classification</th>
-              <th className="border-b border-slate-200 px-3 py-2">Rule Snapshot</th>
-              <th className="border-b border-slate-200 px-3 py-2 text-right">Excl. VAT</th>
-              <th className="border-b border-slate-200 px-3 py-2 text-right">VAT %</th>
-              <th className="border-b border-slate-200 px-3 py-2 text-right">VAT</th>
-              <th className="border-b border-slate-200 px-3 py-2 text-right">Incl. VAT</th>
-              <th className="border-b border-slate-200 px-3 py-2">State</th>
+            <tr className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+              <th className="border-b border-border px-3 py-2">Charge</th>
+              <th className="border-b border-border px-3 py-2">Classification</th>
+              <th className="border-b border-border px-3 py-2">Rule Snapshot</th>
+              <th className="border-b border-border px-3 py-2 text-right">Excl. VAT</th>
+              <th className="border-b border-border px-3 py-2 text-right">VAT %</th>
+              <th className="border-b border-border px-3 py-2 text-right">VAT</th>
+              <th className="border-b border-border px-3 py-2 text-right">Incl. VAT</th>
+              <th className="border-b border-border px-3 py-2">State</th>
               {canMutateTax ? (
-                <th className="border-b border-slate-200 px-3 py-2">Actions</th>
+                <th className="border-b border-border px-3 py-2">Actions</th>
               ) : null}
             </tr>
           </thead>
@@ -287,11 +315,19 @@ export function AccountingTaxChargeTable({
               const canOverride = canOverrideChargeTax({ role, status, charge });
 
               return (
-                <tr key={charge.chargeId} className="align-top">
-                  <td className="border-b border-slate-100 px-3 py-2 font-medium text-slate-900">
-                    {charge.chargeName}
+                <tr key={charge.chargeId} className="align-top hover:bg-muted/40">
+                  <td className="border-b border-border/60 px-3 py-2 font-medium text-foreground">
+                    <div>{charge.chargeName}</div>
+                    {charge.catalogCodeSnapshot ? (
+                      <div className="text-xs text-muted-foreground font-normal">
+                        [{charge.catalogCodeSnapshot}]
+                      </div>
+                    ) : null}
+                    <div className="mt-0.5 text-xs text-muted-foreground font-normal">
+                      VAT danh mục: {charge.catalogVatRateSnapshot ? `${Number(charge.catalogVatRateSnapshot)}%` : "Chưa xác định"}
+                    </div>
                   </td>
-                  <td className="border-b border-slate-100 px-3 py-2">
+                  <td className="border-b border-border/60 px-3 py-2">
                     <div className="flex flex-wrap gap-1">
                       {badges.map((badge) => (
                         <Badge
@@ -303,38 +339,38 @@ export function AccountingTaxChargeTable({
                       ))}
                     </div>
                   </td>
-                  <td className="border-b border-slate-100 px-3 py-2 text-slate-700">
+                  <td className="border-b border-border/60 px-3 py-2 text-slate-700 dark:text-slate-300">
                     <div className="max-w-56">
                       <p>{charge.taxRuleCodeSnapshot ?? "Unclassified"}</p>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-muted-foreground">
                         {charge.taxRuleNameSnapshot ?? "-"}
                       </p>
                       {charge.overrideReason ? (
-                        <p className="mt-1 text-xs text-amber-800">
+                        <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
                           Reason: {charge.overrideReason}
                         </p>
                       ) : null}
                     </div>
                   </td>
-                  <td className="border-b border-slate-100 px-3 py-2 text-right text-slate-700">
+                  <td className="border-b border-border/60 px-3 py-2 text-right text-slate-700 dark:text-slate-300">
                     {formatNumber(charge.amountVnd)}
                   </td>
-                  <td className="border-b border-slate-100 px-3 py-2 text-right text-slate-700">
-                    {charge.vatPercent}
+                  <td className="border-b border-border/60 px-3 py-2 text-right text-slate-700 dark:text-slate-300">
+                    {charge.effectiveAccountingVatRate ? `${Number(charge.effectiveAccountingVatRate)}%` : `${Number(charge.vatPercent)}%`}
                   </td>
-                  <td className="border-b border-slate-100 px-3 py-2 text-right text-slate-700">
+                  <td className="border-b border-border/60 px-3 py-2 text-right text-slate-700 dark:text-slate-300">
                     {formatNumber(charge.vatAmount)}
                   </td>
-                  <td className="border-b border-slate-100 px-3 py-2 text-right font-medium text-slate-900">
+                  <td className="border-b border-border/60 px-3 py-2 text-right font-medium text-foreground">
                     {formatNumber(charge.lineTotalIncludingVatVnd)}
                   </td>
-                  <td className="border-b border-slate-100 px-3 py-2">
+                  <td className="border-b border-border/60 px-3 py-2">
                     <Badge tone={charge.taxComplete ? "emerald" : "slate"}>
                       {charge.taxComplete ? "Complete" : "Unclassified"}
                     </Badge>
                   </td>
                   {canMutateTax ? (
-                    <td className="border-b border-slate-100 px-3 py-2">
+                    <td className="border-b border-border/60 px-3 py-2">
                       <div className="grid min-w-60 gap-2">
                         <AssignTaxRulePanel charge={charge} rules={sectionRules} />
                         {canOverride ? <OverrideVatPanel charge={charge} /> : null}

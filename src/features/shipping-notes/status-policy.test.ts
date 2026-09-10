@@ -12,10 +12,12 @@ import {
   canMutateSellingChargeForDraft,
   canReopenShippingNoteForCorrectionStatus,
   canUnlockShippingNoteStatus,
+  canCloseShippingNoteStatus,
   hasNormalOutboundBusinessTransition,
   isExpectedAccountingTransitionSource,
   isInternalXlsxExportEligibleStatus,
   isNormalBusinessWorkflowTargetStatus,
+  isShippingNoteImmutable,
   isSupportedCurrentAccountingTransition,
   type ShippingNotePolicyActor,
   type ShippingNotePolicySubject,
@@ -105,11 +107,29 @@ describe("shipping note status policy", () => {
     ]);
   });
 
-  it("allows locking only from approved status", () => {
+  it("allows locking/closing from checked and approved status", () => {
     expect(SHIPPING_NOTE_STATUSES.filter(canLockShippingNoteStatus)).toStrictEqual([
+      "checked",
       "approved",
     ]);
-    expect(canLockShippingNoteStatus("checked")).toBe(false);
+    expect(canLockShippingNoteStatus("checked")).toBe(true);
+    expect(canLockShippingNoteStatus("approved")).toBe(true);
+    expect(canCloseShippingNoteStatus("checked")).toBe(true);
+  });
+
+  it("identifies locked and cancelled as immutable terminal records", () => {
+    expect(SHIPPING_NOTE_STATUSES.filter(isShippingNoteImmutable)).toStrictEqual([
+      "locked",
+      "cancelled",
+    ]);
+    expect(isShippingNoteImmutable("locked")).toBe(true);
+    expect(isShippingNoteImmutable("cancelled")).toBe(true);
+    expect(isShippingNoteImmutable("draft")).toBe(false);
+    expect(isShippingNoteImmutable("submitted")).toBe(false);
+    expect(isShippingNoteImmutable("accounting_reviewing")).toBe(false);
+    expect(isShippingNoteImmutable("checked")).toBe(false);
+    expect(isShippingNoteImmutable("approved")).toBe(false);
+    expect(isShippingNoteImmutable("exported")).toBe(false);
   });
 
   it("allows future unlock from locked status only", () => {

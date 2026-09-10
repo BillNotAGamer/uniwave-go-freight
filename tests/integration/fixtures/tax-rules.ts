@@ -9,6 +9,7 @@ import { assignChargeTaxRuleInputSchema } from "@/features/shipping-notes/tax/va
 import type { ChargeSection, TaxTreatment } from "@/features/shipping-notes/constants";
 
 import { db } from "../setup/database";
+import { assertAuthorizedIntegrationDatabaseTarget } from "../setup/database-authorization";
 
 export async function createTaxRuleFixture(input: {
   runId: string;
@@ -18,6 +19,8 @@ export async function createTaxRuleFixture(input: {
   taxTreatment?: TaxTreatment;
   vatPercent?: string;
 }): Promise<TaxRuleDetail> {
+  assertAuthorizedIntegrationDatabaseTarget();
+
   return createTaxRule(
     createTaxRuleInputSchema.parse({
       code: `${input.runId}-${input.label}`,
@@ -39,6 +42,8 @@ export async function classifyNoteCharges(input: {
   sellingTaxRuleId?: string;
   buyingTaxRuleId?: string;
 }): Promise<void> {
+  assertAuthorizedIntegrationDatabaseTarget();
+
   const charges = await db
     .select({
       id: shippingNoteCharges.id,

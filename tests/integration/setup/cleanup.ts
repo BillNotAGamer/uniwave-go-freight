@@ -1,8 +1,18 @@
 import { sql } from "drizzle-orm";
 
+import { runGuardedDatabaseOperation } from "@/lib/db/guarded-database-operation";
+
+import { assertAuthorizedIntegrationDatabaseTarget } from "./database-authorization";
 import { db } from "./database";
 
 export async function cleanupIntegrationRun(runId: string): Promise<void> {
+  await runGuardedDatabaseOperation({
+    authorize: assertAuthorizedIntegrationDatabaseTarget,
+    operation: () => cleanupIntegrationRunAfterAuthorization(runId),
+  });
+}
+
+async function cleanupIntegrationRunAfterAuthorization(runId: string): Promise<void> {
   if (process.env.INTEGRATION_TEST_PRESERVE_DATA === "true") {
     console.log(`integration-data-preserved runId=${runId}`);
     return;

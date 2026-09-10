@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -78,6 +80,28 @@ export const exportStatusEnum = pgEnum("export_status", [
   "uploaded",
   "failed",
 ]);
+
+export const driveUploadStatusEnum = pgEnum("drive_upload_status", [
+  "not_uploaded",
+  "uploading",
+  "uploaded",
+  "upload_failed",
+]);
+
+export const shippingNoteDocumentTypeEnum = pgEnum(
+  "shipping_note_document_type",
+  [
+    "pre_alert_hbl",
+    "pre_alert_mbl",
+    "contract",
+    "invoice",
+  ],
+);
+
+export const shippingNoteDocumentStorageProviderEnum = pgEnum(
+  "shipping_note_document_storage_provider",
+  ["r2", "google_drive"],
+);
 
 export const users = pgTable("users", {
   id: idColumn(),
@@ -178,13 +202,41 @@ export const shippingNotes = pgTable(
     shippingMode: shippingModeEnum("shipping_mode")
       .notNull()
       .default("domestic_truck"),
+    shipperPartnerId: text("shipper_partner_id").references(
+      () => businessPartners.id,
+      { onDelete: "set null" },
+    ),
     shipperText: text("shipper_text"),
+    consigneePartnerId: text("consignee_partner_id").references(
+      () => businessPartners.id,
+      { onDelete: "set null" },
+    ),
     consigneeText: text("consignee_text"),
+    customerPartnerId: text("customer_partner_id").references(
+      () => businessPartners.id,
+      { onDelete: "set null" },
+    ),
     customerText: text("customer_text"),
+    agentPartnerId: text("agent_partner_id").references(
+      () => businessPartners.id,
+      { onDelete: "set null" },
+    ),
     agentText: text("agent_text"),
+    domesticOrigin: text("domestic_origin"),
+    domesticDestination: text("domestic_destination"),
+    // Existing AOL/AOD columns are the canonical Air origin/destination storage.
     aol: text("aol"),
     aod: text("aod"),
+    portOfLoading: text("port_of_loading"),
+    portOfDischarge: text("port_of_discharge"),
     finalDestination: text("final_destination"),
+    mawbNo: text("mawb_no"),
+    hawbNo: text("hawb_no"),
+    mblNo: text("mbl_no"),
+    hblNo: text("hbl_no"),
+    flightNo: text("flight_no"),
+    vesselName: text("vessel_name"),
+    voyageNo: text("voyage_no"),
     etd: timestamp("etd", { mode: "date", precision: 3 }),
     eta: timestamp("eta", { mode: "date", precision: 3 }),
     volumeValue: numeric("volume_value", { precision: 18, scale: 3 }),
@@ -225,6 +277,12 @@ export const shippingNotes = pgTable(
   (table) => [
     index("shipping_notes_status_idx").on(table.status),
     index("shipping_notes_created_by_id_idx").on(table.createdById),
+    index("shipping_notes_shipper_partner_id_idx").on(table.shipperPartnerId),
+    index("shipping_notes_consignee_partner_id_idx").on(
+      table.consigneePartnerId,
+    ),
+    index("shipping_notes_customer_partner_id_idx").on(table.customerPartnerId),
+    index("shipping_notes_agent_partner_id_idx").on(table.agentPartnerId),
   ],
 );
 
@@ -259,6 +317,21 @@ export const shippingNoteCharges = pgTable(
     taxRuleCodeSnapshot: text("tax_rule_code_snapshot"),
     taxRuleNameSnapshot: text("tax_rule_name_snapshot"),
     taxTreatmentSnapshot: taxTreatmentEnum("tax_treatment_snapshot"),
+    serviceCatalogItemId: text("service_catalog_item_id").references(
+      () => serviceCatalogItems.id,
+      { onDelete: "set null" },
+    ),
+    catalogCodeSnapshot: text("catalog_code_snapshot"),
+    catalogNameSnapshot: text("catalog_name_snapshot"),
+    catalogUnitSnapshot: text("catalog_unit_snapshot"),
+    catalogVatRateSnapshot: numeric("catalog_vat_rate_snapshot", {
+      precision: 6,
+      scale: 2,
+    }),
+    vatOverrideRate: numeric("vat_override_rate", {
+      precision: 6,
+      scale: 2,
+    }),
     vatPercent: numeric("vat_percent", { precision: 6, scale: 2 })
       .notNull()
       .default("0"),
@@ -280,6 +353,37 @@ export const shippingNoteCharges = pgTable(
       table.shippingNoteId,
     ),
     index("shipping_note_charges_tax_rule_id_idx").on(table.taxRuleId),
+    index("shipping_note_charges_service_catalog_item_id_idx").on(
+      table.serviceCatalogItemId,
+    ),
+    check(
+      "shipping_note_charges_vat_override_rate_check",
+      sql`${table.vatOverrideRate} is null or ${table.vatOverrideRate} in (0, 5, 8, 10)`,
+    ),
+  ],
+);
+
+export const shippingNoteCustomsDeclarations = pgTable(
+  "shipping_note_customs_declarations",
+  {
+    id: idColumn(),
+    shippingNoteId: text("shipping_note_id")
+      .notNull()
+      .references(() => shippingNotes.id, { onDelete: "cascade" }),
+    declarationNo: text("declaration_no").notNull(),
+    createdAt,
+    updatedAt,
+    deletedAt,
+  },
+  (table) => [
+    index("shipping_note_customs_declarations_shipping_note_id_idx").on(
+      table.shippingNoteId,
+    ),
+    uniqueIndex(
+      "shipping_note_customs_declarations_active_note_number_uidx",
+    )
+      .on(table.shippingNoteId, table.declarationNo)
+      .where(sql`${table.deletedAt} is null`),
   ],
 );
 
@@ -295,6 +399,18 @@ export const shippingNoteExports = pgTable(
     status: exportStatusEnum("status").notNull().default("pending"),
     driveFileId: text("drive_file_id"),
     driveUrl: text("drive_url"),
+    driveUploadStatus: driveUploadStatusEnum("drive_upload_status")
+      .notNull()
+      .default("not_uploaded"),
+    driveUploadedAt: timestamp("drive_uploaded_at", {
+      mode: "date",
+      precision: 3,
+    }),
+    driveFolderId: text("drive_folder_id"),
+    driveErrorMessage: text("drive_error_message"),
+    artifactStorageKey: text("artifact_storage_key"),
+    artifactSizeBytes: integer("artifact_size_bytes"),
+    artifactMimeType: text("artifact_mime_type"),
     fileName: text("file_name"),
     checksum: text("checksum"),
     errorMessage: text("error_message"),
@@ -308,6 +424,47 @@ export const shippingNoteExports = pgTable(
   (table) => [
     index("shipping_note_exports_shipping_note_id_idx").on(
       table.shippingNoteId,
+    ),
+    uniqueIndex("shipping_note_exports_artifact_storage_key_uidx").on(
+      table.artifactStorageKey,
+    ),
+  ],
+);
+
+export const shippingNoteDocuments = pgTable(
+  "shipping_note_documents",
+  {
+    id: idColumn(),
+    shippingNoteId: text("shipping_note_id")
+      .notNull()
+      .references(() => shippingNotes.id, { onDelete: "cascade" }),
+    documentType: shippingNoteDocumentTypeEnum("document_type").notNull(),
+    originalFileName: text("original_file_name").notNull(),
+    storageProvider:
+      shippingNoteDocumentStorageProviderEnum("storage_provider").notNull(),
+    storageKey: text("storage_key").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    uploadedById: text("uploaded_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    createdAt,
+    updatedAt,
+    deletedAt,
+  },
+  (table) => [
+    index("shipping_note_documents_shipping_note_id_idx").on(
+      table.shippingNoteId,
+    ),
+    index("shipping_note_documents_document_type_idx").on(
+      table.documentType,
+    ),
+    uniqueIndex("shipping_note_documents_active_provider_key_uidx")
+      .on(table.storageProvider, table.storageKey)
+      .where(sql`${table.deletedAt} is null`),
+    check(
+      "shipping_note_documents_size_bytes_check",
+      sql`${table.sizeBytes} >= 0`,
     ),
   ],
 );
@@ -329,6 +486,10 @@ export const auditLogs = pgTable(
   },
   (table) => [
     index("audit_logs_entity_lookup_idx").on(table.entityType, table.entityId),
+    index("audit_logs_created_at_id_idx").on(
+      table.createdAt.desc(),
+      table.id.desc(),
+    ),
   ],
 );
 
@@ -383,6 +544,11 @@ export type NewShippingNote = typeof shippingNotes.$inferInsert;
 export type ShippingNoteCharge = typeof shippingNoteCharges.$inferSelect;
 export type NewShippingNoteCharge = typeof shippingNoteCharges.$inferInsert;
 
+export type ShippingNoteCustomsDeclaration =
+  typeof shippingNoteCustomsDeclarations.$inferSelect;
+export type NewShippingNoteCustomsDeclaration =
+  typeof shippingNoteCustomsDeclarations.$inferInsert;
+
 export type ShippingNoteExport = typeof shippingNoteExports.$inferSelect;
 export type NewShippingNoteExport = typeof shippingNoteExports.$inferInsert;
 
@@ -391,3 +557,285 @@ export type NewAuditLog = typeof auditLogs.$inferInsert;
 
 export type TaxRule = typeof taxRules.$inferSelect;
 export type NewTaxRule = typeof taxRules.$inferInsert;
+
+export const businessPartners = pgTable(
+  "business_partners",
+  {
+    id: idColumn(),
+    vendorCode: text("vendor_code"),
+    companyName: text("company_name").notNull(),
+    address: text("address"),
+    taxId: text("tax_id"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt,
+    updatedAt,
+    deletedAt,
+  },
+  (table) => [
+    index("business_partners_company_name_idx").on(table.companyName),
+    index("business_partners_vendor_code_idx").on(table.vendorCode),
+    index("business_partners_tax_id_idx").on(table.taxId),
+  ],
+);
+
+export const partnerContacts = pgTable(
+  "partner_contacts",
+  {
+    id: idColumn(),
+    partnerId: text("partner_id")
+      .notNull()
+      .references(() => businessPartners.id, { onDelete: "cascade" }),
+    picName: text("pic_name"),
+    email: text("email"),
+    phone: text("phone"),
+    createdAt,
+    updatedAt,
+    deletedAt,
+  },
+  (table) => [
+    index("partner_contacts_partner_id_idx").on(table.partnerId),
+  ],
+);
+
+export const partnerCategories = pgTable(
+  "partner_categories",
+  {
+    id: idColumn(),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    uniqueIndex("partner_categories_code_uidx").on(table.code),
+  ],
+);
+
+export const partnerCategoryMembers = pgTable(
+  "partner_category_members",
+  {
+    id: idColumn(),
+    partnerId: text("partner_id")
+      .notNull()
+      .references(() => businessPartners.id, { onDelete: "cascade" }),
+    categoryId: text("category_id")
+      .notNull()
+      .references(() => partnerCategories.id, { onDelete: "cascade" }),
+    createdAt,
+  },
+  (table) => [
+    index("partner_category_members_partner_id_idx").on(table.partnerId),
+    index("partner_category_members_category_id_idx").on(table.categoryId),
+    uniqueIndex("partner_category_members_partner_id_category_id_uidx").on(
+      table.partnerId,
+      table.categoryId,
+    ),
+  ],
+);
+
+export const businessPartnersRelations = relations(
+  businessPartners,
+  ({ many }) => ({
+    contacts: many(partnerContacts),
+    categoryMemberships: many(partnerCategoryMembers),
+    shippingNotesAsShipper: many(shippingNotes, {
+      relationName: "shippingNoteShipperPartner",
+    }),
+    shippingNotesAsConsignee: many(shippingNotes, {
+      relationName: "shippingNoteConsigneePartner",
+    }),
+    shippingNotesAsCustomer: many(shippingNotes, {
+      relationName: "shippingNoteCustomerPartner",
+    }),
+    shippingNotesAsAgent: many(shippingNotes, {
+      relationName: "shippingNoteAgentPartner",
+    }),
+  }),
+);
+
+export const shippingNotesRelations = relations(
+  shippingNotes,
+  ({ many, one }) => ({
+    shipperPartner: one(businessPartners, {
+      fields: [shippingNotes.shipperPartnerId],
+      references: [businessPartners.id],
+      relationName: "shippingNoteShipperPartner",
+    }),
+    consigneePartner: one(businessPartners, {
+      fields: [shippingNotes.consigneePartnerId],
+      references: [businessPartners.id],
+      relationName: "shippingNoteConsigneePartner",
+    }),
+    customerPartner: one(businessPartners, {
+      fields: [shippingNotes.customerPartnerId],
+      references: [businessPartners.id],
+      relationName: "shippingNoteCustomerPartner",
+    }),
+    agentPartner: one(businessPartners, {
+      fields: [shippingNotes.agentPartnerId],
+      references: [businessPartners.id],
+      relationName: "shippingNoteAgentPartner",
+    }),
+    customsDeclarations: many(shippingNoteCustomsDeclarations),
+    documents: many(shippingNoteDocuments),
+  }),
+);
+
+export const partnerContactsRelations = relations(
+  partnerContacts,
+  ({ one }) => ({
+    businessPartner: one(businessPartners, {
+      fields: [partnerContacts.partnerId],
+      references: [businessPartners.id],
+    }),
+  }),
+);
+
+export const partnerCategoriesRelations = relations(
+  partnerCategories,
+  ({ many }) => ({
+    memberships: many(partnerCategoryMembers),
+  }),
+);
+
+export const partnerCategoryMembersRelations = relations(
+  partnerCategoryMembers,
+  ({ one }) => ({
+    businessPartner: one(businessPartners, {
+      fields: [partnerCategoryMembers.partnerId],
+      references: [businessPartners.id],
+    }),
+    category: one(partnerCategories, {
+      fields: [partnerCategoryMembers.categoryId],
+      references: [partnerCategories.id],
+    }),
+  }),
+);
+
+export const shippingNoteDocumentsRelations = relations(
+  shippingNoteDocuments,
+  ({ one }) => ({
+    shippingNote: one(shippingNotes, {
+      fields: [shippingNoteDocuments.shippingNoteId],
+      references: [shippingNotes.id],
+    }),
+    uploadedBy: one(users, {
+      fields: [shippingNoteDocuments.uploadedById],
+      references: [users.id],
+    }),
+  }),
+);
+
+export type ShippingNoteDocument = typeof shippingNoteDocuments.$inferSelect;
+export type NewShippingNoteDocument = typeof shippingNoteDocuments.$inferInsert;
+
+export const serviceCatalogNatureEnum = pgEnum("service_catalog_nature", [
+  "service",
+  "tool_supply",
+  "goods",
+]);
+
+export const serviceCatalogItems = pgTable(
+  "service_catalog_items",
+  {
+    id: idColumn(),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    nature: serviceCatalogNatureEnum("nature").notNull(),
+    primaryUnit: text("primary_unit"),
+    vatRate: numeric("vat_rate", { precision: 6, scale: 2 }),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt,
+    updatedAt,
+    deletedAt,
+  },
+  (table) => [
+    uniqueIndex("service_catalog_items_code_uidx").on(table.code),
+    index("service_catalog_items_name_idx").on(table.name),
+  ],
+);
+
+export const serviceCatalogUnitConversions = pgTable(
+  "service_catalog_unit_conversions",
+  {
+    id: idColumn(),
+    serviceCatalogItemId: text("service_catalog_item_id")
+      .notNull()
+      .references(() => serviceCatalogItems.id, { onDelete: "cascade" }),
+    convertedUnit: text("converted_unit").notNull(),
+    conversionFactor: numeric("conversion_factor", {
+      precision: 18,
+      scale: 6,
+    }).notNull(),
+    operation: text("operation").notNull(),
+    sourceDescription: text("source_description"),
+    createdAt,
+    updatedAt,
+    deletedAt,
+  },
+  (table) => [
+    index("service_catalog_unit_conversions_item_id_idx").on(
+      table.serviceCatalogItemId,
+    ),
+  ],
+);
+
+export const serviceCatalogItemsRelations = relations(
+  serviceCatalogItems,
+  ({ many }) => ({
+    unitConversions: many(serviceCatalogUnitConversions),
+    shippingNoteCharges: many(shippingNoteCharges),
+  }),
+);
+
+export const shippingNoteChargesRelations = relations(
+  shippingNoteCharges,
+  ({ one }) => ({
+    serviceCatalogItem: one(serviceCatalogItems, {
+      fields: [shippingNoteCharges.serviceCatalogItemId],
+      references: [serviceCatalogItems.id],
+    }),
+  }),
+);
+
+export const shippingNoteCustomsDeclarationsRelations = relations(
+  shippingNoteCustomsDeclarations,
+  ({ one }) => ({
+    shippingNote: one(shippingNotes, {
+      fields: [shippingNoteCustomsDeclarations.shippingNoteId],
+      references: [shippingNotes.id],
+    }),
+  }),
+);
+
+export const serviceCatalogUnitConversionsRelations = relations(
+  serviceCatalogUnitConversions,
+  ({ one }) => ({
+    item: one(serviceCatalogItems, {
+      fields: [serviceCatalogUnitConversions.serviceCatalogItemId],
+      references: [serviceCatalogItems.id],
+    }),
+  }),
+);
+
+export type ServiceCatalogItem = typeof serviceCatalogItems.$inferSelect;
+export type NewServiceCatalogItem = typeof serviceCatalogItems.$inferInsert;
+
+export type ServiceCatalogUnitConversion =
+  typeof serviceCatalogUnitConversions.$inferSelect;
+export type NewServiceCatalogUnitConversion =
+  typeof serviceCatalogUnitConversions.$inferInsert;
+
+export type BusinessPartner = typeof businessPartners.$inferSelect;
+export type NewBusinessPartner = typeof businessPartners.$inferInsert;
+
+export type PartnerContact = typeof partnerContacts.$inferSelect;
+export type NewPartnerContact = typeof partnerContacts.$inferInsert;
+
+export type PartnerCategory = typeof partnerCategories.$inferSelect;
+export type NewPartnerCategory = typeof partnerCategories.$inferInsert;
+
+export type PartnerCategoryMember = typeof partnerCategoryMembers.$inferSelect;
+export type NewPartnerCategoryMember = typeof partnerCategoryMembers.$inferInsert;

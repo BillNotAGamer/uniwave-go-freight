@@ -9,6 +9,7 @@ export type ChargeTaxSnapshot = {
   vatAmount: string;
   isOverride: boolean;
   overrideReason: string | null;
+  vatOverrideRate?: string | null;
 };
 
 export type ChargeTaxDetail = ChargeTaxSnapshot & {
@@ -19,6 +20,14 @@ export type ChargeTaxDetail = ChargeTaxSnapshot & {
   amountVnd: string;
   lineTotalIncludingVatVnd: string;
   taxComplete: boolean;
+  vatOverrideRate: string | null;
+  serviceCatalogItemId: string | null;
+  catalogCodeSnapshot: string | null;
+  catalogNameSnapshot: string | null;
+  catalogUnitSnapshot: string | null;
+  catalogVatRateSnapshot: string | null;
+  accountingBaselineVatRate: string | null;
+  effectiveAccountingVatRate: string | null;
 };
 
 export type TaxCompletenessResult = {

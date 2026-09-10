@@ -10,7 +10,7 @@ export function AppShell({
   session: CurrentSession;
 }) {
   return (
-    <div className="flex min-h-screen flex-col md:flex-row bg-slate-50">
+    <div className="flex min-h-screen flex-col md:flex-row bg-background text-foreground">
       <AppSidebar role={session.user.role} />
       
       <div className="flex flex-1 flex-col min-w-0">

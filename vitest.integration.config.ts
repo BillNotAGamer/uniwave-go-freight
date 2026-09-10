@@ -2,18 +2,24 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vitest/config";
 
-const serverConditions = ["react-server", "node", "import", "module", "default"];
+const nodeConditions = ["node", "import", "default"];
 
 export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // `server-only` is a Next.js client-bundle marker. Integration tests run
+      // server code in Vitest, so use an explicit no-op test module instead of
+      // globally activating React's react-server export condition.
+      "server-only": fileURLToPath(
+        new URL("./tests/integration/setup/server-only.ts", import.meta.url),
+      ),
     },
-    conditions: serverConditions,
+    conditions: nodeConditions,
   },
   ssr: {
     resolve: {
-      conditions: serverConditions,
+      conditions: nodeConditions,
     },
   },
   test: {

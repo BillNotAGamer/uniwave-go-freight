@@ -12,7 +12,8 @@
 - Database/ORM: PostgreSQL via Drizzle ORM and Neon serverless (`package.json:18,22`, `drizzle.config.ts:5-9`, `src/lib/db/client.ts:9-13`)
 - Authentication system: Better Auth email/password with Drizzle adapter (`package.json:20`, `src/lib/auth/server.ts:15-47`)
 - Deployment target: no committed deployment config or CI workflow found; `.vercel` is ignored (`.gitignore:27-28`)
-- Runtime observed during validation: Node.js `v20.14.0`
+- Runtime policy after Lead Phase 11B amendment: Node.js 24.x, enforced by `.nvmrc` value `24`, package engines `>=24 <25`, and npm `engine-strict=true`.
+- Runtime remediation on 2026-08-25: the obsolete system Node.js 20 fallback was replaced with Node.js 24 LTS so non-interactive shells and `C:\Program Files\nodejs\node.exe` resolve Node 24.
 - Commands executed:
   - `git status --short`
   - `git branch --show-current`
@@ -26,14 +27,14 @@
 
 ## B. Executive Status
 
-- Actual current project maturity: uneven. Foundation, auth, shipping-note drafts, charge CRUD/calculations, VAT/tax domain foundation and UI, accounting review start/check/approval/lock/unlock/cancellation/reopen-for-correction, audit writes, tax-complete internal XLSX export, generated internal PDF export, unit/policy tests, and hosted database integration tests are implemented. Admin user management UI, Google Drive integration, CI, and deployment hardening are not implemented.
+- Actual current project maturity: uneven. Foundation, auth, shipping-note drafts, charge CRUD/calculations, VAT/tax domain foundation and UI, accounting review start/check/approval/lock/unlock/cancellation/reopen-for-correction, audit writes, tax-complete internal XLSX export, generated internal PDF export, durable artifact storage, protected export history, historical durable download, Admin Google Drive upload/retry/recovery UI, Admin User Management policy/validation/read-model foundation, Admin User Management lifecycle services, Admin Users UI, existing-user Admin temporary password reset, Admin-only safe audit viewer read-model foundation, Admin audit viewer UI, unit/policy tests, browser E2E foundation, authenticated browser E2E/RBAC workflow verification, CI quality gates, security-header/deployment hardening, production migrations through `0005`, and production integration verification are implemented/verified. Remaining release gates are credential rotation, GitHub-hosted CI evidence, and live R2/Google Drive verification.
 - Most advanced implemented phase: Phase 7B generated internal PDF export.
 - Most advanced verified phase: Phase 6 partial behavior is live database-verified for the currently implemented workflow through `checked`; Phase 7 internal XLSX export-data eligibility is live database-verified for checked notes.
 - Phase 7 implemented: PARTIAL. Internal XLSX V2, internal print HTML, and generated internal PDF V1 exist; Google Drive upload does not.
-- Phase 8 implemented: DOCUMENTED ONLY. Environment placeholders and DB columns exist, but no Google Drive integration code was found.
-- Phase 9 implemented: PARTIAL. Audit-log writes, unit/policy tests, and hosted database integration tests exist and pass; CI, audit-log viewer, browser E2E, and deployment hardening are missing.
-- Main blockers: Google Drive upload, no user-management UI, no browser/session regression suite.
-- Main security risks: no route-protection middleware backstop, no browser/session regression tests, no user-management implementation for deactivation/role changes/session invalidation.
+- Phase 8 implemented: IMPLEMENTED pending live smoke/integration execution. Durable Cloudflare R2/S3-compatible artifact storage, protected historical download, Admin-only service-account Google Drive upload/retry/recovery, and protected export-history UI now exist; live Google/R2 smoke testing and browser E2E are still missing.
+- Phase 9 implemented: PARTIAL. Audit-log writes, unit/policy tests, hosted database integration tests, Admin User Management policy/validation/read-model foundation, lifecycle services, Admin Users UI, existing-user Admin temporary password reset, Admin audit viewer read-model foundation, and Admin audit viewer UI exist; CI, browser E2E, live authorized session regression execution, and deployment hardening are missing.
+- Main blockers: production database credential rotation, no verified GitHub-hosted CI run, and no live Google/R2 smoke validation.
+- Main security risks: no route-protection middleware backstop and no browser/session regression suite proving stale browser sessions are rejected after role/state/password changes.
 - Recommended immediate next step: define and implement the remaining Phase 6 accounting workflow decisions, starting with VAT/tax behavior.
 
 ## B1. Phase 9A Test Foundation Follow-Up
@@ -65,6 +66,136 @@
   - Audit-log persistence and read access.
   - PDF export, Google Drive upload, VAT/tax UI/export mapping, and post-checked transitions because they remain out of scope or unimplemented.
 - Important boundary: these are pure unit/policy characterization tests. They do not prove database integration, live auth/session behavior, or full workflow authorization.
+
+## B2. Phase 11B Repository Runtime Safety Follow-Up
+
+- Implementation date: 2026-08-24
+- Scope: repository secret safety and Node runtime pin only.
+- `.env.local` policy: local-only secret file, ignored by Git, and removed from the intended next committed index state without deleting the local file.
+- `.env.example` policy: safe committed template only; it now documents `NEXT_PUBLIC_AUTH_URL` alongside `AUTH_URL`.
+- Git history boundary: Phase 11B did not rewrite history. Any secret that was ever committed should be treated as potentially exposed until a human reviews and rotates it outside the repository.
+- Runtime policy: originally Node 22.x in Phase 11B, subsequently amended by Lead to Node 24.x with `.nvmrc` value `24` and package engines `>=24 <25`.
+- npm enforcement: `engine-strict=true` is enabled so unsupported Node versions fail during install instead of silently continuing.
+- Deferred: integration database safety remains Phase 11C; dependency vulnerability triage remains Phase 11D; CI, browser E2E, security headers, deployment target selection, migrations, R2, and Google Drive smoke tests remain out of scope for Phase 11B.
+- Checkpoint recommendation: create a human-reviewed checkpoint commit after Phase 11B and before authorized staging migration work.
+
+## B3. Phase 11C Integration Database Safety Follow-Up
+
+- Implementation date: 2026-08-25
+- Scope: fail-closed integration database authorization guard, guarded manual migration command, and static migration readiness through `0005`.
+- Integration authorization variables: `INTEGRATION_TEST_DATABASE_AUTHORIZED`, `INTEGRATION_TEST_DATABASE_EXPECTED_HOST`, and `INTEGRATION_TEST_DATABASE_EXPECTED_NAME`.
+- Authorization requires exact hostname and exact database-name matching against parsed `DATABASE_URL`; hostname matching is case-insensitive only.
+- `NODE_ENV="production"` is always refused for integration database execution.
+- `npm run test:integration` and the integration setup fail before migration/cleanup/fixture mutation when authorization is absent or mismatched.
+- `npm run db:migrate` now routes through a repository guard using separate variables: `DATABASE_MIGRATION_AUTHORIZED`, `DATABASE_MIGRATION_EXPECTED_HOST`, and `DATABASE_MIGRATION_EXPECTED_NAME`.
+- Static migration readiness now covers `0003_hard_titania.sql`, `0004_clean_power_man.sql`, and `0005_perpetual_goblin_queen.sql`.
+- No database, migration, integration, R2, or Google Drive execution occurred in Phase 11C.
+- Live status of migrations `0003`, `0004`, and `0005` remains `LIVE STATUS UNKNOWN / NOT VERIFIED`; Phase 11C itself did not apply any migrations.
+- Credential rotation remains an unresolved human-controlled security action, and dependency security triage remains Phase 11D.
+
+## B4. Phase 11D Dependency Security Follow-Up
+
+- Implementation date: 2026-08-26
+- Scope: dependency vulnerability triage and smallest safe compatible remediation only.
+- Applied updates: `next` `16.2.9 -> 16.3.3`, `@tailwindcss/postcss` to `^4.3.3`, `tailwindcss` to `^4.3.3`, and lockfile-only compatible transitive updates for `postcss`, `nanoid`, `js-yaml`, and `brace-expansion`.
+- Audit before remediation: 18 total findings in `npm audit` and 16 total findings in `npm audit --omit=dev`.
+- Audit after remediation: 11 total findings in both audit modes: 8 moderate, 2 high, and 1 critical.
+- Superseded by Phase 11D.1: the initial Better Auth/Vitest follow-up was narrowed after lead review. Vitest was upgraded to patched `3.2.7`; Better Auth GHSA-qq9h-g4jm-xgf3 was reclassified against actual repository auth configuration.
+- Remaining major-decision items after 11D: Drizzle Kit's audit-suggested downgrade to `0.18.1` and ExcelJS's audit-suggested downgrade to `3.4.0` were not applied.
+- Validation after remediation passed: `npm ci`, `npm ls`, `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`.
+- No database, migration, integration, R2, Google Drive, credential-rotation, or deployment operation occurred in Phase 11D.
+- Phase 11D status: accepted with Phase 11D.1 follow-up.
+
+## B5. Phase 11D.1 Residual Dependency Security Closure
+
+- Implementation date: 2026-08-26
+- Scope: residual dependency-security closure only; no database, migration, integration, R2, Google Drive, credential rotation, dependency-force install, or application feature work.
+- Applied update: `vitest` `^2.1.9 -> ^3.2.7`; the active Vitest path now uses `vitest@3.2.7`, `vite-node@3.2.4`, and `vite@7.3.6`.
+- Vitest exposure: repository scripts and configs use `vitest run` plus local watch mode only. No Vitest UI, Browser Mode, API host, or externally bound Vitest server is configured.
+- Better Auth reachability: repository auth uses `emailAndPassword.enabled = true` with the Drizzle adapter. No magic-link plugin, email-OTP plugin, passwordless email login, or equivalent affected flow was found, so GHSA-qq9h-g4jm-xgf3 is classified as non-applicable under current configuration.
+- Better Auth upgrade attempts: normal npm installs of `better-auth@1.6.30` and `better-auth@1.6.22` both failed peer resolution through Better Auth's optional SvelteKit peer path selecting `@sveltejs/vite-plugin-svelte@7.3.0`, which requires Vite 8 while the validated repository test toolchain uses Vite 7. No `--force` or `--legacy-peer-deps` bypass was used.
+- Final audit result: `npm audit` and `npm audit --omit=dev` both report 7 raw findings: 1 high and 6 moderate. The high finding is non-applicable under current Better Auth configuration; the remaining moderate findings are Drizzle Kit migration-tooling risk and ExcelJS transitive UUID risk.
+- Validation passed under Node `v24.19.0`: `npm ci`, `npm ls`, `npm ls --omit=dev`, `npm test` (48 files / 275 tests), `npm run typecheck`, `npm run lint`, and `npm run build`.
+- Phase 11D.1 status: ready for lead review; no reachable production High/Critical dependency vulnerability remains under current repository configuration.
+
+## B6. Phase 11E Browser E2E Foundation
+
+- Implementation date: 2026-08-26
+- Scope: Playwright Chromium E2E foundation and DB-free public/auth-boundary browser tests only.
+- Added dependency: `@playwright/test@1.62.1`.
+- Added scripts: `npm run test:e2e` and `npm run test:e2e:headed`.
+- Browser runtime: Chromium installed through Playwright's supported installer.
+- E2E environment: the runner starts Next with explicit browser-E2E values for DB/auth/R2/Drive env variables and does not read `.env.local` contents.
+- Tests implemented: login page smoke, password visibility, native required-field validation without auth submission, inert external callback parameter behavior, and unauthenticated redirects for `/dashboard`, `/shipping-notes`, `/admin/users`, and `/admin/audit`.
+- Deferred: successful login, authenticated navigation, role/RBAC browser flows, Admin User Management mutations, Shipping Note mutations/workflow transitions, authenticated export/download, Drive upload, and Audit Viewer filtering until an isolated test/staging database is explicitly authorized.
+- Validation passed: `npm run test:e2e` (1 file / 8 Chromium tests), `npm ci`, `npm ls`, `npm test` (48 files / 275 tests), `npm run typecheck`, `npm run lint`, and `npm run build`.
+- Audit regression: `npm audit` and `npm audit --omit=dev` remain at the Phase 11D.1 baseline of 7 total findings: 0 critical, 1 high, 6 moderate; no new reachable production High/Critical vulnerability was introduced.
+- Phase 11E status: ready for lead review.
+
+## B7. Phase 11F CI Quality Gates
+
+- Implementation date: 2026-08-26
+- Scope: validation-only CI automation and security-audit policy; no deployment, database, external-service, credential, migration, or authenticated browser work.
+- Workflow: `.github/workflows/quality-gates.yml`.
+- Triggers: pull requests and pushes to `main`, `master`, `develop`, and `feature/ui-overhaul`.
+- CI runner: `ubuntu-latest` with explicit Node `24` from `actions/setup-node@v4` and npm cache.
+- Permissions: `contents: read`.
+- CI stages: runtime verification, `npm ci`, `npm ls`, `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, Playwright Chromium install, `npm run test:e2e`, and `npm run ci:security-audit`.
+- Security audit policy: raw npm audit output is collected, but CI fails on accepted-baseline regression, any Critical vulnerability, or any unwaived High finding. The existing Better Auth High is waived only while the repository policy keeps magic-link, email-OTP, and passwordless email sign-in disabled.
+- Better Auth guardrail: `src/lib/auth/better-auth-security-policy.json` is used by auth configuration and by policy tests; `src/lib/auth/better-auth-security-policy.test.ts` fails if the vulnerable Better Auth version remains and the waiver policy becomes invalid.
+- Playwright diagnostics: failure-only upload of `playwright-report/` and `test-results/`.
+- Local validation passed: `npm ci`, `npm ls`, `npm test` (49 files / 277 tests), `npm run typecheck`, `npm run lint`, `npm run build`, `npm run test:e2e` (8 tests), and `npm run ci:security-audit`.
+- GitHub-hosted CI execution status: not run locally; pending push/PR.
+- Phase 11F status: ready for lead review.
+
+## B8. Phase 11G Security Headers and Deployment Contract
+
+- Implementation date: 2026-09-02
+- Scope: production-facing security headers, deployment/runtime contract, environment classification, and no-DB security regression tests only.
+- Runtime contract: Node.js runtime is required. Edge runtime is not appropriate for current server-side Better Auth/Drizzle/Neon, R2, Google Drive, filesystem-traced export assets, and PDF/XLSX generation paths.
+- Deployment target: no provider is committed or provisioned. A suitable target must support Node 24 (`>=24 <25`), Next.js 16, PostgreSQL/Neon, Cloudflare R2 S3-compatible access, Google Drive API access, and server document generation.
+- Next.js security config: framework powered-by header disabled; global `nosniff`, `strict-origin-when-cross-origin`, permissions policy, clickjacking protection, COOP, CORP, and staged CSP are configured in `next.config.ts`.
+- CSP status: staged/partial. It enforces `frame-ancestors 'none'`, `base-uri 'self'`, `form-action 'self'`, and `object-src 'none'`; stricter `script-src`/`style-src` nonce work remains deferred until staging/browser validation can cover authenticated surfaces.
+- HSTS status: deferred to HTTPS deployment verification. The local application config intentionally does not emit HSTS on plain HTTP localhost.
+- Sensitive cache policy: `/`, `/login`, protected dashboard/admin/shipping/tax pages, auth API, shipping-note export APIs, and historical export APIs are configured as `private, no-store, max-age=0`.
+- Env public boundary: only `NEXT_PUBLIC_AUTH_URL` is documented as browser-exposed. Server secrets remain unprefixed and server-only.
+- GitHub-hosted CI execution status remains `PENDING — NOT EXECUTED`; local workflow validation does not prove GitHub-hosted execution.
+- Deferred hardening: authorized staging DB migration/integration verification, authenticated staging browser E2E, R2/Google Drive staging verification, and backup/recovery production release gate.
+
+## B9. Phase 11H Production Database Migration and Integration Verification
+
+- Implementation date: 2026-09-02
+- Scope: owner-authorized production database target inspection, guarded migration execution, integration isolation audit, guarded production integration execution, and post-run verification.
+- Secret safety: `.env.example` contained a live-looking Neon `DATABASE_URL` and was corrected to a placeholder without printing the original value. Credential rotation for that production database credential remains a human-controlled security follow-up.
+- Production authorization guard: `NODE_ENV=production` remains denied by default for migration/integration database operations unless the operation-specific production authorization variable is exactly `true` in addition to the exact host/name authorization.
+- Live migration result: production Drizzle journal now records `0000_new_nick_fury` through `0005_perpetual_goblin_queen` as applied, with matching schema checks for post-checked workflow fields, Drive/artifact fields, and `audit_logs_created_at_id_idx`.
+- Integration result after Phase 11H.1 closure: guarded production `npm run test:integration` passed 9 files / 95 tests under exact production authorization. Cleanup verification showed zero remaining fixture rows and migrations/schema remained consistent through `0005`.
+- Regression validation passed after Phase 11H.1: `npm ci`, `npm ls`, `npm test` (50 files / 287 tests), `npm run typecheck`, `npm run lint`, `npm run build`, `npm run test:e2e` (9 Chromium tests), and `npm run ci:security-audit`.
+- Phase 11H.1 status: production integration regressions resolved; no R2, Google Drive, deployment, DNS, credential rotation, `test:all`, migration rerun, or migration `0006` work was performed.
+
+## B10. Phase 11I Authenticated Browser E2E Follow-Up
+
+- Implementation date: 2026-09-03
+- Scope: authenticated Playwright E2E using real Better Auth email/password login and production-authorized isolated fixture data only.
+- Added scripts: `npm run test:e2e:auth` and `npm run test:e2e:auth:headed`.
+- Auth architecture: no session-cookie injection, hidden login endpoint, trusted Playwright header, or test-only auth bypass was added. Fixture setup creates users/accounts only; browser sessions are created by the normal login flow.
+- Browser coverage: Sale login/session/logout, Sale create/edit/submit draft, Sale/Admin route denial, Accountant accounting review start and Mark Checked, Admin Users, Admin Audit Viewer, Admin approval/lock/unlock, locked-note export-control visibility, cookie attribute inspection, and authenticated no-store cache check.
+- Cleanup: every object is namespaced with `E2E11I-*`; failed early selector runs and the final passing run all ended with zero fixture residue in auth, shipping, export, audit, and tax-rule tables.
+- Production DB state after validation: migrations `0000` through `0005` remain applied and schema-consistent.
+- Validation passed: `npm ci`, `npm ls`, `npm test` (50 files / 287 tests), `npm run typecheck`, `npm run lint`, `npm run build`, `npm run test:e2e` (9 Chromium tests), `npm run test:e2e:auth` (1 file / 3 Chromium tests), and `npm run ci:security-audit`.
+- Remaining release gates: production database credential rotation, GitHub-hosted CI evidence, and live R2/Google Drive verification.
+
+## B11. Phase 11J Live R2 / Google Drive Verification Follow-Up
+
+- Implementation date: 2026-09-03
+- Status: blocked before live mutation.
+- Added script: `npm run verify:live-artifacts`.
+- Authorization model: requires the existing exact database target guards and `LIVE_ARTIFACT_VERIFICATION_AUTHORIZED="true"`; it is not part of normal CI.
+- Current environment does not provide the implemented live artifact variables: `ARTIFACT_R2_ACCOUNT_ID`, `ARTIFACT_R2_ACCESS_KEY_ID`, `ARTIFACT_R2_SECRET_ACCESS_KEY`, `ARTIFACT_R2_BUCKET_NAME`, `GOOGLE_SERVICE_ACCOUNT_JSON`, or `GOOGLE_DRIVE_ROOT_FOLDER_ID`.
+- Deprecated OAuth-shaped Google variables were present, but they are not used by the service-account Drive implementation.
+- Live verification stopped before fixture creation or external-service mutation.
+- Read-only production DB checks remained clean: migrations `0000` through `0005` applied, no extra migration rows, schema consistent, and zero fixture residue.
+- Phase 11J remains blocked until live R2 credentials and Google Drive service-account configuration are supplied through ignored local/deployment environment configuration.
 
 ## Phase 9B Hosted Database Integration Follow-Up
 
@@ -173,6 +304,60 @@
 - Integration status: production-path integration tests were extended but `npm run test:integration` and `npm run test:all` were not run because this conversation did not authorize the configured database as test/staging.
 - Migration status: no new migration was created; `drizzle/0003_hard_titania.sql` was not applied in this conversation.
 
+## Phase 8A Durable Export Artifact Storage Foundation
+
+- Implementation date: 2026-08-21.
+- Branch: `feature/ui-overhaul`.
+- Starting commit: `513e60edc34f4a0fec5686b927d861d09ec78934`.
+- Status impact: no Shipping Note workflow status changes were added; no `exported` transition was implemented.
+- Storage provider: Cloudflare R2 through the S3-compatible `@aws-sdk/client-s3` package.
+- Server-only storage modules: `src/lib/artifact-storage/**`.
+- Export integration: internal XLSX and internal PDF routes now persist the same generated bytes to durable artifact storage before marking a new export row `generated`.
+- Schema impact: `drizzle/0004_clean_power_man.sql` adds `drive_upload_status`, artifact storage metadata columns, Drive upload metadata columns, and a unique index on `artifact_storage_key`.
+- Generation invariant: `shipping_note_exports.status = generated` now means generated bytes were durably stored and the stored object is tied to the persisted SHA-256 checksum.
+- Drive foundation: `drive_upload_status` starts at `not_uploaded`; Phase 8A does not transition Drive statuses and does not call Google APIs.
+- Historical behavior: existing metadata-only export rows keep null artifact storage fields and are not backfilled or regenerated.
+- Config: `.env.example` documents R2 variable names only; no credentials are committed.
+- Migration status: migration `0004_clean_power_man.sql` was generated but not applied in this conversation; `0003_hard_titania.sql` was also not applied.
+- Remaining Phase 8A gaps after later slices: live R2 smoke testing and browser E2E.
+
+## Phase 8B Google Drive Artifact Upload
+
+- Implementation date: 2026-08-22.
+- Branch: `feature/ui-overhaul`.
+- Starting commit: `513e60edc34f4a0fec5686b927d861d09ec78934`.
+- Status impact: Google Drive upload is now available as an Admin-only server capability for existing generated durable export artifacts. No Drive UI/export-history UI was added.
+- Authentication model: server-only Google Service Account; no OAuth user delegation, refresh tokens, browser auth, or domain-wide delegation.
+- Config: `GOOGLE_SERVICE_ACCOUNT_JSON` and `GOOGLE_DRIVE_ROOT_FOLDER_ID`; old OAuth-shaped placeholders remain documented as deprecated/unused.
+- Scope: `https://www.googleapis.com/auth/drive.file`, used because Phase 8B creates and searches app-created Drive files by private `appProperties` and official Drive docs list this scope for `files.list` and `files.create`.
+- Route: `POST /api/shipping-note-exports/[exportId]/drive`, with same-origin metadata check, session auth, UUID validation, `EXPORTS_UPLOAD`, and minimal no-store JSON.
+- Permission: Admin-only through `EXPORTS_UPLOAD`; Sale and Accountant are denied.
+- Supported artifacts: `excel` version `2` and `pdf` version `1`, both requiring `status = generated`, durable storage metadata, MIME validation, and checksum.
+- Byte source: `getVerifiedArtifactBytes(...)` reads private artifact storage and rechecks SHA-256 before any Google upload; checksum mismatch records `ARTIFACT_CHECKSUM_MISMATCH` and does not call Google.
+- Idempotency: `shipping_note_exports.id` is the identity, stored as Drive `appProperties.uniwaveExportId`; already uploaded DB rows short-circuit, existing matching Drive files reconcile, and duplicate/mismatched Drive files fail safely.
+- Drive lifecycle: upload uses `drive_upload_status`; artifact generation `status` remains `generated` on Drive failure and no Shipping Note status is changed.
+- Historical policy: stored generated artifacts may be uploaded after the owning note is reopened to Accounting Reviewing or Cancelled; soft-deleted notes are denied.
+- Audit: final Drive metadata updates and `shipping_note.export.drive.uploaded` / `shipping_note.export.drive.failed` audit rows are written in the same DB transaction.
+- Migration status: no new migration was created; migrations `0003_hard_titania.sql` and `0004_clean_power_man.sql` were not applied in this conversation.
+- Remaining Phase 8 gaps: Drive upload/export-history UI, stale `uploading` recovery workflow, live Google smoke testing with dedicated credentials/folder, and browser E2E.
+
+## Phase 8C Export History, Historical Download, Drive UI
+
+- Implementation date: 2026-08-23.
+- Branch: `feature/ui-overhaul`.
+- Starting commit: `513e60edc34f4a0fec5686b927d861d09ec78934`.
+- Status impact: protected export history, historical durable downloads, Drive status/actions, and stale upload recovery are now available on the Shipping Note detail page for internal roles.
+- Read policy: Accountant/Admin can view export history through `SHIPPING_NOTES_EXPORT_INTERNAL`; Sale is denied and receives no history DTO, Drive URL, or storage metadata.
+- Download route: `GET /api/shipping-note-exports/[exportId]/download`.
+- Download behavior: reads exact private R2/S3-compatible bytes through `getVerifiedArtifactBytes(...)`, validates checksum and artifact contract, and never regenerates XLSX/PDF.
+- UI behavior: history rows show format/version, generation state, generated timestamp, filename, short checksum, size, Drive status, Download, View in Drive, and Admin-only Upload/Retry/Recover controls.
+- Drive action policy: Admin can upload `not_uploaded`, retry `upload_failed`, recover stale `uploading`, and view uploaded artifacts. Accountant can download/view status/link only.
+- Stale recovery: `DRIVE_UPLOAD_STALE_AFTER_MS = 10 * 60 * 1000`; fresh `uploading` is not stolen. Stale recovery searches Drive by `uniwaveExportId` first, reconciles an exact match, fails duplicates/conflicts safely, or resets/retries when no Drive file exists.
+- Historical policy: generated durable artifacts remain visible/downloadable/uploadable after Reopen to Accounting Reviewing or Cancellation; soft-deleted owning notes remain denied.
+- Legacy behavior: generated rows without durable artifact metadata remain visible as metadata history but cannot download or Drive upload.
+- Migration status: no new migration was created; migrations `0003_hard_titania.sql` and `0004_clean_power_man.sql` were not applied in this conversation.
+- Remaining gaps: live Google/R2 smoke tests, hosted integration execution with current DB authorization, browser E2E, audit viewer, and admin user management.
+
 ## Phase 6C.1 Post-Checked Workflow Foundation
 
 - Implementation date: 2026-08-13
@@ -232,6 +417,83 @@
 - Integration status: production-path integration tests were extended but `npm run test:integration` and `npm run test:all` were not run because this conversation did not authorize the configured database as test/staging.
 - Migration status: no new migration was created; `drizzle/0003_hard_titania.sql` was not applied in this conversation.
 
+## Phase 9A Admin User Management Foundation
+
+- Implementation date: 2026-08-23.
+- Branch: `feature/ui-overhaul`.
+- Starting commit: `513e60edc34f4a0fec5686b927d861d09ec78934`.
+- Status impact: Admin User Management now has application-owned policy helpers, Zod validators, a protected safe read model, and focused tests.
+- Better Auth Admin plugin remains disabled; no Better Auth `banned`, `banReason`, `banExpires`, or `impersonatedBy` semantics were added.
+- Role source of truth remains `users.role` with exactly one role: `sale`, `accountant`, or `admin`.
+- Account state remains `isActive` plus `deletedAt`: active, inactive, or deleted.
+- `USERS_MANAGE` protects the read model; Sale and Accountant are denied, Admin is allowed through existing Admin-all permission semantics.
+- Safe DTO fields: `id`, `name`, `email`, `role`, `isActive`, `deletedAt`, `createdAt`, `updatedAt`, derived `accountStatus`, and unexpired `activeSessionCount`.
+- List filters: search by name/email, role, status `active | inactive | deleted | all`, bounded limit/offset/page pagination, deterministic `createdAt DESC, id ASC` ordering.
+- Policy foundation prohibits production hard delete, self-demotion/deactivation/soft-delete/Admin-password-reset, and last-active-admin removal.
+- Session revocation matrix is defined for future mutations; no session rows are deleted in Phase 9A.
+- No Admin Users UI or user lifecycle mutations were added.
+- Validation: focused tests passed 3 files / 20 tests; full `npm test` passed 31 files / 190 tests; `npm run typecheck`, `npm run lint`, and `npm run build` passed.
+- Integration status: not run because this conversation did not authorize the configured database as test/staging.
+- Migration status: no new migration was created; `drizzle/0003_hard_titania.sql` and `drizzle/0004_clean_power_man.sql` were not applied in this conversation.
+
+## Phase 9B Admin User Lifecycle Mutations
+
+- Implementation date: 2026-08-23
+- Branch: `feature/ui-overhaul`
+- Starting commit: `513e60edc34f4a0fec5686b927d861d09ec78934`
+- Status impact: Admin User Management now has application-owned production lifecycle services for create user, role change, deactivate, reactivate, soft delete, and manual revoke-all-sessions.
+- Better Auth Admin plugin remains disabled; the implementation does not use plugin operations or introduce Better Auth admin plugin fields.
+- Credential strategy: Admin-created users get Better Auth-compatible credential accounts using `better-auth/crypto` password hashing, `provider_id = credential`, `account_id = user.id`, and `user_id = user.id`.
+- Authorization: every service requires an active non-deleted Admin through `USERS_MANAGE`; Sale and Accountant are denied at the service boundary.
+- Session revocation: successful role changes, deactivation, soft delete, and manual revoke-all delete target sessions in the same DB transaction as mutation/audit; reactivate creates no sessions.
+- Last-admin invariant: active-admin reducing operations serialize through a shared transaction-scoped PostgreSQL advisory lock before counting active Admins.
+- Audit actions: `user.create`, `user.role_change`, `user.deactivate`, `user.reactivate`, `user.soft_delete`, and `user.sessions_revoked`.
+- Safety: production hard delete, email edit, existing-user password reset, soft-delete restore, impersonation, individual-session UI, and Admin Users UI remain unimplemented.
+- Validation so far: focused tests passed 4 files / 24 tests; `npm run typecheck` passed before documentation finalization. Full validation is recorded in `docs/audit/PHASE_9B_ADMIN_USER_LIFECYCLE_IMPLEMENTATION_2026-08-23.md`.
+- Integration status: production-path integration tests were added but `npm run test:integration` and `npm run test:all` were not run because this conversation did not authorize the configured database as test/staging.
+- Migration status: no new migration was created; `drizzle/0003_hard_titania.sql` and `drizzle/0004_clean_power_man.sql` were not applied in this conversation.
+
+## Phase 9C Admin Users UI and Temporary Password Reset
+
+- Implementation date: 2026-08-24
+- Branch: `feature/ui-overhaul`
+- Starting commit: `513e60edc34f4a0fec5686b927d861d09ec78934`
+- Status impact: Admin User Management now has a protected `/admin/users` dashboard page, navigation link, safe list/search/filter/pagination UI, lifecycle action forms, and existing-user temporary password reset.
+- Better Auth Admin plugin remains disabled; this implementation does not use plugin operations or introduce Better Auth admin plugin fields.
+- Existing-user password reset updates exactly one existing `provider_id = credential` account for another active/inactive non-deleted user, never creates missing credentials, revokes target sessions in the same transaction, and audits `user.password_set_by_admin` without password/hash disclosure.
+- UI/server-action scope: create user, role change, deactivate, reactivate, soft delete, manual revoke-all-sessions, and set temporary password call existing authoritative server mutations; server authorization remains in services/read models.
+- Deleted users remain read-only in the UI. Production hard delete, email edit, soft-delete restore, impersonation, individual-session UI, audit viewer UI, and Better Auth Admin plugin remain unimplemented.
+- Validation: focused tests passed 5 files / 26 tests; full `npm test` passed 36 files / 212 tests; `npm run typecheck`, `npm run lint`, and `npm run build` passed.
+- Integration status: production-path integration tests were extended for temporary password reset/session revocation but `npm run test:integration` and `npm run test:all` were not run because this conversation did not authorize the configured database as test/staging.
+- Migration status: no new migration was created; `drizzle/0003_hard_titania.sql` and `drizzle/0004_clean_power_man.sql` were not applied in this conversation.
+
+## Phase 10A Admin Audit Viewer Foundation
+
+- Implementation date: 2026-08-24.
+- Status impact: the audit viewer now has an Admin-only server-side policy, validator set, safe presenter layer, action catalog, entity/actor resolution read model, and focused tests. No UI route, navigation entry, or browser table was added.
+- Permission: `AUDIT_LOGS_READ`; Admin is allowed through existing Admin-all semantics, Sale and Accountant are denied before audit rows are queried.
+- Safe DTO: no raw top-level `before` or `after` snapshots are returned. Known actions expose only allowlisted `changes`; unknown actions expose no snapshot-derived fields and report `detailsAvailable = false`.
+- Sensitive-field defense: presenter output is recursively sanitized for credential, password, token, secret, private-key, authorization, cookie, connection-string, database-url, client-secret, and artifact-storage-key key families.
+- Action catalog: 34 current production audit action strings are explicitly registered.
+- Query behavior: filters are action, entity type, entity ID, actor ID, from, to, cursor, and bounded limit. Free-text search is intentionally deferred to a later UI/search slice.
+- Pagination: keyset cursor is opaque base64url JSON containing `createdAt` and `id`, matching `created_at DESC, id DESC`.
+- Timezone: audit display formatting uses `Asia/Ho_Chi_Minh`.
+- Migration generated: `drizzle/0005_perpetual_goblin_queen.sql`, containing only `audit_logs_created_at_id_idx` on `(created_at DESC, id DESC)`. No migration was applied in this conversation.
+
+## Phase 10B Admin Audit Viewer UI
+
+- Implementation date: 2026-08-24.
+- Status impact: `/admin/audit` now exposes the Phase 10A safe audit viewer DTO through a protected Admin-only dashboard page.
+- Route/RBAC: the page resolves the active authenticated user, requires `AUDIT_LOGS_READ`, validates query parameters, and calls `listAuditViewerForUser(...)`. Sale and Accountant are denied before audit data is loaded.
+- Navigation: Audit link appears only for roles with `AUDIT_LOGS_READ`.
+- Filters: action, entity type, entity ID, actor ID, from date, and to date are persisted in the query string. Applying filters clears the previous cursor.
+- Date handling: date-only filter inputs are translated to `Asia/Ho_Chi_Minh` business-day UTC boundaries before Phase 10A validation.
+- Pagination: newest-first forward keyset pagination preserves filters and carries the opaque `nextCursor` without decoding it in the UI.
+- Table: displays Time, Actor, Action, Category, Entity, Reason, and Details.
+- Details: known actions render safe expandable field-level changes; unknown actions render no details and never expose raw snapshots.
+- Boundaries: no raw JSON, no debug/source view, no audit API, no audit mutations, no CSV/export, no retention controls, no free-text search, and no client-side sanitizer were added.
+- Migration status: no new migration was created; `drizzle/0003_hard_titania.sql`, `drizzle/0004_clean_power_man.sql`, and `drizzle/0005_perpetual_goblin_queen.sql` were not applied in this conversation.
+
 ## Phase 6C.5 Reopen for Accounting Correction
 
 - Implementation date: 2026-08-14
@@ -254,13 +516,13 @@
 | 0 - Repository audit/bootstrap | VERIFIED | Coherent Next.js/TypeScript repository with docs, migrations, scripts, and source boundaries. | No committed CI or deployment config. | `rg --files`; `package.json:5-15`; `src/`, `drizzle/`, `docs/`. | None for local development. |
 | 1 - Minimal Next.js foundation | VERIFIED | App Router, TypeScript strict, Tailwind v4, auth/dashboard route groups, shell layout. | shadcn is compatible by structure, not installed as a generated component set. | `src/app/(dashboard)/layout.tsx:9-11`; `src/app/(auth)/login/page.tsx:6-29`; `npm run build` passed. | None. |
 | 2 - Database and core schema | PARTIAL | Drizzle schema and 4 migrations for users/auth, shipping notes, charges, exports, audit logs, tax rules, tax treatment enum, charge tax snapshots, and post-checked workflow metadata. | Separate `shipping_note_parties`; accounting periods. | `src/lib/db/schema.ts`; `drizzle/0003_hard_titania.sql`; hosted migration tests were extended but not executed in Phase 6C.1 because no current DB authorization was provided. | Schema still diverges from `DATA_MODEL_RULES.md` on parties and accounting periods. |
-| 3 - Authentication and RBAC | PARTIAL | Better Auth, disabled public signup by default, active-user session recheck, role permission map, server authorization helpers, bootstrap scripts. | Admin user-management UI, role-change workflow, session invalidation on role changes, middleware backstop, tests. | `src/lib/auth/server.ts:11-47`; `src/lib/auth/session.ts:18-59`; `src/lib/permissions/permissions.ts:30-52`; `scripts/create-first-admin.ts:87-144`. | Admin management objective not implemented. |
+| 3 - Authentication and RBAC | PARTIAL | Better Auth, disabled public signup by default, active-user session recheck, role permission map, server authorization helpers, bootstrap scripts, Admin User Management policy/validation/read-model foundation, lifecycle services, protected Admin Users UI, and existing-user Admin temporary password reset. | Middleware backstop, live HTTP/session regression tests, browser E2E, audit viewer. | `src/lib/auth/server.ts:11-47`; `src/lib/auth/session.ts:18-59`; `src/lib/permissions/permissions.ts:30-52`; `scripts/create-first-admin.ts:87-144`; `src/app/(dashboard)/admin/users/page.tsx`; `src/features/admin/users/**`. | Admin management still lacks browser/live session regression execution. |
 | 4 - Shipping note form MVP | IMPLEMENTED - LIVE DB VERIFIED | List, create draft, edit draft, detail, submit; Zod server action parsing; draft-only server enforcement. | Browser form workflows, concurrency/stale-data handling, party table. | `src/features/shipping-notes/actions.ts:53-173`; `src/features/shipping-notes/mutations.ts:113-270`; `src/features/shipping-notes/validators.ts:129-155`; `npm run test:integration` passed 6 files / 28 tests. | Browser and concurrency coverage still missing. |
 | 5 - Charge calculation engine | IMPLEMENTED - UNIT AND LIVE DB VERIFIED | BigInt decimal helpers, charge amount calculation, selling and buying charge CRUD, summaries, profit derivation, server-computed amounts. | VAT/tax; override reasons. | `src/lib/calculations/decimal.ts:25-201`; `src/lib/calculations/money.ts:141-186`; `src/lib/calculations/shipping-note.ts:42-100`; `npm test` covers pure helpers; `npm run test:integration` verifies persisted charge rows and summaries. | VAT/tax and overrides remain unimplemented. |
 | 6 - Accounting review | PARTIAL - LIVE DB VERIFIED FOR CURRENT FLOW | Accountant/admin can view buying charges and financial summary; transitions `submitted -> accounting_reviewing -> checked`; Admin-only `checked -> approved`; Admin-only `approved -> locked` and `locked -> approved`; Admin-only Checked/Approved reopen to Accounting Reviewing; contextual cancellation to `cancelled`; buying charge management; tax-rule services and UI; charge tax assignment/override UI; checked tax completeness UX. | Accounting filters, accounting periods, browser E2E. | `src/features/shipping-notes/mutations.ts`; `src/features/shipping-notes/actions.ts`; `src/features/shipping-notes/status-policy.ts`; Phase 6C.5 unit tests passed; integration tests were extended but not run in this conversation. | Blocks clean claim of full accounting workflow completion. |
 | 7 - Excel/PDF export | PARTIAL | Tax-complete internal XLSX V2 template mapping, generated internal PDF V1, hash/font tracing, same-origin checks, sanitized export errors, export records and audit events, VAT-aware print view. | Drive upload; background/queue architecture if exports become heavy; live DB/browser export workflow verification. | `src/features/shipping-notes/export/generator.ts`; `src/features/shipping-notes/export/pdf/generator.tsx`; `src/features/shipping-notes/export/read-model.ts`; `src/app/api/shipping-notes/[id]/exports/internal-xlsx/route.ts`; `src/app/api/shipping-notes/[id]/exports/internal-pdf/route.ts`; `src/app/(print)/shipping-notes/[id]/print/internal/page.tsx`; Phase 7B `npm test` passed 18 files / 90 tests on 2026-08-21. | Phase 7 is not complete because Drive upload is absent. |
-| 8 - Google Drive integration | DOCUMENTED ONLY | `.env.example` placeholders and export DB columns. | Google API client, credential/token strategy, upload flow, retries, persistence usage. | `.env.example:13-17`; `src/lib/db/schema.ts:272-273`; repo search found no `googleapis` or Drive integration code. | Entire integration is unbuilt. |
-| 9 - Audit, QA, hardening | PARTIAL | Audit write helper and audit writes inside mutations/export status updates; Vitest unit/policy test foundation; hosted database integration tests. | CI, audit viewer, seed/dev QA data, browser E2E, deployment checklist, observability. | `src/lib/audit/log.ts:28-41`; mutation/export audit calls in `src/features/shipping-notes/mutations.ts` and `src/features/shipping-notes/export/mutations.ts:112-176`; `npm test` covers 9 files / 46 tests; `npm run test:integration` covers 6 files / 28 tests. | No browser workflow regression suite yet. |
+| 8 - Google Drive integration | IMPLEMENTED - LOCAL VALIDATION PASSED | Durable R2-backed artifact storage foundation, artifact storage schema metadata, Drive upload status foundation, server-only Google Drive adapter, Admin-only export-artifact upload route, protected history read model/UI, historical durable download route, appProperties idempotency, retry/reconciliation, and stale upload recovery. | Live Google/R2 smoke tests, hosted integration execution with current DB authorization, browser E2E. | `src/lib/artifact-storage/**`; `src/lib/drive/**`; `src/features/shipping-notes/export/drive/**`; `src/features/shipping-notes/export/history.ts`; `src/features/shipping-notes/export/download.ts`; `src/app/api/shipping-note-exports/[exportId]/**`; `drizzle/0004_clean_power_man.sql`. | External smoke/E2E hardening remains. |
+| 9 - Audit, QA, hardening | PARTIAL | Audit write helper and audit writes inside mutations/export status updates; Vitest unit/policy test foundation; hosted database integration tests; Admin User Management policy/validation/read-model foundation, lifecycle services, protected UI, temporary password reset, Admin audit viewer read-model foundation, and `/admin/audit` UI. | CI, seed/dev QA data, browser E2E, deployment checklist, observability, live authorized session regression execution. | `src/lib/audit/log.ts:28-41`; mutation/export audit calls in `src/features/shipping-notes/mutations.ts` and `src/features/shipping-notes/export/mutations.ts:112-176`; `src/app/(dashboard)/admin/users/page.tsx`; `src/app/(dashboard)/admin/audit/page.tsx`; `src/features/admin/users/**`; `src/features/admin/audit/**`. | No browser/live session regression execution yet. |
 
 ## D. Implemented Feature Inventory
 
@@ -275,6 +537,7 @@
 - Accounting review start/check: `src/features/shipping-notes/mutations.ts:273-365`, `src/features/shipping-notes/components/accounting-review-controls.tsx`.
 - Internal XLSX export and print view: `src/features/shipping-notes/export/generator.ts:355-404`, `src/app/api/shipping-notes/[id]/exports/internal-xlsx/route.ts:103-189`, `src/app/(print)/shipping-notes/[id]/print/internal/page.tsx:173-288`.
 - Audit writes for business mutations and export status changes: `src/lib/audit/log.ts:28-41`, `src/features/shipping-notes/export/mutations.ts:112-176`.
+- Admin audit viewer UI and safe read model: `src/app/(dashboard)/admin/audit/page.tsx`, `src/features/admin/audit/**`.
 
 ## E. Route and Module Inventory
 
@@ -311,8 +574,8 @@ This is observed code behavior, not the full intended RBAC policy.
 | Financial summary/net profit | No | Yes on eligible statuses | Yes on eligible statuses | `src/features/shipping-notes/queries.ts:225-253` |
 | Start review/mark checked | No | Yes | Yes | `src/lib/permissions/permissions.ts:39-40,51`; `src/features/shipping-notes/mutations.ts:273-365` |
 | Internal XLSX export/print | No | Yes for checked notes | Yes for checked notes | `src/features/shipping-notes/export/queries.ts:23-87`; `src/app/api/shipping-notes/[id]/exports/internal-xlsx/route.ts:103-189` |
-| User management | Not implemented | Not implemented | Not implemented in UI | Permission exists at `src/lib/permissions/permissions.ts:19`; no matching route found |
-| Audit-log viewing | Not implemented | Not implemented | Not implemented | Permission exists at `src/lib/permissions/permissions.ts:18`; no matching route found |
+| User management | Denied | Denied | Protected Admin Users UI, safe list/read model, create, role change, deactivate/reactivate, soft delete, manual revoke-all-sessions, and existing-user temporary password reset | `USERS_MANAGE`; `src/app/(dashboard)/admin/users/page.tsx`; `src/features/admin/users/**` |
+| Audit-log viewing | Denied | Denied | `/admin/audit` safe viewer UI | Protected by `AUDIT_LOGS_READ`; `src/app/(dashboard)/admin/audit/page.tsx`; `src/features/admin/audit/**` |
 | Tax-rule management | Not implemented | Not implemented in UI | Not implemented in UI | Permissions exist at `src/lib/permissions/permissions.ts:16-17`; no tax rule route/query found |
 
 ## G. Validation Results
@@ -345,7 +608,7 @@ See the finding IDs below; these are repeated in the final audit report.
 - F-P2-03: Data model diverges from documented party/timestamp/accounting-period rules.
 - F-P2-04: No middleware-level route-protection backstop.
 - F-P2-05: Google Drive is documented/scaffolded only.
-- F-P2-06: Audit logs are write-only from the application perspective.
+- F-P2-06: Audit logs now have an Admin-only safe UI/read-model foundation, but browser E2E and live authorized integration execution remain pending.
 
 ### P3 - Low
 
@@ -372,11 +635,11 @@ See the finding IDs below; these are repeated in the final audit report.
    - Expected files/modules: `src/features/shipping-notes/mutations.ts`, `actions.ts`, detail UI controls, audit tests.
    - Validation required: status-transition tests and build.
    - Separate implementation prompt: yes.
-3. Implement minimal admin user management.
-   - Dependency: role-change/deactivation/session-invalidation policy.
-   - Risk addressed: inability to manage users through the app.
-   - Expected files/modules: `src/app/(dashboard)/admin/users`, `src/lib/auth`, `src/lib/permissions`, audit logging.
-   - Validation required: RBAC/user-management tests.
+3. Harden Admin User Management with live session/browser regression coverage.
+   - Dependency: current authorization for a hosted test/staging database and a browser E2E harness decision.
+   - Risk addressed: stale browser sessions after role changes, deactivation, soft delete, manual revoke, and Admin password reset.
+   - Expected files/modules: `tests/integration/**`, future browser E2E specs, auth/session helpers if defects are found.
+   - Validation required: authorized `npm run test:integration`, browser/session regression run, and full local validation.
    - Separate implementation prompt: yes.
 4. Finish Phase 7 only after Phase 6 is stable.
    - Dependency: export template authority and PDF requirements.
@@ -399,3 +662,21 @@ See the finding IDs below; these are repeated in the final audit report.
 - `docs/BUILD_PHASES.md:108-112` describes Excel and PDF export; implementation has internal XLSX only and schema enum value `"pdf"` only (`src/lib/db/schema.ts:67`, export modules under `src/features/shipping-notes/export/`).
 - `docs/PROJECT_BRIEF.md:40,86-87` includes Google Drive; implementation has only env placeholders and DB columns (`.env.example:13-17`, `src/lib/db/schema.ts:272-273`).
 - `src/app/(dashboard)/shipping-notes/[id]/page.tsx:312-313` says buying charges are unavailable in this phase, but the same page renders buying charge UI for authorized users (`src/app/(dashboard)/shipping-notes/[id]/page.tsx:291-301`).
+
+## K. Phase 11K Release Readiness Gate
+
+- Phase 11J is `DEFERRED BY OWNER — CUSTOMER LIVE SERVICE CONFIGURATION PENDING`; no live R2 or Google Drive operation was attempted in Phase 11K.
+- Production DB read-only verification confirms migrations `0000` through `0005` are applied, expected schema objects are present, and integration/auth fixture residue is zero.
+- The production integration suite and authenticated browser E2E were re-run with explicit production authorization and exact target guards; cleanup verification returned application fixture tables to zero rows afterward.
+- Backup/recovery status is incomplete: provider recovery is documented but not project-verified, local `pg_dump`/`pg_restore` tooling is unavailable, and no restore drill was executed.
+- Production go-live remains blocked by owner/external gates: Phase 11J live verification, database credential rotation, GitHub-hosted CI evidence, HTTPS/proxy/secure-cookie verification, and backup/restore execution evidence.
+
+## L. Phase 11K.1 Backup and Restore Drill Closure
+
+- PostgreSQL 18.3 client tooling was found at `C:\Program Files\PostgreSQL\18\bin` and used against the PostgreSQL 18.6 production server.
+- A custom-format logical production backup was created outside the repository, structurally validated, restored into a disposable local PostgreSQL cluster, and verified for migration journal count, expected tables, workflow columns, artifact/Drive columns, indexes, FKs, enum, and aggregate row counts.
+- The temporary backup and disposable restore cluster were removed after verification; no dump was committed or left under source control.
+- Backup procedure, restore drill, and recovery engineering are now verified at the logical-backup level.
+- Provider recovery capability remains documentation-only because Neon project-level restore/PITR settings were not inspected through provider access.
+- Engineering status: `ENGINEERING COMPLETE — RELEASE CANDIDATE`.
+- Production readiness remains `NOT YET READY FOR PRODUCTION — EXTERNAL/OWNER RELEASE GATES REMAIN` because Phase 11J, production DB credential rotation, GitHub-hosted CI, and HTTPS/cookie/proxy verification are still open.
