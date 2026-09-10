@@ -25,6 +25,9 @@ jobs:
     env:
       CI: "true"
       NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: "postgresql://ci-build.invalid/uniwave_ci_no_db"
+      AUTH_SECRET: "ci-build-synthetic-auth-secret-32-chars-long"
+      AUTH_URL: "http://127.0.0.1:3000"
 
     steps:
       - name: Checkout
