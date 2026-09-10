@@ -193,6 +193,21 @@ describe("admin user lifecycle mutations", () => {
     expect(tx.delete).not.toHaveBeenCalled();
   });
 
+  it("rejects Admin creation at the production service boundary", async () => {
+    const admin = makeUser({ id: ADMIN_ID, role: "admin" });
+    const { createAdminManagedUser } = await import("./mutations");
+    const tamperedInput = {
+      name: "Second Admin",
+      email: "second-admin@example.test",
+      role: "admin",
+      temporaryPassword: "temporary-password-1",
+    } as unknown as Parameters<typeof createAdminManagedUser>[0];
+
+    await expect(createAdminManagedUser(tamperedInput, admin)).rejects.toBeDefined();
+    expect(mocks.hashCredentialPassword).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
   it("maps a wrapped PostgreSQL duplicate-email violation to the domain contract", async () => {
     const admin = makeUser({ id: ADMIN_ID, role: "admin" });
     const duplicateError = Object.assign(
@@ -267,6 +282,55 @@ describe("admin user lifecycle mutations", () => {
       code: ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_ROLE_UNCHANGED,
     });
     expect(tx.delete).not.toHaveBeenCalled();
+    expect(mocks.logAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects promotion to Admin while the sole Admin exists", async () => {
+    const admin = makeUser({ id: ADMIN_ID, role: "admin" });
+    const target = makeUser({ id: TARGET_ID, role: "sale" });
+    const tx = makeFakeTx({
+      selectResults: [[target], [{ count: 1 }]],
+    });
+
+    mocks.transaction.mockImplementationOnce(async (callback) => callback(tx));
+
+    const { changeAdminManagedUserRole } = await import("./mutations");
+
+    await expect(changeAdminManagedUserRole({
+      id: TARGET_ID,
+      role: "admin",
+      reason: null,
+    }, admin)).rejects.toMatchObject({
+      code: ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_ADMIN_UNIQUENESS_PROTECTED,
+    });
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(tx.delete).not.toHaveBeenCalled();
+    expect(mocks.logAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects reactivation of an inactive Admin while another Admin is active", async () => {
+    const admin = makeUser({ id: ADMIN_ID, role: "admin" });
+    const target = makeUser({
+      id: TARGET_ID,
+      role: "admin",
+      isActive: false,
+    });
+    const tx = makeFakeTx({
+      selectResults: [[target], [{ count: 1 }]],
+    });
+
+    mocks.transaction.mockImplementationOnce(async (callback) => callback(tx));
+
+    const { reactivateAdminManagedUser } = await import("./mutations");
+
+    await expect(reactivateAdminManagedUser({
+      id: TARGET_ID,
+      reason: null,
+    }, admin)).rejects.toMatchObject({
+      code: ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_ADMIN_UNIQUENESS_PROTECTED,
+    });
+    expect(tx.execute).toHaveBeenCalledTimes(2);
+    expect(tx.update).not.toHaveBeenCalled();
     expect(mocks.logAuditEvent).not.toHaveBeenCalled();
   });
 

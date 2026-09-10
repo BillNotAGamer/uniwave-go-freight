@@ -140,6 +140,9 @@ export function canChangeUserRole(input: {
 }): AdminUserPolicyDecision {
   return requireManageUsers(input.actor) ??
     requireNotDeleted(input.target) ??
+    (input.target.role !== "admin" && input.nextRole === "admin"
+      ? deny("Creating an additional Admin through role change is not allowed.")
+      : null) ??
     (input.actor.id === input.target.id &&
     input.target.role === "admin" &&
     input.nextRole !== "admin"
@@ -180,12 +183,16 @@ export function canDeactivateUser(input: {
 export function canReactivateUser(input: {
   actor: AdminUserPolicySubject;
   target: AdminUserPolicySubject;
+  lastAdmin: LastAdminContext;
 }): AdminUserPolicyDecision {
   const status = getAdminUserAccountStatus(input.target);
 
   return requireManageUsers(input.actor) ??
     requireNotDeleted(input.target) ??
     (status !== "inactive" ? deny("Only inactive users can be reactivated.") : null) ??
+    (input.target.role === "admin" && input.lastAdmin.activeAdminCount >= 1
+      ? deny("Reactivation cannot create an additional active Admin.")
+      : null) ??
     allow();
 }
 

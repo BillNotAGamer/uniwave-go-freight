@@ -135,12 +135,20 @@ describe("admin user management policy", () => {
       nextRole: "accountant",
       lastAdmin: { activeAdminCount: 2 },
     }).allowed).toBe(false);
-    expect(canReactivateUser({ actor: admin, target: deleted }).allowed)
+    expect(canReactivateUser({
+      actor: admin,
+      target: deleted,
+      lastAdmin: { activeAdminCount: 1 },
+    }).allowed)
       .toBe(false);
     expect(canSetTemporaryPassword({ actor: admin, target: deleted }).allowed)
       .toBe(false);
 
-    expect(canReactivateUser({ actor: admin, target: inactive }).allowed)
+    expect(canReactivateUser({
+      actor: admin,
+      target: inactive,
+      lastAdmin: { activeAdminCount: 1 },
+    }).allowed)
       .toBe(true);
     expect(canChangeUserRole({
       actor: admin,
@@ -153,6 +161,28 @@ describe("admin user management policy", () => {
       target: inactive,
       lastAdmin: { activeAdminCount: 2 },
     }).allowed).toBe(false);
+  });
+
+  it("rejects Admin promotion and reactivation while the sole Admin is active", () => {
+    const admin = actor("admin");
+    const activeSale = user({ id: "active-sale", role: "sale" });
+    const inactiveAdmin = user({
+      id: "inactive-admin",
+      role: "admin",
+      isActive: false,
+    });
+
+    expect(canChangeUserRole({
+      actor: admin,
+      target: activeSale,
+      nextRole: "admin",
+      lastAdmin: { activeAdminCount: 1 },
+    })).toMatchObject({ allowed: false });
+    expect(canReactivateUser({
+      actor: admin,
+      target: inactiveAdmin,
+      lastAdmin: { activeAdminCount: 1 },
+    })).toMatchObject({ allowed: false });
   });
 
   it("marks only role/demotion/deactivation/delete as last-admin sensitive", () => {

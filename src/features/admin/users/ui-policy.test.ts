@@ -35,6 +35,7 @@ describe("admin user row UI policy", () => {
       canSoftDelete: true,
       canRevokeSessions: true,
       canSetTemporaryPassword: true,
+      canChangeOwnPassword: false,
       isReadOnlyDeleted: false,
     });
   });
@@ -51,6 +52,7 @@ describe("admin user row UI policy", () => {
       canSoftDelete: true,
       canRevokeSessions: true,
       canSetTemporaryPassword: true,
+      canChangeOwnPassword: false,
     });
   });
 
@@ -67,6 +69,7 @@ describe("admin user row UI policy", () => {
       canSoftDelete: false,
       canRevokeSessions: false,
       canSetTemporaryPassword: false,
+      canChangeOwnPassword: false,
       isReadOnlyDeleted: true,
     });
   });
@@ -83,6 +86,7 @@ describe("admin user row UI policy", () => {
       canSoftDelete: false,
       canRevokeSessions: false,
       canSetTemporaryPassword: false,
+      canChangeOwnPassword: true,
     });
   });
 
@@ -98,6 +102,7 @@ describe("admin user row UI policy", () => {
       canSoftDelete: false,
       canRevokeSessions: false,
       canSetTemporaryPassword: false,
+      canChangeOwnPassword: false,
     });
   });
 });

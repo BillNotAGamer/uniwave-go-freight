@@ -197,6 +197,37 @@ test.describe.serial("authenticated browser RBAC and workflow", () => {
     await expect(page.getByRole("heading", { name: /Admin Users/i })).toBeVisible();
     await expect(page.getByText(fixtures.runId).first()).toBeVisible();
 
+    const createUserForm = page.locator("form").filter({
+      has: page.getByRole("button", { name: /^Create$/i }),
+    });
+    const createRole = createUserForm.getByLabel(/^Role$/i);
+    await expect(createRole.locator("option")).toHaveText(["Sale", "Accountant"]);
+    await expect(createRole.locator('option[value="admin"]')).toHaveCount(0);
+
+    const temporaryPassword = createUserForm.getByLabel(/^Temporary password$/i);
+    await expect(temporaryPassword).toHaveAttribute("type", "password");
+    await createUserForm.getByRole("button", {
+      name: /Show temporary password/i,
+    }).click();
+    await expect(temporaryPassword).toHaveAttribute("type", "text");
+    await createUserForm.getByRole("button", {
+      name: /Hide temporary password/i,
+    }).click();
+    await expect(temporaryPassword).toHaveAttribute("type", "password");
+
+    const adminRow = page.getByRole("row", {
+      name: new RegExp(fixtures.admin.email, "i"),
+    });
+    await expect(adminRow.getByText(/^Admin$/i)).toBeVisible();
+    await adminRow.getByText(/^Actions$/i).click();
+    await expect(
+      adminRow.getByRole("button", { name: /^Change my password$/i }),
+    ).toBeVisible();
+    await expect(adminRow.getByLabel(/^Current password$/i)).toHaveAttribute(
+      "type",
+      "password",
+    );
+
     await page.goto("/admin/audit");
     await expect(page.getByRole("heading", { name: /Audit Log/i })).toBeVisible();
     await expect(

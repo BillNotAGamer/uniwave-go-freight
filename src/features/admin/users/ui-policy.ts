@@ -7,6 +7,7 @@ export type AdminUserRowActionPolicy = {
   canSoftDelete: boolean;
   canRevokeSessions: boolean;
   canSetTemporaryPassword: boolean;
+  canChangeOwnPassword: boolean;
   isReadOnlyDeleted: boolean;
 };
 
@@ -15,7 +16,7 @@ export function getAdminUserRowActionPolicy(input: {
   viewerUserId: string;
   item: Pick<
     AdminUserListItem,
-    "id" | "accountStatus" | "activeSessionCount"
+    "id" | "role" | "accountStatus" | "activeSessionCount"
   >;
 }): AdminUserRowActionPolicy {
   if (!input.viewerCanManageUsers) {
@@ -26,6 +27,7 @@ export function getAdminUserRowActionPolicy(input: {
       canSoftDelete: false,
       canRevokeSessions: false,
       canSetTemporaryPassword: false,
+      canChangeOwnPassword: false,
       isReadOnlyDeleted: false,
     };
   }
@@ -43,6 +45,7 @@ export function getAdminUserRowActionPolicy(input: {
     canSoftDelete: canOperateOnNonDeletedOther,
     canRevokeSessions: canOperateOnNonDeletedOther,
     canSetTemporaryPassword: canOperateOnNonDeletedOther,
+    canChangeOwnPassword: isSelf && isActive && input.item.role === "admin",
     isReadOnlyDeleted: isDeleted,
   };
 }

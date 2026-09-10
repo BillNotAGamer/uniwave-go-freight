@@ -10,7 +10,12 @@ import {
   users,
   type User,
 } from "@/lib/db/schema";
-import { verifyCredentialPassword } from "@/lib/auth/credentials";
+import {
+  buildCredentialAccountValues,
+  hashCredentialPassword,
+  verifyCredentialPassword,
+} from "@/lib/auth/credentials";
+import { auth } from "@/lib/auth/server";
 import {
   changeAdminManagedUserRole,
   createAdminManagedUser,
@@ -20,6 +25,7 @@ import {
   setAdminManagedUserTemporaryPassword,
   softDeleteAdminManagedUser,
 } from "@/features/admin/users/mutations";
+import { changeOwnAdminPassword } from "@/features/admin/users/self-password";
 import { ADMIN_USER_MANAGEMENT_ERROR_CODES } from "@/features/admin/users/errors";
 
 import {
@@ -132,12 +138,12 @@ describe("admin user lifecycle mutations", () => {
       role: "accountant",
       temporaryPassword: "temporary-password-1",
     }, actors.admin);
-    const createdAdmin = await createAdminManagedUser({
+    const tamperedAdminInput = {
       name: "Managed Admin",
       email: `managed.admin.${emailToken}@integration.test`,
       role: "admin",
       temporaryPassword: "temporary-password-1",
-    }, actors.admin);
+    } as unknown as Parameters<typeof createAdminManagedUser>[0];
 
     expect(createdSale).toMatchObject({
       email: `managed.sale.${emailToken}@integration.test`,
@@ -146,7 +152,8 @@ describe("admin user lifecycle mutations", () => {
       deletedAt: null,
     });
     expect(createdAccountant.role).toBe("accountant");
-    expect(createdAdmin.role).toBe("admin");
+    await expect(createAdminManagedUser(tamperedAdminInput, actors.admin))
+      .rejects.toBeDefined();
 
     const [credential] = await db
       .select()
@@ -503,6 +510,158 @@ describe("admin user lifecycle mutations", () => {
     }, actors.admin)).resolves.toMatchObject({
       user: expect.objectContaining({ role: "accountant" }),
     });
+  });
+
+  it("rejects promotion and reactivation paths that would create another active Admin", async () => {
+    const activeSale = await createIntegrationUser({
+      runId,
+      label: "admin-promotion-target",
+      role: "sale",
+    });
+    const inactiveAdmin = await createIntegrationUser({
+      runId,
+      label: "inactive-admin-reactivation-target",
+      role: "admin",
+      isActive: false,
+    });
+
+    await expect(changeAdminManagedUserRole({
+      id: activeSale.id,
+      role: "admin",
+      reason: "tampered promotion",
+    }, actors.admin)).rejects.toMatchObject({
+      code: ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_ADMIN_UNIQUENESS_PROTECTED,
+    });
+    await expect(reactivateAdminManagedUser({
+      id: inactiveAdmin.id,
+      reason: "tampered reactivation",
+    }, actors.admin)).rejects.toMatchObject({
+      code: ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_ADMIN_UNIQUENESS_PROTECTED,
+    });
+
+    expect((await reloadUser(activeSale.id)).role).toBe("sale");
+    expect((await reloadUser(inactiveAdmin.id)).isActive).toBe(false);
+  });
+
+  it("changes the Admin's own Better Auth credential, preserves the current session, revokes others, and audits safely", async () => {
+    const oldPassword = `old-${runId}-password`;
+    const newPassword = `new-${runId}-password`;
+    const passwordHash = await hashCredentialPassword(oldPassword);
+
+    await db.insert(accounts).values(buildCredentialAccountValues({
+      userId: actors.admin.id,
+      passwordHash,
+    }));
+    const otherSession = await createSessionForUser(
+      actors.admin.id,
+      "self-password-other",
+    );
+
+    const loginResponse = await auth.api.signInEmail({
+      asResponse: true,
+      body: {
+        email: actors.admin.email,
+        password: oldPassword,
+      },
+    });
+    expect(loginResponse.status).toBe(200);
+    const cookieHeader = loginResponse.headers
+      .getSetCookie()
+      .map((cookie) => cookie.split(";", 1)[0])
+      .join("; ");
+    expect(cookieHeader).not.toBe("");
+    const requestHeaders = new Headers({ cookie: cookieHeader });
+
+    await expect(changeOwnAdminPassword({
+      currentPassword: oldPassword,
+      newPassword,
+      confirmNewPassword: newPassword,
+    }, actors.admin, requestHeaders)).resolves.toEqual({
+      targetUserId: actors.admin.id,
+      otherSessionsRevoked: true,
+    });
+
+    const credential = await loadCredentialAccount(actors.admin.id);
+    await expect(verifyCredentialPassword({
+      hash: credential.password ?? "",
+      password: oldPassword,
+    })).resolves.toBe(false);
+    await expect(verifyCredentialPassword({
+      hash: credential.password ?? "",
+      password: newPassword,
+    })).resolves.toBe(true);
+    await expect(countSessionsForToken(otherSession.token)).resolves.toBe(0);
+    await expect(countSessionsForUser(actors.admin.id)).resolves.toBe(1);
+
+    const oldPasswordLogin = await auth.api.signInEmail({
+      asResponse: true,
+      body: { email: actors.admin.email, password: oldPassword },
+    });
+    const newPasswordLogin = await auth.api.signInEmail({
+      asResponse: true,
+      body: { email: actors.admin.email, password: newPassword },
+    });
+    expect(oldPasswordLogin.status).toBe(401);
+    expect(newPasswordLogin.status).toBe(200);
+
+    const auditRows = await listAuditLogsForEntity("user", actors.admin.id);
+    const audit = auditRows.find(
+      (row) => row.action === "user.password.change_self",
+    );
+    expect(audit?.after).toEqual({
+      actorUserId: actors.admin.id,
+      targetUserId: actors.admin.id,
+      otherSessionsRevoked: true,
+    });
+    const auditPayload = JSON.stringify(audit);
+    expect(auditPayload).not.toContain(oldPassword);
+    expect(auditPayload).not.toContain(newPassword);
+    expect(auditPayload).not.toContain(credential.password ?? "");
+    expect(auditPayload).not.toContain(cookieHeader);
+  });
+
+  it("serializes concurrent promotion attempts without creating another active Admin", async () => {
+    const [targetA, targetB] = await Promise.all([
+      createIntegrationUser({
+        runId,
+        label: "concurrent-promotion-a",
+        role: "sale",
+      }),
+      createIntegrationUser({
+        runId,
+        label: "concurrent-promotion-b",
+        role: "accountant",
+      }),
+    ]);
+
+    const results = await Promise.allSettled([
+      changeAdminManagedUserRole({
+        id: targetA.id,
+        role: "admin",
+        reason: "concurrent promotion",
+      }, actors.admin),
+      changeAdminManagedUserRole({
+        id: targetB.id,
+        role: "admin",
+        reason: "concurrent promotion",
+      }, actors.admin),
+    ]);
+
+    expect(results.every((result) => result.status === "rejected")).toBe(true);
+    expect((await reloadUser(targetA.id)).role).toBe("sale");
+    expect((await reloadUser(targetB.id)).role).toBe("accountant");
+
+    const activeAdmins = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          eq(users.role, "admin"),
+          eq(users.isActive, true),
+          isNull(users.deletedAt),
+        ),
+      );
+    expect(activeAdmins).toHaveLength(1);
   });
 
   it("serializes concurrent active-admin reductions so the active Admin set never reaches zero", async () => {

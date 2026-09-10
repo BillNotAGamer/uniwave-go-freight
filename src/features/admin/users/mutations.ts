@@ -141,6 +141,13 @@ function assertPolicyAllowed(input: {
     );
   }
 
+  if (reason.includes("additional") && reason.includes("Admin")) {
+    throw new AdminUserManagementError(
+      ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_ADMIN_UNIQUENESS_PROTECTED,
+      reason,
+    );
+  }
+
   if (reason.includes("Actor cannot manage users")) {
     throw new AdminUserManagementError(
       ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_MANAGEMENT_FORBIDDEN,
@@ -498,12 +505,15 @@ export async function reactivateAdminManagedUser(
   const reason = normalizeOptionalAdminReason(parsedInput.reason);
 
   return db.transaction(async (tx) => {
+    await lockActiveAdminRows(tx);
     await lockTargetUserRow(tx, parsedInput.id);
 
     const target = await loadTargetUser(tx, parsedInput.id);
+    const activeAdminCount = await countActiveAdmins(tx);
     assertPolicyAllowed(canReactivateUser({
       actor: activeActor,
       target: toPolicySubject(target),
+      lastAdmin: { activeAdminCount },
     }));
 
     const mutationTime = new Date();

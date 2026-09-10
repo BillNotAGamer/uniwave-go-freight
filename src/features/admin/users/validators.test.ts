@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   adminUserIdSchema,
+  adminUserCreatableRoleSchema,
   adminUserRoleSchema,
   adminUsersListQuerySchema,
   changeUserRoleInputSchema,
+  changeOwnPasswordInputSchema,
   createAdminUserInputSchema,
   deactivateUserInputSchema,
   reactivateUserInputSchema,
@@ -28,6 +30,18 @@ describe("admin user management validators", () => {
     expect(adminUserRoleSchema.safeParse(["admin", "sale"]).success).toBe(false);
     expect(adminUserRoleSchema.safeParse("admin,sale").success).toBe(false);
     expect(adminUserRoleSchema.safeParse("user").success).toBe(false);
+  });
+
+  it("allows only Sale and Accountant in normal create-user input", () => {
+    expect(adminUserCreatableRoleSchema.safeParse("sale").success).toBe(true);
+    expect(adminUserCreatableRoleSchema.safeParse("accountant").success).toBe(true);
+    expect(adminUserCreatableRoleSchema.safeParse("admin").success).toBe(false);
+    expect(createAdminUserInputSchema.safeParse({
+      name: "Second Admin",
+      email: "second-admin@example.test",
+      role: "admin",
+      temporaryPassword: "temporary-password-1",
+    }).success).toBe(false);
   });
 
   it("normalizes list query search, bounds pagination, and supports page offset", () => {
@@ -151,6 +165,28 @@ describe("admin user management validators", () => {
       id,
       temporaryPassword: "temporary-password-2",
       reason: "   ",
+    }).success).toBe(false);
+  });
+
+  it("reuses the Better Auth password bounds and validates confirmation", () => {
+    expect(changeOwnPasswordInputSchema.parse({
+      currentPassword: "current-password",
+      newPassword: "new-password",
+      confirmNewPassword: "new-password",
+    })).toEqual({
+      currentPassword: "current-password",
+      newPassword: "new-password",
+      confirmNewPassword: "new-password",
+    });
+    expect(changeOwnPasswordInputSchema.safeParse({
+      currentPassword: "current-password",
+      newPassword: "short",
+      confirmNewPassword: "short",
+    }).success).toBe(false);
+    expect(changeOwnPasswordInputSchema.safeParse({
+      currentPassword: "current-password",
+      newPassword: "new-password",
+      confirmNewPassword: "different-password",
     }).success).toBe(false);
   });
 });

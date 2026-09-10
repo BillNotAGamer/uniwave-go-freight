@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useId, useState } from "react";
 import type { ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import {
+  Eye,
+  EyeOff,
   KeyRound,
   LogOut,
   PauseCircle,
@@ -18,6 +20,7 @@ import { ROLE_LABELS, ROLES } from "@/lib/permissions/roles";
 
 import {
   changeAdminUserRoleAction,
+  changeOwnPasswordAction,
   createAdminUserAction,
   deactivateAdminUserAction,
   reactivateAdminUserAction,
@@ -27,6 +30,12 @@ import {
   type AdminUserActionResult,
 } from "../actions";
 import type { AdminUserListItem } from "../types";
+import { ADMIN_USER_CREATABLE_ROLES } from "../validators";
+import {
+  getPasswordInputType,
+  INITIAL_PASSWORD_VISIBILITY,
+  togglePasswordVisibility,
+} from "../password-visibility";
 import {
   getAdminUserRowActionPolicy,
 } from "../ui-policy";
@@ -145,6 +154,52 @@ function TextInput({
   );
 }
 
+function PasswordInput({
+  autoComplete,
+  label,
+  name,
+  required,
+}: {
+  autoComplete: "current-password" | "new-password";
+  label: string;
+  name: string;
+  required?: boolean;
+}) {
+  const [visibility, setVisibility] = useState(INITIAL_PASSWORD_VISIBILITY);
+  const inputId = useId();
+  const visible = visibility === "visible";
+  const visibilityLabel = `${visible ? "Hide" : "Show"} ${label.toLowerCase()}`;
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1 text-sm font-medium text-slate-700 dark:text-slate-200">
+      <label htmlFor={inputId}>{label}</label>
+      <span className="relative block">
+        <input
+          autoComplete={autoComplete}
+          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 pr-10 text-sm font-normal text-slate-900 shadow-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-500/20"
+          id={inputId}
+          name={name}
+          required={required}
+          type={getPasswordInputType(visibility)}
+        />
+        <button
+          aria-label={visibilityLabel}
+          aria-pressed={visible}
+          className="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center rounded-r-md text-slate-500 outline-none hover:text-slate-800 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500 dark:text-slate-400 dark:hover:text-slate-100"
+          onClick={() => setVisibility(togglePasswordVisibility)}
+          type="button"
+        >
+          {visible ? (
+            <EyeOff aria-hidden="true" className="h-4 w-4" />
+          ) : (
+            <Eye aria-hidden="true" className="h-4 w-4" />
+          )}
+        </button>
+      </span>
+    </div>
+  );
+}
+
 function ReasonInput({
   required,
 }: {
@@ -175,18 +230,18 @@ function CreateUserForm() {
             name="role"
             required
           >
-            {ROLES.map((role) => (
+            {ADMIN_USER_CREATABLE_ROLES.map((role) => (
               <option key={role} value={role}>
                 {ROLE_LABELS[role]}
               </option>
             ))}
           </select>
         </label>
-        <TextInput
+        <PasswordInput
+          autoComplete="new-password"
           label="Temporary password"
           name="temporaryPassword"
           required
-          type="password"
         />
         <SubmitButton
           icon={<UserPlus className="h-4 w-4" />}
@@ -209,6 +264,9 @@ function RoleChangeForm({
   item: AdminUserListItem;
 }) {
   const [state, action] = useActionState(changeAdminUserRoleAction, initialActionState);
+  const roleOptions = item.role === "admin"
+    ? ROLES
+    : ADMIN_USER_CREATABLE_ROLES;
 
   return (
     <form action={action} className="grid gap-3 md:grid-cols-[160px_1fr_auto] md:items-end">
@@ -221,7 +279,7 @@ function RoleChangeForm({
           name="role"
           required
         >
-          {ROLES.map((role) => (
+          {roleOptions.map((role) => (
             <option key={role} value={role}>
               {ROLE_LABELS[role]}
             </option>
@@ -355,11 +413,11 @@ function PasswordForm({ item }: { item: AdminUserListItem }) {
   return (
     <form action={action} className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
       <input name="id" type="hidden" value={item.id} />
-      <TextInput
+      <PasswordInput
+        autoComplete="new-password"
         label="Temporary password"
         name="temporaryPassword"
         required
-        type="password"
       />
       <ReasonInput required />
       <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 md:col-span-3">
@@ -377,6 +435,46 @@ function PasswordForm({ item }: { item: AdminUserListItem }) {
         pendingLabel="Updating..."
       >
         Set password
+      </SubmitButton>
+      <div className="md:col-span-3">
+        <ActionMessage state={state} />
+      </div>
+    </form>
+  );
+}
+
+function ChangeOwnPasswordForm() {
+  const [state, action] = useActionState(
+    changeOwnPasswordAction,
+    initialActionState,
+  );
+
+  return (
+    <form action={action} className="grid gap-3 md:grid-cols-3 md:items-end">
+      <PasswordInput
+        autoComplete="current-password"
+        label="Current password"
+        name="currentPassword"
+        required
+      />
+      <PasswordInput
+        autoComplete="new-password"
+        label="New password"
+        name="newPassword"
+        required
+      />
+      <PasswordInput
+        autoComplete="new-password"
+        label="Confirm new password"
+        name="confirmNewPassword"
+        required
+      />
+      <SubmitButton
+        icon={<KeyRound className="h-4 w-4" />}
+        pendingLabel="Changing..."
+        tone="primary"
+      >
+        Change my password
       </SubmitButton>
       <div className="md:col-span-3">
         <ActionMessage state={state} />
@@ -412,12 +510,14 @@ function UserActions({
         {policy.canDeactivate ? <DeactivateForm item={item} /> : null}
         {policy.canReactivate ? <ReactivateForm item={item} /> : null}
         {policy.canSetTemporaryPassword ? <PasswordForm item={item} /> : null}
+        {policy.canChangeOwnPassword ? <ChangeOwnPasswordForm /> : null}
         {policy.canRevokeSessions ? <RevokeSessionsForm item={item} /> : null}
         {policy.canSoftDelete ? <SoftDeleteForm item={item} /> : null}
         {!policy.canChangeRole &&
         !policy.canDeactivate &&
         !policy.canReactivate &&
         !policy.canSetTemporaryPassword &&
+        !policy.canChangeOwnPassword &&
         !policy.canRevokeSessions &&
         !policy.canSoftDelete ? (
           <p className="text-sm text-muted-foreground">No actions available.</p>

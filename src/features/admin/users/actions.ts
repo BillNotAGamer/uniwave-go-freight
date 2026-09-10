@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import { requireAuthenticatedUser } from "@/lib/auth/session";
 
@@ -13,6 +14,7 @@ import {
   setAdminManagedUserTemporaryPassword,
   softDeleteAdminManagedUser,
 } from "./mutations";
+import { changeOwnAdminPassword } from "./self-password";
 import {
   ADMIN_USER_MANAGEMENT_ERROR_CODES,
   AdminUserManagementError,
@@ -20,6 +22,7 @@ import {
 } from "./errors";
 import {
   changeUserRoleInputSchema,
+  changeOwnPasswordInputSchema,
   createAdminUserInputSchema,
   deactivateUserInputSchema,
   reactivateUserInputSchema,
@@ -52,10 +55,16 @@ function safeErrorMessage(code: AdminUserManagementErrorCode): string {
       return "This self-action is not allowed through Admin User Management.";
     case ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_LAST_ADMIN_PROTECTED:
       return "At least one active Admin must remain.";
+    case ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_ADMIN_UNIQUENESS_PROTECTED:
+      return "The existing Owner Administrator is the only permitted active Admin.";
     case ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_ROLE_UNCHANGED:
       return "The selected role matches the current role.";
     case ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_CREDENTIAL_ACCOUNT_NOT_FOUND:
       return "This user does not have exactly one existing credential account.";
+    case ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_CURRENT_PASSWORD_INVALID:
+      return "Current password is incorrect.";
+    case ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_PASSWORD_CHANGE_FAILED:
+      return "Password change failed. Please try again from your current session.";
     case ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_MANAGEMENT_FORBIDDEN:
       return "You do not have permission to manage users.";
     case ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_REASON_REQUIRED:
@@ -67,6 +76,37 @@ function safeErrorMessage(code: AdminUserManagementErrorCode): string {
     case ADMIN_USER_MANAGEMENT_ERROR_CODES.USER_INVALID_STATE:
       return "The user is not in a valid state for this action.";
   }
+}
+
+export async function changeOwnPasswordAction(
+  _state: AdminUserActionResult,
+  formData: FormData,
+): Promise<AdminUserActionResult> {
+  const { user } = await requireAuthenticatedUser();
+  const parsed = changeOwnPasswordInputSchema.safeParse({
+    currentPassword: readFormString(formData, "currentPassword"),
+    newPassword: readFormString(formData, "newPassword"),
+    confirmNewPassword: readFormString(formData, "confirmNewPassword"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid password-change request.",
+    };
+  }
+
+  try {
+    await changeOwnAdminPassword(parsed.data, user, await headers());
+  } catch (error) {
+    return mapActionError(error);
+  }
+
+  revalidateAdminUsers();
+  return {
+    ok: true,
+    message: "Password changed. Other sessions were revoked.",
+  };
 }
 
 function mapActionError(error: unknown): AdminUserActionResult {

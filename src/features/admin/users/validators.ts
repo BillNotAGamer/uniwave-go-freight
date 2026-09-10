@@ -19,6 +19,7 @@ export const ADMIN_USER_TEMP_PASSWORD_MIN_LENGTH =
   BETTER_AUTH_PASSWORD_MIN_LENGTH;
 export const ADMIN_USER_TEMP_PASSWORD_MAX_LENGTH =
   BETTER_AUTH_PASSWORD_MAX_LENGTH;
+export const ADMIN_USER_CREATABLE_ROLES = ["sale", "accountant"] as const;
 
 function optionalTrimmedString(maxLength: number) {
   return z.preprocess((value) => {
@@ -64,6 +65,7 @@ function boundedInteger(defaultValue: number, maxValue: number) {
 
 export const adminUserIdSchema = z.string().trim().uuid();
 export const adminUserRoleSchema = z.enum(ROLES);
+export const adminUserCreatableRoleSchema = z.enum(ADMIN_USER_CREATABLE_ROLES);
 export const adminUserStatusFilterSchema = z.enum(ADMIN_USER_STATUS_FILTERS);
 export const adminUserOperationTypeSchema = z.enum(ADMIN_USER_OPERATION_TYPES);
 
@@ -91,7 +93,7 @@ export const adminUsersListQuerySchema = z.object({
 export const createAdminUserInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
   email: z.string().trim().email().transform((value) => value.toLowerCase()),
-  role: adminUserRoleSchema,
+  role: adminUserCreatableRoleSchema,
   temporaryPassword: z
     .string()
     .min(
@@ -103,6 +105,27 @@ export const createAdminUserInputSchema = z.object({
       "Temporary password must be at most 128 characters.",
     ),
 });
+
+export const changeOwnPasswordInputSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required."),
+  newPassword: z
+    .string()
+    .min(
+      BETTER_AUTH_PASSWORD_MIN_LENGTH,
+      `New password must be at least ${BETTER_AUTH_PASSWORD_MIN_LENGTH} characters.`,
+    )
+    .max(
+      BETTER_AUTH_PASSWORD_MAX_LENGTH,
+      `New password must be at most ${BETTER_AUTH_PASSWORD_MAX_LENGTH} characters.`,
+    ),
+  confirmNewPassword: z.string().min(1, "Confirm new password is required."),
+}).refine(
+  (value) => value.newPassword === value.confirmNewPassword,
+  {
+    message: "New password and confirmation do not match.",
+    path: ["confirmNewPassword"],
+  },
+);
 
 export const changeUserRoleInputSchema = z.object({
   id: adminUserIdSchema,
@@ -147,6 +170,9 @@ export const revokeUserSessionsInputSchema = z.object({
 
 export type AdminUsersListQueryInput = z.infer<typeof adminUsersListQuerySchema>;
 export type CreateAdminUserInput = z.infer<typeof createAdminUserInputSchema>;
+export type ChangeOwnPasswordInput = z.infer<
+  typeof changeOwnPasswordInputSchema
+>;
 export type ChangeUserRoleInput = z.infer<typeof changeUserRoleInputSchema>;
 export type DeactivateUserInput = z.infer<typeof deactivateUserInputSchema>;
 export type ReactivateUserInput = z.infer<typeof reactivateUserInputSchema>;

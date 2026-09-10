@@ -12,6 +12,7 @@ vi.mock("server-only", () => ({}));
 
 const mocks = vi.hoisted(() => ({
   requireAuthenticatedUser: vi.fn(),
+  headers: vi.fn(),
   revalidatePath: vi.fn(),
   createAdminManagedUser: vi.fn(),
   changeAdminManagedUserRole: vi.fn(),
@@ -20,10 +21,15 @@ const mocks = vi.hoisted(() => ({
   revokeAdminManagedUserSessions: vi.fn(),
   setAdminManagedUserTemporaryPassword: vi.fn(),
   softDeleteAdminManagedUser: vi.fn(),
+  changeOwnAdminPassword: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({
   revalidatePath: mocks.revalidatePath,
+}));
+
+vi.mock("next/headers", () => ({
+  headers: mocks.headers,
 }));
 
 vi.mock("@/lib/auth/session", () => ({
@@ -38,6 +44,10 @@ vi.mock("./mutations", () => ({
   revokeAdminManagedUserSessions: mocks.revokeAdminManagedUserSessions,
   setAdminManagedUserTemporaryPassword: mocks.setAdminManagedUserTemporaryPassword,
   softDeleteAdminManagedUser: mocks.softDeleteAdminManagedUser,
+}));
+
+vi.mock("./self-password", () => ({
+  changeOwnAdminPassword: mocks.changeOwnAdminPassword,
 }));
 
 function makeUser(overrides: Partial<User> = {}): User {
@@ -72,6 +82,7 @@ describe("admin user server actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: makeUser() });
+    mocks.headers.mockResolvedValue(new Headers({ cookie: "session=current" }));
   });
 
   it("sets an existing user's temporary password through the production service", async () => {
@@ -161,6 +172,94 @@ describe("admin user server actions", () => {
 
     expect(result.ok).toBe(false);
     expect(mocks.createAdminManagedUser).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each(["sale", "accountant"] as const)(
+    "accepts normal create-user role %s at the server action boundary",
+    async (role) => {
+      const { createAdminUserAction } = await import("./actions");
+
+      const result = await createAdminUserAction(
+        adminUserActionInitialState,
+        makeForm({
+          name: `New ${role}`,
+          email: `${role}@example.test`,
+          role,
+          temporaryPassword: "temporary-password-1",
+        }),
+      );
+
+      expect(result).toEqual({ ok: true, message: "User created." });
+      expect(mocks.createAdminManagedUser).toHaveBeenCalledWith(
+        expect.objectContaining({ role }),
+        expect.objectContaining({ role: "admin" }),
+      );
+    },
+  );
+
+  it("rejects a tampered create-user Admin role before the service boundary", async () => {
+    const { createAdminUserAction } = await import("./actions");
+
+    const result = await createAdminUserAction(
+      adminUserActionInitialState,
+      makeForm({
+        name: "Second Admin",
+        email: "second-admin@example.test",
+        role: "admin",
+        temporaryPassword: "temporary-password-1",
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(mocks.createAdminManagedUser).not.toHaveBeenCalled();
+  });
+
+  it("changes only the authenticated Admin's own password", async () => {
+    const { changeOwnPasswordAction } = await import("./actions");
+
+    const result = await changeOwnPasswordAction(
+      adminUserActionInitialState,
+      makeForm({
+        currentPassword: "current-password",
+        newPassword: "new-password",
+        confirmNewPassword: "new-password",
+      }),
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Password changed. Other sessions were revoked.",
+    });
+    expect(mocks.changeOwnAdminPassword).toHaveBeenCalledWith(
+      {
+        currentPassword: "current-password",
+        newPassword: "new-password",
+        confirmNewPassword: "new-password",
+      },
+      expect.objectContaining({ id: makeUser().id, role: "admin" }),
+      expect.any(Headers),
+    );
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/users");
+  });
+
+  it("rejects password confirmation mismatch before any credential mutation", async () => {
+    const { changeOwnPasswordAction } = await import("./actions");
+
+    const result = await changeOwnPasswordAction(
+      adminUserActionInitialState,
+      makeForm({
+        currentPassword: "current-password",
+        newPassword: "new-password",
+        confirmNewPassword: "different-password",
+      }),
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: "New password and confirmation do not match.",
+    });
+    expect(mocks.changeOwnAdminPassword).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });
