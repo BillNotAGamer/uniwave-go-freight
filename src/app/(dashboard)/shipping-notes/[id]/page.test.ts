@@ -12,11 +12,11 @@ vi.mock("@/lib/env", () => ({
 vi.mock("@/lib/db/client", () => ({ db: {} }));
 
 import type { User } from "@/lib/db/schema";
-import type { ShippingNoteDetail } from "@/features/shipping-notes/types";
+import type { ShippingNoteDetailWithCreator } from "@/features/shipping-notes/types";
 
 const mocks = vi.hoisted(() => ({
   requireAuthenticatedUser: vi.fn(),
-  getShippingNoteForUser: vi.fn(),
+  getShippingNoteDetailForUser: vi.fn(),
   getSellingChargesAndSummaryForNoteForUser: vi.fn(),
   listBuyingChargesForNoteForUser: vi.fn(),
   listChargeTaxDetailsForNoteForUser: vi.fn(),
@@ -33,7 +33,7 @@ vi.mock("@/lib/auth/session", () => ({
 }));
 
 vi.mock("@/features/shipping-notes/queries", () => ({
-  getShippingNoteForUser: mocks.getShippingNoteForUser,
+  getShippingNoteDetailForUser: mocks.getShippingNoteDetailForUser,
   getSellingChargesAndSummaryForNoteForUser: mocks.getSellingChargesAndSummaryForNoteForUser,
   listBuyingChargesForNoteForUser: mocks.listBuyingChargesForNoteForUser,
   getFinancialSummaryForNoteForUser: mocks.getFinancialSummaryForNoteForUser,
@@ -80,7 +80,9 @@ function makeUser(role: User["role"]): User {
   };
 }
 
-function makeNote(status: ShippingNoteDetail["status"] = "submitted"): ShippingNoteDetail {
+function makeNote(
+  status: ShippingNoteDetailWithCreator["status"] = "submitted",
+): ShippingNoteDetailWithCreator {
   return {
     id: "note-1",
     jobsheetNo: "JS-001",
@@ -120,6 +122,10 @@ function makeNote(status: ShippingNoteDetail["status"] = "submitted"): ShippingN
     volumeUnit: "cbm",
     exchangeRate: "25000.00",
     createdById: "sale-1",
+    createdBy: {
+      name: "Sale Creator",
+      email: "creator@example.test",
+    },
   };
 }
 
@@ -199,7 +205,7 @@ describe("ShippingNoteDetailPage Customs Declarations RBAC", () => {
   it("Sale: never queries declarations, receives no declaration data, and renders no customs panel", async () => {
     const saleUser = makeUser("sale");
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
-    mocks.getShippingNoteForUser.mockResolvedValue(makeNote("submitted"));
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
 
     const jsx = await ShippingNoteDetailPage({
       params: Promise.resolve({ id: "note-1" }),
@@ -216,7 +222,7 @@ describe("ShippingNoteDetailPage Customs Declarations RBAC", () => {
   it("Accountant: queries declarations and renders panel with canManage=true at submitted status", async () => {
     const accountantUser = makeUser("accountant");
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: accountantUser });
-    mocks.getShippingNoteForUser.mockResolvedValue(makeNote("submitted"));
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
 
     const jsx = await ShippingNoteDetailPage({
       params: Promise.resolve({ id: "note-1" }),
@@ -235,7 +241,7 @@ describe("ShippingNoteDetailPage Customs Declarations RBAC", () => {
   it("Accountant: queries declarations and renders panel with canManage=false at checked status", async () => {
     const accountantUser = makeUser("accountant");
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: accountantUser });
-    mocks.getShippingNoteForUser.mockResolvedValue(makeNote("checked"));
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("checked"));
 
     const jsx = await ShippingNoteDetailPage({
       params: Promise.resolve({ id: "note-1" }),
@@ -252,7 +258,7 @@ describe("ShippingNoteDetailPage Customs Declarations RBAC", () => {
   it("Admin: queries declarations and renders panel with canManage=true at submitted status", async () => {
     const adminUser = makeUser("admin");
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: adminUser });
-    mocks.getShippingNoteForUser.mockResolvedValue(makeNote("submitted"));
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
 
     const jsx = await ShippingNoteDetailPage({
       params: Promise.resolve({ id: "note-1" }),
@@ -281,7 +287,7 @@ describe("ShippingNoteDetailPage Draft edit presentation", () => {
   it("uses product copy for the Draft editor", async () => {
     const saleUser = makeUser("sale");
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
-    mocks.getShippingNoteForUser.mockResolvedValue(makeNote("draft"));
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("draft"));
 
     const jsx = await ShippingNoteDetailPage({ params: Promise.resolve({ id: "note-1" }) });
     const text = collectText(jsx);
@@ -289,5 +295,62 @@ describe("ShippingNoteDetailPage Draft edit presentation", () => {
     expect(text).toContain("Edit Shipment");
     expect(text).toContain("Update shipment details while this shipment is still in Draft.");
     expect(text).not.toContain("Draft-only edit path");
+  });
+});
+
+describe("ShippingNoteDetailPage creator attribution", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getSellingChargesAndSummaryForNoteForUser.mockResolvedValue({
+      charges: [],
+      summary: { totalAmountVnd: "0.00" },
+    });
+    mocks.listBuyingChargesForNoteForUser.mockResolvedValue([]);
+    mocks.listChargeTaxDetailsForNoteForUser.mockResolvedValue([]);
+    mocks.listTaxRulesForUser.mockResolvedValue([]);
+    mocks.listShippingNoteExportHistoryForUser.mockResolvedValue([]);
+    mocks.listCustomsDeclarationsForNoteForUser.mockResolvedValue([]);
+    mocks.getFinancialSummaryForNoteForUser.mockResolvedValue({
+      totalSellingVnd: "0.00",
+      totalBuyingVnd: "0.00",
+      grossProfitVnd: "0.00",
+    });
+    mocks.getCancellationMetadataForNoteForUser.mockResolvedValue(null);
+    mocks.listShippingNoteDocumentsForUser.mockResolvedValue([]);
+  });
+
+  it("shows the creator display name in the Timeline", async () => {
+    const adminUser = makeUser("admin");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: adminUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+    const text = collectText(jsx);
+
+    expect(text).toContain("Created by");
+    expect(text).toContain("Sale Creator");
+    expect(text).not.toContain("sale-1");
+  });
+
+  it("falls back to creator email when the display name is blank", async () => {
+    const adminUser = makeUser("admin");
+    const note = makeNote("submitted");
+    note.createdBy = {
+      name: "   ",
+      email: "fallback@example.test",
+    };
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: adminUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+    const text = collectText(jsx);
+
+    expect(text).toContain("Created by");
+    expect(text).toContain("fallback@example.test");
+    expect(text).not.toContain("sale-1");
   });
 });

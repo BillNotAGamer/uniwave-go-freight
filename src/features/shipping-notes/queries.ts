@@ -20,6 +20,7 @@ import type { ShippingNoteStatus } from "./constants";
 import {
   shippingNotes,
   shippingNoteCharges,
+  users,
   type User as DbUser,
 } from "@/lib/db/schema";
 
@@ -29,6 +30,7 @@ import type {
   FinancialSummaryChargeRow,
   SellingChargeDetail,
   ShippingNoteDetail,
+  ShippingNoteDetailWithCreator,
   ShippingNoteCancellationMetadata,
   ShippingNoteListItem,
   SellingChargeSummary,
@@ -137,6 +139,14 @@ const shippingNoteDetailColumns = {
   updatedAt: shippingNotes.updatedAt,
 } as const;
 
+export const shippingNoteDetailWithCreatorSelect = {
+  ...shippingNoteDetailColumns,
+  createdBy: {
+    name: users.name,
+    email: users.email,
+  },
+} as const;
+
 export async function listShippingNotesForUser(
   user: DbUser,
   filters: ShippingNotesListFilters = {},
@@ -159,6 +169,22 @@ export async function getShippingNoteForUser(
   const [note] = await db
     .select(shippingNoteDetailColumns)
     .from(shippingNotes)
+    .where(and(...conditions))
+    .limit(1);
+
+  return note ?? null;
+}
+
+export async function getShippingNoteDetailForUser(
+  id: string,
+  user: DbUser,
+): Promise<ShippingNoteDetailWithCreator | null> {
+  const conditions = [...getShippingNoteAccessConditions(user), eq(shippingNotes.id, id)];
+
+  const [note] = await db
+    .select(shippingNoteDetailWithCreatorSelect)
+    .from(shippingNotes)
+    .leftJoin(users, eq(users.id, shippingNotes.createdById))
     .where(and(...conditions))
     .limit(1);
 

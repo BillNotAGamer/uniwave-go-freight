@@ -15,9 +15,11 @@ import {
   buildShippingNotesListWhere,
   escapeShippingNoteJobsheetLikePattern,
   getShippingNoteById,
+  getShippingNoteDetailForUser,
+  shippingNoteDetailWithCreatorSelect,
   shippingNoteDetailSelect,
 } from "./queries";
-import { shippingNotes, type User } from "@/lib/db/schema";
+import { shippingNotes, users, type User } from "@/lib/db/schema";
 
 const saleUser = {
   id: "sale-1",
@@ -65,6 +67,41 @@ describe("C4 Shipping Note historical read model", () => {
     );
     expect(shippingNoteDetailSelect.mawbNo).toBe(shippingNotes.mawbNo);
     expect(shippingNoteDetailSelect.vesselName).toBe(shippingNotes.vesselName);
+  });
+
+  it("loads safe creator presentation data through the canonical user relation", async () => {
+    const storedNote = {
+      id: "note-1",
+      createdById: "sale-1",
+      createdBy: {
+        name: "Sale Creator",
+        email: "creator@example.test",
+      },
+    };
+    const limit = vi.fn().mockResolvedValue([storedNote]);
+    const where = vi.fn(() => ({ limit }));
+    const leftJoin = vi.fn(() => ({ where }));
+    const from = vi.fn(() => ({ leftJoin }));
+    mocks.select.mockReturnValue({ from });
+
+    const note = await getShippingNoteDetailForUser("note-1", adminUser);
+
+    expect(leftJoin).toHaveBeenCalled();
+    expect(note?.createdBy).toEqual({
+      name: "Sale Creator",
+      email: "creator@example.test",
+    });
+  });
+
+  it("limits the creator read model to name and email", () => {
+    expect(shippingNoteDetailWithCreatorSelect.createdBy).toEqual({
+      name: users.name,
+      email: users.email,
+    });
+    expect(Object.keys(shippingNoteDetailWithCreatorSelect.createdBy)).toEqual([
+      "name",
+      "email",
+    ]);
   });
 });
 

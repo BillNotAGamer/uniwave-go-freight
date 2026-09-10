@@ -37,7 +37,7 @@ import { listCustomsDeclarationsForNoteForUser } from "@/features/shipping-notes
 import {
   getCancellationMetadataForNoteForUser,
   getFinancialSummaryForNoteForUser,
-  getShippingNoteForUser,
+  getShippingNoteDetailForUser,
   listBuyingChargesForNoteForUser,
   getSellingChargesAndSummaryForNoteForUser,
 } from "@/features/shipping-notes/queries";
@@ -68,6 +68,10 @@ function formatDateTime(value: Date | null | undefined): string {
   return value ? new Date(value).toLocaleString() : "-";
 }
 
+function formatCreator(createdBy: { name: string; email: string } | null): string {
+  return createdBy?.name.trim() || createdBy?.email || "Unknown user";
+}
+
 export default async function ShippingNoteDetailPage({
   params,
 }: Readonly<{
@@ -75,7 +79,7 @@ export default async function ShippingNoteDetailPage({
 }>) {
   const { user } = await requireAuthenticatedUser();
   const { id } = await params;
-  const note = await getShippingNoteForUser(id, user);
+  const note = await getShippingNoteDetailForUser(id, user);
 
   if (!note) {
     notFound();
@@ -355,6 +359,10 @@ export default async function ShippingNoteDetailPage({
               <div>
                 <dt className="font-medium text-foreground">Created</dt>
                 <dd>{formatDateTime(note.createdAt)}</dd>
+              </div>
+              <div>
+                <dt className="font-medium text-foreground">Created by</dt>
+                <dd>{formatCreator(note.createdBy)}</dd>
               </div>
               <div>
                 <dt className="font-medium text-foreground">Submitted</dt>

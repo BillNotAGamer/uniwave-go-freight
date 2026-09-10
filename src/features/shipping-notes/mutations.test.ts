@@ -27,7 +27,11 @@ vi.mock("./queries", () => ({
 }));
 
 import type { User } from "@/lib/db/schema";
-import { createShippingNoteDraft, updateShippingNoteDraft } from "./mutations";
+import {
+  createShippingNoteDraft,
+  submitShippingNote,
+  updateShippingNoteDraft,
+} from "./mutations";
 import {
   shippingNoteDraftInputSchema,
   updateShippingNoteDraftInputSchema,
@@ -171,6 +175,7 @@ describe("C4/C6 Shipping Note draft persistence", () => {
     expect(configured.tx.select).not.toHaveBeenCalled();
     expect(configured.insertedValues()).toMatchObject({
       shippingMode: "domestic_truck",
+      createdById: "sale-1",
       shipperPartnerId: null,
       shipperText: "Legacy Shipper",
       consigneePartnerId: null,
@@ -351,6 +356,19 @@ describe("C4/C6 Shipping Note draft persistence", () => {
       vesselName: "Vessel Updated",
       voyageNo: "V002",
     });
+    expect(configured.updatedValues()).not.toHaveProperty("createdById");
+  });
+
+  it("does not change creator attribution when submitting a Draft", async () => {
+    mocks.getShippingNoteById.mockResolvedValue(
+      draftRecord("note-submit", "SUBMIT-001"),
+    );
+    const configured = configureTransaction();
+
+    await submitShippingNote({ id: "note-submit" }, saleUser());
+
+    expect(configured.updatedValues()).toMatchObject({ status: "submitted" });
+    expect(configured.updatedValues()).not.toHaveProperty("createdById");
   });
 
   it("canonicalizes hostile inactive Air values to null on a Sea create", async () => {

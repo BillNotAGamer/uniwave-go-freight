@@ -56,6 +56,12 @@ export type ShippingNoteDetail = ShippingNoteListItem & {
   updatedAt: Date;
 };
 
+export type ShippingNoteCreator = Pick<User, "name" | "email">;
+
+export type ShippingNoteDetailWithCreator = ShippingNoteDetail & {
+  createdBy: ShippingNoteCreator | null;
+};
+
 export type ShippingNoteActor = Pick<User, "id" | "role">;
 
 export type ShippingNoteCancellationMetadata = {
