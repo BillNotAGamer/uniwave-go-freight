@@ -51,6 +51,9 @@ export function ShippingNoteDraftForm({
       {values?.domesticDestination ? (
         <input type="hidden" name="domesticDestination" value={values.domesticDestination} />
       ) : null}
+      {values?.customModeName ? <input type="hidden" name="customModeName" value={values.customModeName} /> : null}
+      {values?.customOrigin ? <input type="hidden" name="customOrigin" value={values.customOrigin} /> : null}
+      {values?.customDestination ? <input type="hidden" name="customDestination" value={values.customDestination} /> : null}
       {values?.portOfLoading ? (
         <input type="hidden" name="portOfLoading" value={values.portOfLoading} />
       ) : null}

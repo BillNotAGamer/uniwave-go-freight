@@ -3,14 +3,20 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { Plane, Ship, SlidersHorizontal, Truck } from "lucide-react";
 
 import type { ShippingNoteActionResult } from "../actions";
 import {
-  SHIPPING_MODES,
   type ShippingMode,
   VOLUME_UNITS,
 } from "../constants";
 import { getShippingModePresentation } from "../mode-rules";
+import {
+  SHIPMENT_TYPE_CARDS,
+  SHIPPING_MODES_BY_SHIPMENT_TYPE,
+  SHIPPING_NOTE_CREATE_INTAKE_COPY,
+  type ShipmentType,
+} from "./shipping-note-create-intake";
 import {
   getShippingNoteCreateModeFields,
   SHIPPING_NOTE_PARTY_SELECTOR_FIELDS,
@@ -44,6 +50,13 @@ function TextField({ name, label }: { name: string; label: string }) {
   );
 }
 
+const shipmentTypeIcons = {
+  ocean: Ship,
+  air: Plane,
+  domestic: Truck,
+  custom: SlidersHorizontal,
+} as const;
+
 function SubmitButton() {
   const { pending } = useFormStatus();
 
@@ -60,34 +73,83 @@ function SubmitButton() {
 
 export function ShippingNoteCreateForm({ action }: { action: CreateFormAction }) {
   const [state, formAction] = useActionState(action, initialState);
-  const [mode, setMode] = useState<ShippingMode>(SHIPPING_MODES[0]);
-  const presentation = getShippingModePresentation(mode);
-  const modeFields = getShippingNoteCreateModeFields(presentation.family);
+  const [shipmentType, setShipmentType] = useState<ShipmentType | null>(null);
+  const [mode, setMode] = useState<ShippingMode | "">("");
+  const presentation = mode ? getShippingModePresentation(mode) : null;
+  const modeFields = presentation ? getShippingNoteCreateModeFields(presentation.family) : null;
+
+  function selectShipmentType(type: ShipmentType) {
+    setShipmentType(type);
+    setMode(type === "domestic" ? "domestic_truck" : type === "custom" ? "custom" : "");
+  }
 
   return (
     <form action={formAction} className="grid gap-5">
+      <section aria-labelledby="shipment-type-heading" className="grid gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-foreground" id="shipment-type-heading">
+            {SHIPPING_NOTE_CREATE_INTAKE_COPY.prompt}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">Select the transport type for this shipment.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {SHIPMENT_TYPE_CARDS.map((card) => {
+            const Icon = shipmentTypeIcons[card.type];
+            const isSelected = shipmentType === card.type;
+
+            return (
+              <button
+                aria-pressed={isSelected}
+                className={`flex min-h-28 items-start gap-3 rounded-lg border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 ${isSelected ? "border-primary bg-primary/5" : "border-border bg-card hover:border-foreground/40 hover:bg-muted/40"}`}
+                data-selected={isSelected ? "true" : "false"}
+                disabled={!card.available}
+                key={card.type}
+                onClick={() => selectShipmentType(card.type)}
+                type="button"
+              >
+                <Icon aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
+                <span>
+                  <span className="block text-sm font-semibold text-foreground">{card.label}</span>
+                  <span className="mt-1 block text-sm text-muted-foreground">{card.description}</span>
+                  {isSelected ? <span className="mt-2 block text-xs font-medium text-foreground">Selected</span> : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {shipmentType ? <>
       <Section title="General">
         <label className="text-sm font-medium text-foreground" htmlFor="jobsheetNo">
           Jobsheet No
           <input className={controlClassName} id="jobsheetNo" name="jobsheetNo" required type="text" />
         </label>
+        {shipmentType === "domestic" || shipmentType === "custom" ? <input name="shippingMode" type="hidden" value={mode} /> : (
         <label className="text-sm font-medium text-foreground" htmlFor="shippingMode">
-          Shipping Mode
+          Shipment direction
           <select
             className={controlClassName}
             id="shippingMode"
             name="shippingMode"
             onChange={(event) => setMode(event.target.value as ShippingMode)}
+            required
             value={mode}
           >
-            {SHIPPING_MODES.map((shippingMode) => (
+            <option value="">Select direction</option>
+            {SHIPPING_MODES_BY_SHIPMENT_TYPE[shipmentType].map((shippingMode) => (
               <option key={shippingMode} value={shippingMode}>
                 {getShippingModePresentation(shippingMode).label}
               </option>
             ))}
           </select>
         </label>
+        )}
       </Section>
+
+      {shipmentType === "custom" ? <Section title="Custom Mode">
+        <TextField name="customModeName" label="Mode" />
+      </Section> : null}
 
       <Section title="Parties">
         {SHIPPING_NOTE_PARTY_SELECTOR_FIELDS.map((field) => (
@@ -95,11 +157,11 @@ export function ShippingNoteCreateForm({ action }: { action: CreateFormAction })
         ))}
       </Section>
 
-      <Section title="Routing">
+      {modeFields ? <Section title="Routing">
         {modeFields.routing.map((field) => <TextField key={field.name} {...field} />)}
-      </Section>
+      </Section> : null}
 
-      {modeFields.transport.length > 0 ? (
+      {modeFields && modeFields.transport.length > 0 ? (
         <Section title="Transport Documents">
           {modeFields.transport.map((field) => <TextField key={field.name} {...field} />)}
         </Section>
@@ -142,6 +204,7 @@ export function ShippingNoteCreateForm({ action }: { action: CreateFormAction })
         </Link>
         <SubmitButton />
       </div>
+      </> : null}
     </form>
   );
 }

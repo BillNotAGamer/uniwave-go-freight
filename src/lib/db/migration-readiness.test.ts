@@ -11,7 +11,7 @@ function readMigration(name: string): string {
 }
 
 describe("static migration readiness", () => {
-  it("has migration files through 0010", () => {
+  it("has migration files through 0011", () => {
     expect(readdirSync(drizzleDir).filter((file) => file.endsWith(".sql"))).toEqual([
       "0000_new_nick_fury.sql",
       "0001_dazzling_saracen.sql",
@@ -24,10 +24,11 @@ describe("static migration readiness", () => {
       "0008_sparkling_husk.sql",
       "0009_flowery_switch.sql",
       "0010_soft_lorna_dane.sql",
+      "0011_fresh_radioactive_man.sql",
     ]);
   });
 
-  it("has journal entries through 0010 in order", () => {
+  it("has journal entries through 0011 in order", () => {
     const journal = JSON.parse(
       readFileSync(path.join(drizzleDir, "meta", "_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
@@ -44,6 +45,7 @@ describe("static migration readiness", () => {
       "8:0008_sparkling_husk",
       "9:0009_flowery_switch",
       "10:0010_soft_lorna_dane",
+      "11:0011_fresh_radioactive_man",
     ]);
   });
 
@@ -217,6 +219,16 @@ describe("static migration readiness", () => {
     expect(migration).not.toMatch(/(?:^|\n)(?:DROP|TRUNCATE|DELETE|UPDATE|INSERT)\s/im);
     expect(migration).not.toContain('ALTER TABLE "shipping_notes"');
     expect(migration).not.toContain('ALTER TABLE "users"');
+  });
+
+  it("0011 adds Custom mode and nullable custom fields without destructive SQL", () => {
+    const migration = readMigration("0011_fresh_radioactive_man.sql");
+
+    expect(migration).toContain('ALTER TYPE "public"."shipping_mode" ADD VALUE \'custom\'');
+    expect(migration).toContain('ADD COLUMN "custom_mode_name" text');
+    expect(migration).toContain('ADD COLUMN "custom_origin" text');
+    expect(migration).toContain('ADD COLUMN "custom_destination" text');
+    expect(migration).not.toMatch(/(?:^|\n)(?:DROP|TRUNCATE|DELETE|UPDATE|INSERT|CREATE TYPE)\s/im);
   });
 });
 

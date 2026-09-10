@@ -38,6 +38,13 @@ const sea = {
   eta: new Date("2026-06-20T14:00:00Z"),
 };
 
+const custom = {
+  shippingMode: "custom" as const,
+  customModeName: "Rail",
+  customOrigin: "HCM",
+  customDestination: "Phnom Penh",
+};
+
 describe("C6 Shipping Note mode rules", () => {
   it("maps all persisted modes and fails closed for an unknown value", () => {
     expect(getShippingModePresentation("domestic_truck").family).toBe("domestic");
@@ -45,6 +52,7 @@ describe("C6 Shipping Note mode rules", () => {
     expect(getShippingModePresentation("air_import").family).toBe("air");
     expect(getShippingModePresentation("sea_export").family).toBe("sea");
     expect(getShippingModePresentation("sea_import").family).toBe("sea");
+    expect(getShippingModePresentation("custom").family).toBe("custom");
     expect(() => getShippingModePresentation("rail" as never)).toThrow("Unknown Shipping Mode");
   });
 
@@ -52,6 +60,8 @@ describe("C6 Shipping Note mode rules", () => {
     expect(validateShippingNoteModeFields(domestic)).toEqual([]);
     expect(validateShippingNoteModeFields(air)).toEqual([]);
     expect(validateShippingNoteModeFields(sea)).toEqual([]);
+    expect(validateShippingNoteModeFields(custom)).toEqual([]);
+    expect(validateShippingNoteModeFields({ ...custom, customModeName: " " })[0]?.path).toBe("customModeName");
 
     for (const field of getShippingModeFieldRules("air_export").requiredTextFields) {
       const invalid = { ...air, [field.name]: "   " };
@@ -121,5 +131,27 @@ describe("C6 Shipping Note mode rules", () => {
       hawbNo: undefined,
       flightNo: undefined,
     });
+  });
+
+  it("clears transport-family values for Custom and clears Custom values for existing modes", () => {
+    const customCanonical = canonicalizeShippingNoteModeFields({
+      ...domestic, ...air, ...sea, ...custom, shippingMode: "custom" as const,
+    });
+    expect(customCanonical).toMatchObject(custom);
+    expect(customCanonical).toMatchObject({
+      domesticOrigin: undefined, domesticDestination: undefined,
+      aol: undefined, aod: undefined, portOfLoading: undefined, portOfDischarge: undefined,
+      finalDestination: undefined, mawbNo: undefined, hawbNo: undefined, flightNo: undefined,
+      mblNo: undefined, hblNo: undefined, vesselName: undefined, voyageNo: undefined,
+    });
+
+    for (const shippingMode of ["domestic_truck", "air_export", "sea_export"] as const) {
+      const canonical = canonicalizeShippingNoteModeFields({
+        ...domestic, ...air, ...sea, ...custom, shippingMode,
+      });
+      expect(canonical.customModeName).toBeUndefined();
+      expect(canonical.customOrigin).toBeUndefined();
+      expect(canonical.customDestination).toBeUndefined();
+    }
   });
 });

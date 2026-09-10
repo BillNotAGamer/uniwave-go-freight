@@ -26,6 +26,7 @@ describe("Shipping Note create field presentation", () => {
       "domesticOrigin",
       "domesticDestination",
     ]);
+    expect(fields.routing.map((field) => field.label)).toEqual(["From", "To"]);
     expect(fields.transport).toEqual([]);
   });
 
@@ -36,6 +37,7 @@ describe("Shipping Note create field presentation", () => {
       "aod",
       "finalDestination",
     ]);
+    expect(fields.routing.map((field) => field.label)).toEqual(["AOL", "AOD", "Final Destination"]);
     expect(names(fields.transport)).toEqual([
       "mawbNo",
       "hawbNo",
@@ -50,12 +52,22 @@ describe("Shipping Note create field presentation", () => {
       "portOfDischarge",
       "finalDestination",
     ]);
+    expect(fields.routing.map((field) => field.label)).toEqual(["POL", "POD", "Final Destination"]);
     expect(names(fields.transport)).toEqual([
       "mblNo",
       "hblNo",
       "vesselName",
       "voyageNo",
     ]);
+  });
+
+  it("maps Custom to only optional neutral routing fields", () => {
+    const fields = getShippingNoteCreateModeFields("custom");
+    expect(fields.routing).toEqual([
+      { name: "customOrigin", label: "From" },
+      { name: "customDestination", label: "To" },
+    ]);
+    expect(fields.transport).toEqual([]);
   });
 
   it("keeps every active-mode text requirement visible in the C5 configuration", () => {

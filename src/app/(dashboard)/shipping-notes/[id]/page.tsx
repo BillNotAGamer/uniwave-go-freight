@@ -62,6 +62,7 @@ import {
 } from "@/features/shipping-notes/documents/policy";
 import { listShippingNoteDocumentsForUser } from "@/features/shipping-notes/documents/queries";
 import { getStorageAvailability } from "@/features/shipping-notes/documents/service";
+import { getShippingModePresentation } from "@/features/shipping-notes/mode-rules";
 
 function formatDateTime(value: Date | null | undefined): string {
   return value ? new Date(value).toLocaleString() : "-";
@@ -270,8 +271,13 @@ export default async function ShippingNoteDetailPage({
             <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
               <div>
                 <dt className="font-medium text-foreground">Mode</dt>
-                <dd>{note.shippingMode}</dd>
+                <dd>{getShippingModePresentation(note.shippingMode).label}</dd>
               </div>
+              {note.shippingMode === "custom" ? <>
+                <div><dt className="font-medium text-foreground">Custom Mode</dt><dd>{note.customModeName ?? "-"}</dd></div>
+                <div><dt className="font-medium text-foreground">From</dt><dd>{note.customOrigin ?? "-"}</dd></div>
+                <div><dt className="font-medium text-foreground">To</dt><dd>{note.customDestination ?? "-"}</dd></div>
+              </> : null}
               <div>
                 <dt className="font-medium text-foreground">MAWB / HAWB</dt>
                 <dd>{note.mawbHawbNo ?? "-"}</dd>

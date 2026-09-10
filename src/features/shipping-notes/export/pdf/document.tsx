@@ -16,6 +16,7 @@ import type {
   InternalExportCharge,
   InternalShippingNoteExportDto,
 } from "../types";
+import { getShippingModePresentation } from "../../mode-rules";
 
 type InternalShippingNotePdfDocumentProps = {
   exportData: InternalShippingNoteExportDto;
@@ -219,7 +220,12 @@ function buildHeaderItems(note: InternalShippingNoteExportDto["note"]): InfoItem
   return [
     { label: "Jobsheet No", value: note.jobsheetNo },
     { label: "MAWB / HAWB", value: formatOptional(note.mawbHawbNo) },
-    { label: "Shipping Mode", value: note.shippingMode },
+    { label: "Shipping Mode", value: getShippingModePresentation(note.shippingMode).label },
+    ...(note.shippingMode === "custom" ? [
+      { label: "Custom Mode", value: formatOptional(note.customModeName) },
+      { label: "From", value: formatOptional(note.customOrigin) },
+      { label: "To", value: formatOptional(note.customDestination) },
+    ] : []),
     { label: "Shipper", value: formatOptional(note.shipperText) },
     { label: "Consignee", value: formatOptional(note.consigneeText) },
     { label: "Customer", value: formatOptional(note.customerText) },

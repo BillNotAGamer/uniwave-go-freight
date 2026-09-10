@@ -11,6 +11,7 @@ export type ShippingNoteListItem = {
   id: string;
   jobsheetNo: string;
   shippingMode: ShippingMode;
+  customModeName?: string | null;
   shipperText: string | null;
   consigneeText: string | null;
   status: ShippingNoteStatus;
@@ -27,6 +28,9 @@ export type ShippingNoteDetail = ShippingNoteListItem & {
   agentText: string | null;
   domesticOrigin: string | null;
   domesticDestination: string | null;
+  customModeName?: string | null;
+  customOrigin?: string | null;
+  customDestination?: string | null;
   airOrigin: string | null;
   airDestination: string | null;
   /** Legacy aliases retained while existing callers still use AOL/AOD. */

@@ -37,6 +37,9 @@ describe("C4 Shipping Note schema contract", () => {
     for (const column of [
       shippingNotes.domesticOrigin,
       shippingNotes.domesticDestination,
+      shippingNotes.customModeName,
+      shippingNotes.customOrigin,
+      shippingNotes.customDestination,
       shippingNotes.aol,
       shippingNotes.aod,
       shippingNotes.portOfLoading,

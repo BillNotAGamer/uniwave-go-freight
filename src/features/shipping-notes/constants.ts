@@ -4,6 +4,7 @@ export const SHIPPING_MODES = [
   "sea_import",
   "air_export",
   "air_import",
+  "custom",
 ] as const;
 
 export type ShippingMode = (typeof SHIPPING_MODES)[number];

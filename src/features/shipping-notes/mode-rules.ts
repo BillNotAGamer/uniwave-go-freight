@@ -1,10 +1,13 @@
 import { type ShippingMode } from "./constants";
 
-export type ShippingModeFamily = "domestic" | "air" | "sea";
+export type ShippingModeFamily = "domestic" | "air" | "sea" | "custom";
 
 export type ShippingNoteModeTextField =
   | "domesticOrigin"
   | "domesticDestination"
+  | "customModeName"
+  | "customOrigin"
+  | "customDestination"
   | "aol"
   | "aod"
   | "portOfLoading"
@@ -22,6 +25,9 @@ export type ShippingNoteModeInput = {
   shippingMode: ShippingMode;
   domesticOrigin?: string;
   domesticDestination?: string;
+  customModeName?: string;
+  customOrigin?: string;
+  customDestination?: string;
   /** Legacy action aliases that normalize into AOL/AOD before persistence. */
   airOrigin?: string;
   airDestination?: string;
@@ -58,13 +64,13 @@ export type ShippingNoteModeFieldRules = {
 const DOMESTIC_RULES: ShippingNoteModeFieldRules = {
   family: "domestic",
   routingFields: [
-    { name: "domesticOrigin", label: "Nơi đi" },
-    { name: "domesticDestination", label: "Nơi đến" },
+    { name: "domesticOrigin", label: "From" },
+    { name: "domesticDestination", label: "To" },
   ],
   transportFields: [],
   requiredTextFields: [
-    { name: "domesticOrigin", label: "Nơi đi" },
-    { name: "domesticDestination", label: "Nơi đến" },
+    { name: "domesticOrigin", label: "From" },
+    { name: "domesticDestination", label: "To" },
   ],
   requiredDateFields: [],
   inactiveTextFields: [
@@ -80,6 +86,9 @@ const DOMESTIC_RULES: ShippingNoteModeFieldRules = {
     "flightNo",
     "vesselName",
     "voyageNo",
+    "customModeName",
+    "customOrigin",
+    "customDestination",
   ],
 };
 
@@ -116,6 +125,9 @@ const AIR_RULES: ShippingNoteModeFieldRules = {
     "hblNo",
     "vesselName",
     "voyageNo",
+    "customModeName",
+    "customOrigin",
+    "customDestination",
   ],
 };
 
@@ -153,6 +165,36 @@ const SEA_RULES: ShippingNoteModeFieldRules = {
     "mawbNo",
     "hawbNo",
     "flightNo",
+    "customModeName",
+    "customOrigin",
+    "customDestination",
+  ],
+};
+
+const CUSTOM_RULES: ShippingNoteModeFieldRules = {
+  family: "custom",
+  routingFields: [
+    { name: "customOrigin", label: "From" },
+    { name: "customDestination", label: "To" },
+  ],
+  transportFields: [],
+  requiredTextFields: [{ name: "customModeName", label: "Mode" }],
+  requiredDateFields: [],
+  inactiveTextFields: [
+    "domesticOrigin",
+    "domesticDestination",
+    "aol",
+    "aod",
+    "portOfLoading",
+    "portOfDischarge",
+    "finalDestination",
+    "mawbNo",
+    "hawbNo",
+    "mblNo",
+    "hblNo",
+    "flightNo",
+    "vesselName",
+    "voyageNo",
   ],
 };
 
@@ -160,17 +202,19 @@ const RULES_BY_FAMILY: Record<ShippingModeFamily, ShippingNoteModeFieldRules> = 
   domestic: DOMESTIC_RULES,
   air: AIR_RULES,
   sea: SEA_RULES,
+  custom: CUSTOM_RULES,
 };
 
 export const SHIPPING_MODE_PRESENTATION: Record<
   ShippingMode,
   { label: string; family: ShippingModeFamily }
 > = {
-  domestic_truck: { label: "Nội địa", family: "domestic" },
-  sea_export: { label: "Sea Export", family: "sea" },
-  sea_import: { label: "Sea Import", family: "sea" },
+  domestic_truck: { label: "Domestic", family: "domestic" },
+  sea_export: { label: "Ocean Export", family: "sea" },
+  sea_import: { label: "Ocean Import", family: "sea" },
   air_export: { label: "Air Export", family: "air" },
   air_import: { label: "Air Import", family: "air" },
+  custom: { label: "Custom", family: "custom" },
 };
 
 export function getShippingModePresentation(mode: ShippingMode) {

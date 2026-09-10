@@ -38,6 +38,7 @@ export const shippingModeEnum = pgEnum("shipping_mode", [
   "sea_import",
   "air_export",
   "air_import",
+  "custom",
 ]);
 
 export const volumeUnitEnum = pgEnum("volume_unit", [
@@ -224,6 +225,9 @@ export const shippingNotes = pgTable(
     agentText: text("agent_text"),
     domesticOrigin: text("domestic_origin"),
     domesticDestination: text("domestic_destination"),
+    customModeName: text("custom_mode_name"),
+    customOrigin: text("custom_origin"),
+    customDestination: text("custom_destination"),
     // Existing AOL/AOD columns are the canonical Air origin/destination storage.
     aol: text("aol"),
     aod: text("aod"),

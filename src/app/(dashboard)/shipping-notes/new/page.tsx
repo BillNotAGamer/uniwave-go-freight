@@ -6,6 +6,7 @@ import { hasPermission, PERMISSIONS } from "@/lib/permissions/permissions";
 
 import { createShippingNoteDraftAction } from "@/features/shipping-notes/actions";
 import { ShippingNoteCreateForm } from "@/features/shipping-notes/components/shipping-note-create-form";
+import { SHIPPING_NOTE_CREATE_INTAKE_COPY } from "@/features/shipping-notes/components/shipping-note-create-intake";
 import { PageContainer } from "@/components/shell/page-container";
 import { PageHeader } from "@/components/shell/page-header";
 
@@ -19,8 +20,8 @@ export default async function NewShippingNotePage() {
   return (
     <PageContainer>
       <PageHeader
-        title="Create Shipping Note"
-        description="Create a compact operational draft. Accounting fields remain unavailable here."
+        title={SHIPPING_NOTE_CREATE_INTAKE_COPY.title}
+        description={SHIPPING_NOTE_CREATE_INTAKE_COPY.description}
       >
         <Link
           className="text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline px-2"

@@ -13,6 +13,7 @@ import {
   parseShippingNotesListSearchParams,
 } from "@/features/shipping-notes/list-filters";
 import { listShippingNotesForUser } from "@/features/shipping-notes/queries";
+import { getShippingModePresentation } from "@/features/shipping-notes/mode-rules";
 
 type ShippingNotesPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -131,7 +132,9 @@ export default async function ShippingNotesPage({
                       </Link>
                     </td>
                     <td className="border-b border-border/60 px-3 py-3 text-muted-foreground">
-                      {note.shippingMode}
+                      {note.shippingMode === "custom" && note.customModeName
+                        ? `Custom — ${note.customModeName}`
+                        : getShippingModePresentation(note.shippingMode).label}
                     </td>
                     <td className="border-b border-border/60 px-3 py-3 text-muted-foreground">
                       {note.shipperText ?? "-"}

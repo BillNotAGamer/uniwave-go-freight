@@ -33,7 +33,7 @@ function optionalTrimmedTextWithMax(maxLength: number) {
 
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : undefined;
-  }, z.string().trim().min(1).max(maxLength));
+  }, z.string().trim().min(1).max(maxLength).optional());
 }
 
 function optionalWorkflowReason() {
@@ -155,6 +155,9 @@ const shippingNoteDraftBaseInputSchema = z.object({
   agentText: optionalTrimmedText().optional(),
   domesticOrigin: optionalTrimmedText().optional(),
   domesticDestination: optionalTrimmedText().optional(),
+  customModeName: optionalTrimmedTextWithMax(120).optional(),
+  customOrigin: optionalTrimmedTextWithMax(240).optional(),
+  customDestination: optionalTrimmedTextWithMax(240).optional(),
   airOrigin: optionalTrimmedText().optional(),
   airDestination: optionalTrimmedText().optional(),
   aol: optionalTrimmedText().optional(),

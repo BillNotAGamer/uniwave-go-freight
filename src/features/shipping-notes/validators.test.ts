@@ -60,6 +60,24 @@ const validSeaInput = {
 } as const;
 
 describe("shipping note validation schemas", () => {
+  it("accepts a trimmed Custom mode name without transport-family routing", () => {
+    const parsed = shippingNoteDraftInputSchema.parse({
+      jobsheetNo: "CUSTOM-1",
+      shippingMode: "custom",
+      customModeName: "  Rail  ",
+      customOrigin: " HCM ",
+      customDestination: " Phnom Penh ",
+    });
+    expect(parsed.customModeName).toBe("Rail");
+    expect(parsed.customOrigin).toBe("HCM");
+    expect(parsed.customDestination).toBe("Phnom Penh");
+    expect(() => shippingNoteDraftInputSchema.parse({
+      jobsheetNo: "CUSTOM-2", shippingMode: "custom", customModeName: "   ",
+    })).toThrow(/Mode is required/);
+    expect(() => shippingNoteDraftInputSchema.parse({
+      jobsheetNo: "CUSTOM-3", shippingMode: "custom", customModeName: "x".repeat(121),
+    })).toThrow();
+  });
   it("normalizes draft jobsheet numbers and trims provided optional text", () => {
     const parsed = shippingNoteDraftInputSchema.parse({
       ...validSeaInput,

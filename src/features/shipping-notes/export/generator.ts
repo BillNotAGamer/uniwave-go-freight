@@ -378,6 +378,7 @@ function writeTaxDetailRows(
 
 function formatDestination(exportData: InternalShippingNoteExportDto): string {
   return (
+    exportData.note.customDestination ??
     exportData.note.finalDestination ??
     exportData.note.aod ??
     ""
