@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 
 import type { ShippingNoteActionResult } from "../actions";
@@ -45,34 +46,6 @@ export function ShippingNoteDraftForm({
       {values?.agentPartnerId ? (
         <input type="hidden" name="agentPartnerId" value={values.agentPartnerId} />
       ) : null}
-      {values?.domesticOrigin ? (
-        <input type="hidden" name="domesticOrigin" value={values.domesticOrigin} />
-      ) : null}
-      {values?.domesticDestination ? (
-        <input type="hidden" name="domesticDestination" value={values.domesticDestination} />
-      ) : null}
-      {values?.customModeName ? <input type="hidden" name="customModeName" value={values.customModeName} /> : null}
-      {values?.customOrigin ? <input type="hidden" name="customOrigin" value={values.customOrigin} /> : null}
-      {values?.customDestination ? <input type="hidden" name="customDestination" value={values.customDestination} /> : null}
-      {values?.portOfLoading ? (
-        <input type="hidden" name="portOfLoading" value={values.portOfLoading} />
-      ) : null}
-      {values?.portOfDischarge ? (
-        <input type="hidden" name="portOfDischarge" value={values.portOfDischarge} />
-      ) : null}
-      {values?.mawbNo ? <input type="hidden" name="mawbNo" value={values.mawbNo} /> : null}
-      {values?.hawbNo ? <input type="hidden" name="hawbNo" value={values.hawbNo} /> : null}
-      {values?.mblNo ? <input type="hidden" name="mblNo" value={values.mblNo} /> : null}
-      {values?.hblNo ? <input type="hidden" name="hblNo" value={values.hblNo} /> : null}
-      {values?.flightNo ? (
-        <input type="hidden" name="flightNo" value={values.flightNo} />
-      ) : null}
-      {values?.vesselName ? (
-        <input type="hidden" name="vesselName" value={values.vesselName} />
-      ) : null}
-      {values?.voyageNo ? (
-        <input type="hidden" name="voyageNo" value={values.voyageNo} />
-      ) : null}
       <ShippingNoteDraftFields values={values} includeJobsheetNo={includeJobsheetNo} />
 
       {state.ok ? null : (
@@ -81,9 +54,15 @@ export function ShippingNoteDraftForm({
         </p>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center justify-end gap-3 border-t border-border pt-4">
+        <Link
+          className="inline-flex h-10 items-center px-3 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          href="/shipping-notes"
+        >
+          Cancel
+        </Link>
         <button
-          className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+          className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           type="submit"
         >
           {submitLabel}

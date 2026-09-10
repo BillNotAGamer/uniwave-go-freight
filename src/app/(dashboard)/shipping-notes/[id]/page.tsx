@@ -548,17 +548,19 @@ export default async function ShippingNoteDetailPage({
         {canEditDraft ? (
           <section className="grid gap-6 border-t border-border pt-6">
             <div className="space-y-2">
-              <h2 className="text-lg font-semibold tracking-tight text-foreground">Edit draft</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold tracking-tight text-foreground">Edit Shipment</h2>
+                <StatusBadge status="draft" />
+              </div>
               <p className="text-sm text-muted-foreground">
-                Draft-only edit path. Buying charges, tax settings, and audit logs are
-                intentionally unavailable in this phase.
+                Update shipment details while this shipment is still in Draft.
               </p>
             </div>
 
             <ShippingNoteDraftForm
               action={updateShippingNoteDraftAction}
               hiddenId={note.id}
-              submitLabel="Save Draft Changes"
+              submitLabel="Save changes"
               values={note}
             />
 

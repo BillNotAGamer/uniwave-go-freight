@@ -10,7 +10,6 @@ import {
   type ShippingMode,
   VOLUME_UNITS,
 } from "../constants";
-import { getShippingModePresentation } from "../mode-rules";
 import {
   SHIPMENT_TYPE_CARDS,
   SHIPPING_MODES_BY_SHIPMENT_TYPE,
@@ -18,7 +17,7 @@ import {
   type ShipmentType,
 } from "./shipping-note-create-intake";
 import {
-  getShippingNoteCreateModeFields,
+  getShippingNoteCreateModeFieldsForShipmentType,
   SHIPPING_NOTE_PARTY_SELECTOR_FIELDS,
 } from "./shipping-note-create-fields";
 import { PartnerSelector } from "./partner-selector";
@@ -75,8 +74,9 @@ export function ShippingNoteCreateForm({ action }: { action: CreateFormAction })
   const [state, formAction] = useActionState(action, initialState);
   const [shipmentType, setShipmentType] = useState<ShipmentType | null>(null);
   const [mode, setMode] = useState<ShippingMode | "">("");
-  const presentation = mode ? getShippingModePresentation(mode) : null;
-  const modeFields = presentation ? getShippingNoteCreateModeFields(presentation.family) : null;
+  const modeFields = shipmentType
+    ? getShippingNoteCreateModeFieldsForShipmentType(shipmentType)
+    : null;
 
   function selectShipmentType(type: ShipmentType) {
     setShipmentType(type);
@@ -139,7 +139,7 @@ export function ShippingNoteCreateForm({ action }: { action: CreateFormAction })
             <option value="">Select direction</option>
             {SHIPPING_MODES_BY_SHIPMENT_TYPE[shipmentType].map((shippingMode) => (
               <option key={shippingMode} value={shippingMode}>
-                {getShippingModePresentation(shippingMode).label}
+                {shippingMode.endsWith("_export") ? "Export" : "Import"}
               </option>
             ))}
           </select>

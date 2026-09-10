@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getShippingNoteCreateModeFields,
+  getShippingNoteCreateModeFieldsForShipmentType,
   SHIPPING_NOTE_PARTY_SELECTOR_FIELDS,
 } from "./shipping-note-create-fields";
 import { getShippingModeFieldRules } from "../mode-rules";
@@ -11,6 +12,32 @@ function names(fields: { name: string }[]) {
 }
 
 describe("Shipping Note create field presentation", () => {
+  it("uses the selected shipment family for routing visibility before a direction is chosen", () => {
+    const ocean = getShippingNoteCreateModeFieldsForShipmentType("ocean");
+    const air = getShippingNoteCreateModeFieldsForShipmentType("air");
+    const domestic = getShippingNoteCreateModeFieldsForShipmentType("domestic");
+    const custom = getShippingNoteCreateModeFieldsForShipmentType("custom");
+
+    expect(ocean.routing.map((field) => field.label)).toEqual(["POL", "POD", "Final Destination"]);
+    expect(air.routing.map((field) => field.label)).toEqual(["AOL", "AOD", "Final Destination"]);
+    expect(domestic.routing.map((field) => field.label)).toEqual(["From", "To"]);
+    expect(custom.routing.map((field) => field.label)).toEqual(["From", "To"]);
+  });
+
+  it("keeps routing fields stable when Ocean or Air direction changes", () => {
+    const oceanBeforeDirection = getShippingNoteCreateModeFieldsForShipmentType("ocean");
+    const oceanAfterExport = getShippingNoteCreateModeFieldsForShipmentType("ocean");
+    const oceanAfterImport = getShippingNoteCreateModeFieldsForShipmentType("ocean");
+    const airBeforeDirection = getShippingNoteCreateModeFieldsForShipmentType("air");
+    const airAfterExport = getShippingNoteCreateModeFieldsForShipmentType("air");
+    const airAfterImport = getShippingNoteCreateModeFieldsForShipmentType("air");
+
+    expect(oceanAfterExport.routing).toEqual(oceanBeforeDirection.routing);
+    expect(oceanAfterImport.routing).toEqual(oceanBeforeDirection.routing);
+    expect(airAfterExport.routing).toEqual(airBeforeDirection.routing);
+    expect(airAfterImport.routing).toEqual(airBeforeDirection.routing);
+  });
+
   it("submits explicit C4 Partner IDs while retaining separate legacy text fallback names", () => {
     expect(SHIPPING_NOTE_PARTY_SELECTOR_FIELDS).toEqual([
       { label: "Shipper", partnerFieldName: "shipperPartnerId", textFieldName: "shipperText" },

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   canonicalizeShippingNoteModeFields,
+  getEditShipmentModePresentation,
   getShippingModeFieldRules,
+  getShippingModeFromEditSelection,
   getShippingModePresentation,
   validateShippingNoteModeFields,
 } from "./mode-rules";
@@ -46,6 +48,33 @@ const custom = {
 };
 
 describe("C6 Shipping Note mode rules", () => {
+  it("maps persisted modes to the compact edit family and direction controls", () => {
+    expect(getEditShipmentModePresentation("sea_export")).toEqual({ shipmentFamily: "ocean", direction: "export" });
+    expect(getEditShipmentModePresentation("sea_import")).toEqual({ shipmentFamily: "ocean", direction: "import" });
+    expect(getEditShipmentModePresentation("air_export")).toEqual({ shipmentFamily: "air", direction: "export" });
+    expect(getEditShipmentModePresentation("air_import")).toEqual({ shipmentFamily: "air", direction: "import" });
+    expect(getEditShipmentModePresentation("domestic_truck")).toEqual({ shipmentFamily: "domestic", direction: null });
+    expect(getEditShipmentModePresentation("custom")).toEqual({ shipmentFamily: "custom", direction: null });
+  });
+
+  it("derives the authoritative persisted mode from edit family and direction selections", () => {
+    expect(getShippingModeFromEditSelection("ocean", "export")).toBe("sea_export");
+    expect(getShippingModeFromEditSelection("ocean", "import")).toBe("sea_import");
+    expect(getShippingModeFromEditSelection("air", "export")).toBe("air_export");
+    expect(getShippingModeFromEditSelection("air", "import")).toBe("air_import");
+    expect(getShippingModeFromEditSelection("domestic", null)).toBe("domestic_truck");
+    expect(getShippingModeFromEditSelection("custom", null)).toBe("custom");
+  });
+
+  it("keeps persisted mode mapping truthful across supported edit transitions", () => {
+    expect(getShippingModeFromEditSelection("ocean", "export")).toBe("sea_export"); // Air Export → Ocean Export
+    expect(getShippingModeFromEditSelection("air", "import")).toBe("air_import"); // Ocean Import → Air Import
+    expect(getShippingModeFromEditSelection("domestic", null)).toBe("domestic_truck"); // Air → Domestic
+    expect(getShippingModeFromEditSelection("custom", null)).toBe("custom"); // Domestic → Custom
+    expect(getShippingModeFromEditSelection("ocean", "export")).toBe("sea_export"); // Custom → Ocean
+    expect(getShippingModeFromEditSelection("custom", null)).toBe("custom"); // Ocean → Custom
+  });
+
   it("maps all persisted modes and fails closed for an unknown value", () => {
     expect(getShippingModePresentation("domestic_truck").family).toBe("domestic");
     expect(getShippingModePresentation("air_export").family).toBe("air");

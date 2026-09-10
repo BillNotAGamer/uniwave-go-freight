@@ -1,6 +1,13 @@
 import { type ShippingMode } from "./constants";
 
 export type ShippingModeFamily = "domestic" | "air" | "sea" | "custom";
+export type EditShipmentFamily = "ocean" | "air" | "domestic" | "custom";
+export type ShipmentDirection = "export" | "import";
+
+export type EditShipmentModePresentation = {
+  shipmentFamily: EditShipmentFamily;
+  direction: ShipmentDirection | null;
+};
 
 export type ShippingNoteModeTextField =
   | "domesticOrigin"
@@ -224,6 +231,50 @@ export function getShippingModePresentation(mode: ShippingMode) {
   }
 
   return presentation;
+}
+
+/**
+ * Maps persisted transport modes to the compact, user-facing edit controls.
+ * Persistence continues to use the shipping_mode enum values.
+ */
+export function getEditShipmentModePresentation(
+  mode: ShippingMode,
+): EditShipmentModePresentation {
+  switch (mode) {
+    case "sea_export":
+      return { shipmentFamily: "ocean", direction: "export" };
+    case "sea_import":
+      return { shipmentFamily: "ocean", direction: "import" };
+    case "air_export":
+      return { shipmentFamily: "air", direction: "export" };
+    case "air_import":
+      return { shipmentFamily: "air", direction: "import" };
+    case "domestic_truck":
+      return { shipmentFamily: "domestic", direction: null };
+    case "custom":
+      return { shipmentFamily: "custom", direction: null };
+  }
+}
+
+export function getShippingModeFromEditSelection(
+  shipmentFamily: EditShipmentFamily,
+  direction: ShipmentDirection | null,
+): ShippingMode {
+  if (shipmentFamily === "domestic") {
+    return "domestic_truck";
+  }
+
+  if (shipmentFamily === "custom") {
+    return "custom";
+  }
+
+  const selectedDirection = direction ?? "export";
+
+  if (shipmentFamily === "ocean") {
+    return selectedDirection === "export" ? "sea_export" : "sea_import";
+  }
+
+  return selectedDirection === "export" ? "air_export" : "air_import";
 }
 
 export function getShippingModeFieldRules(mode: ShippingMode): ShippingNoteModeFieldRules {

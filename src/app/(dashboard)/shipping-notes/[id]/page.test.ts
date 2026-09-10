@@ -157,6 +157,14 @@ function findComponentInTree(
   return null;
 }
 
+function collectText(node: unknown): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(collectText).join(" ");
+  if (!React.isValidElement(node)) return "";
+
+  return collectText((node.props as { children?: unknown }).children);
+}
+
 describe("ShippingNoteDetailPage Customs Declarations RBAC", () => {
   const dummyDeclarations = [
     {
@@ -256,5 +264,30 @@ describe("ShippingNoteDetailPage Customs Declarations RBAC", () => {
     expect(panel).not.toBeNull();
     expect(panel?.props.declarations).toEqual(dummyDeclarations);
     expect(panel?.props.canManage).toBe(true);
+  });
+});
+
+describe("ShippingNoteDetailPage Draft edit presentation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getSellingChargesAndSummaryForNoteForUser.mockResolvedValue({ charges: [], summary: { totalAmountVnd: "0.00" } });
+    mocks.listBuyingChargesForNoteForUser.mockResolvedValue([]);
+    mocks.listChargeTaxDetailsForNoteForUser.mockResolvedValue([]);
+    mocks.listTaxRulesForUser.mockResolvedValue([]);
+    mocks.listShippingNoteExportHistoryForUser.mockResolvedValue([]);
+    mocks.listShippingNoteDocumentsForUser.mockResolvedValue([]);
+  });
+
+  it("uses product copy for the Draft editor", async () => {
+    const saleUser = makeUser("sale");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteForUser.mockResolvedValue(makeNote("draft"));
+
+    const jsx = await ShippingNoteDetailPage({ params: Promise.resolve({ id: "note-1" }) });
+    const text = collectText(jsx);
+
+    expect(text).toContain("Edit Shipment");
+    expect(text).toContain("Update shipment details while this shipment is still in Draft.");
+    expect(text).not.toContain("Draft-only edit path");
   });
 });

@@ -2,6 +2,7 @@ import {
   getShippingModeFieldRulesForFamily,
   type ShippingModeFamily,
 } from "../mode-rules";
+import type { ShipmentType } from "./shipping-note-create-intake";
 
 export type CreateField = {
   name: string;
@@ -29,4 +30,26 @@ export function getShippingNoteCreateModeFields(
     routing: rules.routingFields,
     transport: rules.transportFields,
   };
+}
+
+const SHIPPING_MODE_FAMILY_BY_SHIPMENT_TYPE: Record<
+  ShipmentType,
+  ShippingModeFamily
+> = {
+  ocean: "sea",
+  air: "air",
+  domestic: "domestic",
+  custom: "custom",
+};
+
+/**
+ * Create-form visibility is owned by the selected shipment family. Direction
+ * only determines the persisted export/import shipping mode.
+ */
+export function getShippingNoteCreateModeFieldsForShipmentType(
+  shipmentType: ShipmentType,
+): CreateModeFieldModel {
+  return getShippingNoteCreateModeFields(
+    SHIPPING_MODE_FAMILY_BY_SHIPMENT_TYPE[shipmentType],
+  );
 }
