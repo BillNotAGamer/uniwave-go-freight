@@ -27,17 +27,9 @@ import {
   setTemporaryPasswordInputSchema,
   softDeleteUserInputSchema,
 } from "./validators";
+import type { AdminUserActionResult } from "./types";
 
-export type AdminUserActionResult =
-  | { ok: true; message: string }
-  | { ok: false; error: string };
-
-const initialSuccessMessage = "Ready.";
-
-export const adminUserActionInitialState: AdminUserActionResult = {
-  ok: true,
-  message: initialSuccessMessage,
-};
+export type { AdminUserActionResult };
 
 function readFormString(
   formData: Pick<FormData, "get">,

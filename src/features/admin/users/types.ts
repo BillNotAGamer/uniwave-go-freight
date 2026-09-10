@@ -61,3 +61,13 @@ export const ADMIN_USER_OPERATION_TYPES = [
 
 export type AdminUserOperationType =
   (typeof ADMIN_USER_OPERATION_TYPES)[number];
+
+export type AdminUserActionResult =
+  | { ok: true; message: string }
+  | { ok: false; error: string };
+
+export const adminUserActionInitialState: AdminUserActionResult = {
+  ok: true,
+  message: "Ready.",
+};
+
