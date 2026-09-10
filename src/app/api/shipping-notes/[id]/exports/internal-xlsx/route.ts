@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getCurrentSession } from "@/lib/auth/session";
+import { ArtifactStorageError } from "@/lib/artifact-storage/errors";
 import { AuthorizationError } from "@/lib/permissions/require-permission";
+import { persistGeneratedExportArtifact } from "@/features/shipping-notes/export/artifacts";
 import { getInternalShippingNoteExportDataForUser } from "@/features/shipping-notes/export/queries";
 import {
   buildInternalXlsxFileName,
   generateInternalShippingNoteXlsx,
 } from "@/features/shipping-notes/export/generator";
+import {
+  buildContentDisposition,
+  isSameOriginRequestMetadata,
+} from "@/features/shipping-notes/export/http";
 import {
   createPendingInternalXlsxExportRecord,
   markInternalXlsxExportFailed,
@@ -50,23 +56,24 @@ function jsonError(code: ExportErrorCode, status: number): NextResponse {
 }
 
 function isSameOriginRequest(request: NextRequest): boolean {
-  const originHeader = request.headers.get("origin");
-  const secFetchSite = request.headers.get("sec-fetch-site");
-
-  if (originHeader) {
-    try {
-      return new URL(originHeader).origin === request.nextUrl.origin;
-    } catch {
-      return false;
-    }
-  }
-
-  return secFetchSite === "same-origin" || secFetchSite === "none";
+  return isSameOriginRequestMetadata({
+    requestOrigin: request.nextUrl.origin,
+    originHeader: request.headers.get("origin"),
+    secFetchSite: request.headers.get("sec-fetch-site"),
+  });
 }
 
 function toExportError(error: unknown): ExportError {
   if (error instanceof ExportError) {
     return error;
+  }
+
+  if (error instanceof ArtifactStorageError) {
+    return new ExportError(
+      error.code,
+      500,
+      "Internal XLSX artifact storage failed.",
+    );
   }
 
   if (error instanceof AuthorizationError) {
@@ -79,7 +86,7 @@ function toExportError(error: unknown): ExportError {
 
   if (
     error instanceof Error &&
-    error.message.includes("checked' status")
+    error.message.includes("to be exported")
   ) {
     return new ExportError(
       EXPORT_ERROR_CODES.STATUS_NOT_ELIGIBLE,
@@ -93,11 +100,6 @@ function toExportError(error: unknown): ExportError {
     500,
     "Internal XLSX export failed.",
   );
-}
-
-function buildContentDisposition(fileName: string): string {
-  const fallbackName = fileName.replace(/[^\x20-\x7E]/g, "_").replace(/"/g, "_");
-  return `attachment; filename="${fallbackName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
 
 export async function POST(
@@ -147,11 +149,21 @@ export async function POST(
       exportData,
       generatedAt,
     );
+    const storedArtifact = await persistGeneratedExportArtifact({
+      exportId: exportRecord.id,
+      exportType: "excel",
+      bytes: generated.buffer,
+      mimeType: INTERNAL_XLSX_MIME_TYPE,
+      checksumSha256: generated.checksumSha256,
+    });
 
     await markInternalXlsxExportGenerated({
       exportId: exportRecord.id,
       fileName: generated.fileName,
       checksumSha256: generated.checksumSha256,
+      artifactStorageKey: storedArtifact.artifactStorageKey,
+      artifactSizeBytes: storedArtifact.artifactSizeBytes,
+      artifactMimeType: storedArtifact.artifactMimeType,
       sellingChargeCount: exportData.summary.sellingChargeCount,
       buyingChargeCount: exportData.summary.buyingChargeCount,
       generatedAt,

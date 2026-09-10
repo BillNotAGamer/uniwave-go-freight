@@ -8,7 +8,7 @@ type AuditWriteDb = Pick<Database, "insert">;
 type AuditSnapshot = Record<string, unknown> | null;
 
 export type AuditLogInput = {
-  actorUserId: string;
+  actorUserId?: string | null;
   action: string;
   entityType: string;
   entityId: string;
@@ -30,7 +30,7 @@ export async function logAuditEvent(
   input: AuditLogInput,
 ): Promise<void> {
   await db.insert(auditLogs).values({
-    actorUserId: input.actorUserId,
+    actorUserId: input.actorUserId ?? null,
     action: input.action,
     entityType: input.entityType,
     entityId: input.entityId,

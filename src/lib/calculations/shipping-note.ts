@@ -66,6 +66,8 @@ export function summarizeFinancialCharges(
 ): FinancialSummary {
   const sellingVndValues: string[] = [];
   const buyingVndValues: string[] = [];
+  const sellingVatValues: string[] = [];
+  const buyingVatValues: string[] = [];
   const sellingOriginalValuesByCurrency = createCurrencyBuckets();
   const buyingOriginalValuesByCurrency = createCurrencyBuckets();
 
@@ -76,17 +78,21 @@ export function summarizeFinancialCharges(
     if (charge.section === "selling") {
       sellingChargeCount += 1;
       sellingVndValues.push(charge.amountVnd);
+      sellingVatValues.push(charge.vatAmount ?? "0.00");
       sellingOriginalValuesByCurrency[charge.currency].push(charge.amountOriginal);
       continue;
     }
 
     buyingChargeCount += 1;
     buyingVndValues.push(charge.amountVnd);
+    buyingVatValues.push(charge.vatAmount ?? "0.00");
     buyingOriginalValuesByCurrency[charge.currency].push(charge.amountOriginal);
   }
 
   const totalSellingVnd = addDecimalStrings(sellingVndValues, 2);
   const totalBuyingVnd = addDecimalStrings(buyingVndValues, 2);
+  const sellingVatVnd = addDecimalStrings(sellingVatValues, 2);
+  const buyingVatVnd = addDecimalStrings(buyingVatValues, 2);
 
   return {
     sellingChargeCount,
@@ -94,6 +100,13 @@ export function summarizeFinancialCharges(
     totalSellingVnd,
     totalBuyingVnd,
     grossProfitVnd: subtractDecimalStrings(totalSellingVnd, totalBuyingVnd, 2),
+    sellingSubtotalExcludingVatVnd: totalSellingVnd,
+    sellingVatVnd,
+    sellingTotalIncludingVatVnd: addDecimalStrings([totalSellingVnd, sellingVatVnd], 2),
+    buyingSubtotalExcludingVatVnd: totalBuyingVnd,
+    buyingVatVnd,
+    buyingTotalIncludingVatVnd: addDecimalStrings([totalBuyingVnd, buyingVatVnd], 2),
+    grossProfitExcludingVatVnd: subtractDecimalStrings(totalSellingVnd, totalBuyingVnd, 2),
     sellingTotalsByCurrency: buildCurrencyTotals(sellingOriginalValuesByCurrency),
     buyingTotalsByCurrency: buildCurrencyTotals(buyingOriginalValuesByCurrency),
   };

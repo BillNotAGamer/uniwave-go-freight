@@ -5,7 +5,9 @@ import { requireAuthenticatedUser } from "@/lib/auth/session";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions/permissions";
 
 import { createShippingNoteDraftAction } from "@/features/shipping-notes/actions";
-import { ShippingNoteDraftForm } from "@/features/shipping-notes/components/shipping-note-draft-form";
+import { ShippingNoteCreateForm } from "@/features/shipping-notes/components/shipping-note-create-form";
+import { PageContainer } from "@/components/shell/page-container";
+import { PageHeader } from "@/components/shell/page-header";
 
 export default async function NewShippingNotePage() {
   const { user } = await requireAuthenticatedUser();
@@ -15,30 +17,22 @@ export default async function NewShippingNotePage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 px-6 py-10 text-slate-900">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 rounded-lg border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-            Shipping Notes
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            New shipping note draft
-          </h1>
-          <p className="text-sm leading-6 text-slate-600">
-            Draft creation is limited to sale/admin roles. Accounting fields are
-            intentionally unavailable here.
-          </p>
-        </div>
-
-        <ShippingNoteDraftForm action={createShippingNoteDraftAction} submitLabel="Save Draft" />
-
+    <PageContainer>
+      <PageHeader
+        title="Create Shipping Note"
+        description="Create a compact operational draft. Accounting fields remain unavailable here."
+      >
         <Link
-          className="text-sm text-slate-600 underline-offset-4 hover:underline"
+          className="text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline px-2"
           href="/shipping-notes"
         >
           Back to list
         </Link>
+      </PageHeader>
+
+      <div className="flex w-full flex-col rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5">
+        <ShippingNoteCreateForm action={createShippingNoteDraftAction} />
       </div>
-    </main>
+    </PageContainer>
   );
 }

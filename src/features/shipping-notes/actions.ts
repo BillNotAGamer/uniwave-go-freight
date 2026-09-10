@@ -4,14 +4,27 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireAuthenticatedUser } from "@/lib/auth/session";
-
+import { searchPartners } from "@/features/partners/queries";
 import {
+  searchServiceCatalogItems,
+  SERVICE_CATALOG_LOOKUP_LIMIT,
+} from "@/features/service-catalog/queries";
+import type { ServiceCatalogLookupItem } from "@/features/service-catalog/types";
+
+import { readFormString } from "./form-data";
+import {
+  approveShippingNote,
+  cancelFinalizedShippingNote,
+  cancelShippingNote,
   createBuyingChargeForNote,
   createShippingNoteDraft,
+  lockShippingNote,
   markShippingNoteChecked,
+  reopenShippingNoteForCorrection,
   softDeleteBuyingCharge,
   startAccountingReview,
   submitShippingNote,
+  unlockShippingNote,
   updateBuyingCharge,
   updateShippingNoteDraft,
   createSellingChargeForNote,
@@ -19,14 +32,21 @@ import {
   softDeleteSellingCharge,
 } from "./mutations";
 import {
+  approveShippingNoteInputSchema,
+  cancelFinalizedShippingNoteInputSchema,
+  cancelShippingNoteInputSchema,
   createBuyingChargeInputSchema,
   createShippingNoteDraftInputSchema,
+  partnerLookupSearchSchema,
   deleteBuyingChargeInputSchema,
   createSellingChargeInputSchema,
+  lockShippingNoteInputSchema,
   markShippingNoteCheckedInputSchema,
+  reopenShippingNoteForCorrectionInputSchema,
   deleteSellingChargeInputSchema,
   startAccountingReviewInputSchema,
   submitShippingNoteInputSchema,
+  unlockShippingNoteInputSchema,
   updateBuyingChargeInputSchema,
   updateShippingNoteDraftInputSchema,
   updateSellingChargeInputSchema,
@@ -37,9 +57,58 @@ export type ShippingNoteActionResult =
   | { ok: true }
   | { ok: false; error: string };
 
-function readString(formData: FormData, key: string): string | undefined {
-  const value = formData.get(key);
-  return typeof value === "string" ? value : undefined;
+export type ShippingNotePartnerLookupResult = {
+  id: string;
+  companyName: string;
+  vendorCode: string | null;
+  categoryNames: string[];
+};
+
+export type ShippingNoteServiceCatalogLookupResult = ServiceCatalogLookupItem;
+
+/**
+ * Safe, authenticated Partner lookup for Shipping Note party selection.
+ * The underlying Partner query owns authorization and active/deleted filtering.
+ */
+export async function searchShippingNotePartnersAction(
+  searchTerm: string,
+): Promise<ShippingNotePartnerLookupResult[]> {
+  const session = await requireAuthenticatedUser();
+  const parsed = partnerLookupSearchSchema.safeParse(searchTerm);
+
+  if (!parsed.success) {
+    return [];
+  }
+
+  const partners = await searchPartners(parsed.data, session.user, {
+    activeOnly: true,
+    limit: 12,
+  });
+
+  return partners.map((partner) => ({
+    id: partner.id,
+    companyName: partner.companyName,
+    vendorCode: partner.vendorCode,
+    categoryNames: partner.categories.map((category) => category.name),
+  }));
+}
+
+/** Authenticated, authorized and bounded lookup for charge catalog selection. */
+export async function searchShippingNoteServiceCatalogAction(
+  searchTerm: string,
+): Promise<ShippingNoteServiceCatalogLookupResult[]> {
+  const session = await requireAuthenticatedUser();
+  const parsed = partnerLookupSearchSchema.safeParse(searchTerm);
+
+  if (!parsed.success) {
+    return [];
+  }
+
+  return searchServiceCatalogItems(
+    parsed.data,
+    session.user,
+    SERVICE_CATALOG_LOOKUP_LIMIT,
+  );
 }
 
 function parseBooleanishError(error: unknown): string {
@@ -57,21 +126,38 @@ export async function createShippingNoteDraftAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = createShippingNoteDraftInputSchema.safeParse({
-    jobsheetNo: readString(formData, "jobsheetNo"),
-    shippingMode: readString(formData, "shippingMode"),
-    mawbHawbNo: readString(formData, "mawbHawbNo"),
-    shipperText: readString(formData, "shipperText"),
-    consigneeText: readString(formData, "consigneeText"),
-    customerText: readString(formData, "customerText"),
-    agentText: readString(formData, "agentText"),
-    aol: readString(formData, "aol"),
-    aod: readString(formData, "aod"),
-    finalDestination: readString(formData, "finalDestination"),
-    etd: readString(formData, "etd"),
-    eta: readString(formData, "eta"),
-    volumeValue: readString(formData, "volumeValue"),
-    volumeUnit: readString(formData, "volumeUnit"),
-    exchangeRate: readString(formData, "exchangeRate"),
+    jobsheetNo: readFormString(formData, "jobsheetNo"),
+    shippingMode: readFormString(formData, "shippingMode"),
+    shipperPartnerId: readFormString(formData, "shipperPartnerId"),
+    consigneePartnerId: readFormString(formData, "consigneePartnerId"),
+    customerPartnerId: readFormString(formData, "customerPartnerId"),
+    agentPartnerId: readFormString(formData, "agentPartnerId"),
+    mawbHawbNo: readFormString(formData, "mawbHawbNo"),
+    shipperText: readFormString(formData, "shipperText"),
+    consigneeText: readFormString(formData, "consigneeText"),
+    customerText: readFormString(formData, "customerText"),
+    agentText: readFormString(formData, "agentText"),
+    domesticOrigin: readFormString(formData, "domesticOrigin"),
+    domesticDestination: readFormString(formData, "domesticDestination"),
+    airOrigin: readFormString(formData, "airOrigin"),
+    airDestination: readFormString(formData, "airDestination"),
+    aol: readFormString(formData, "aol"),
+    aod: readFormString(formData, "aod"),
+    portOfLoading: readFormString(formData, "portOfLoading"),
+    portOfDischarge: readFormString(formData, "portOfDischarge"),
+    finalDestination: readFormString(formData, "finalDestination"),
+    mawbNo: readFormString(formData, "mawbNo"),
+    hawbNo: readFormString(formData, "hawbNo"),
+    mblNo: readFormString(formData, "mblNo"),
+    hblNo: readFormString(formData, "hblNo"),
+    flightNo: readFormString(formData, "flightNo"),
+    vesselName: readFormString(formData, "vesselName"),
+    voyageNo: readFormString(formData, "voyageNo"),
+    etd: readFormString(formData, "etd"),
+    eta: readFormString(formData, "eta"),
+    volumeValue: readFormString(formData, "volumeValue"),
+    volumeUnit: readFormString(formData, "volumeUnit"),
+    exchangeRate: readFormString(formData, "exchangeRate"),
   });
 
   if (!parsed.success) {
@@ -102,22 +188,39 @@ export async function updateShippingNoteDraftAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = updateShippingNoteDraftInputSchema.safeParse({
-    id: readString(formData, "id"),
-    jobsheetNo: readString(formData, "jobsheetNo"),
-    shippingMode: readString(formData, "shippingMode"),
-    mawbHawbNo: readString(formData, "mawbHawbNo"),
-    shipperText: readString(formData, "shipperText"),
-    consigneeText: readString(formData, "consigneeText"),
-    customerText: readString(formData, "customerText"),
-    agentText: readString(formData, "agentText"),
-    aol: readString(formData, "aol"),
-    aod: readString(formData, "aod"),
-    finalDestination: readString(formData, "finalDestination"),
-    etd: readString(formData, "etd"),
-    eta: readString(formData, "eta"),
-    volumeValue: readString(formData, "volumeValue"),
-    volumeUnit: readString(formData, "volumeUnit"),
-    exchangeRate: readString(formData, "exchangeRate"),
+    id: readFormString(formData, "id"),
+    jobsheetNo: readFormString(formData, "jobsheetNo"),
+    shippingMode: readFormString(formData, "shippingMode"),
+    shipperPartnerId: readFormString(formData, "shipperPartnerId"),
+    consigneePartnerId: readFormString(formData, "consigneePartnerId"),
+    customerPartnerId: readFormString(formData, "customerPartnerId"),
+    agentPartnerId: readFormString(formData, "agentPartnerId"),
+    mawbHawbNo: readFormString(formData, "mawbHawbNo"),
+    shipperText: readFormString(formData, "shipperText"),
+    consigneeText: readFormString(formData, "consigneeText"),
+    customerText: readFormString(formData, "customerText"),
+    agentText: readFormString(formData, "agentText"),
+    domesticOrigin: readFormString(formData, "domesticOrigin"),
+    domesticDestination: readFormString(formData, "domesticDestination"),
+    airOrigin: readFormString(formData, "airOrigin"),
+    airDestination: readFormString(formData, "airDestination"),
+    aol: readFormString(formData, "aol"),
+    aod: readFormString(formData, "aod"),
+    portOfLoading: readFormString(formData, "portOfLoading"),
+    portOfDischarge: readFormString(formData, "portOfDischarge"),
+    finalDestination: readFormString(formData, "finalDestination"),
+    mawbNo: readFormString(formData, "mawbNo"),
+    hawbNo: readFormString(formData, "hawbNo"),
+    mblNo: readFormString(formData, "mblNo"),
+    hblNo: readFormString(formData, "hblNo"),
+    flightNo: readFormString(formData, "flightNo"),
+    vesselName: readFormString(formData, "vesselName"),
+    voyageNo: readFormString(formData, "voyageNo"),
+    etd: readFormString(formData, "etd"),
+    eta: readFormString(formData, "eta"),
+    volumeValue: readFormString(formData, "volumeValue"),
+    volumeUnit: readFormString(formData, "volumeUnit"),
+    exchangeRate: readFormString(formData, "exchangeRate"),
   });
 
   if (!parsed.success) {
@@ -148,7 +251,7 @@ export async function submitShippingNoteAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = submitShippingNoteInputSchema.safeParse({
-    id: readString(formData, "id"),
+    id: readFormString(formData, "id"),
   });
 
   if (!parsed.success) {
@@ -179,7 +282,7 @@ export async function startAccountingReviewAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = startAccountingReviewInputSchema.safeParse({
-    id: readString(formData, "id"),
+    id: readFormString(formData, "id"),
   });
 
   if (!parsed.success) {
@@ -211,7 +314,7 @@ export async function markShippingNoteCheckedAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = markShippingNoteCheckedInputSchema.safeParse({
-    id: readString(formData, "id"),
+    id: readFormString(formData, "id"),
   });
 
   if (!parsed.success) {
@@ -236,6 +339,224 @@ export async function markShippingNoteCheckedAction(
   return { ok: true };
 }
 
+export async function approveShippingNoteAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = approveShippingNoteInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid shipping note selection.",
+    };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await approveShippingNote(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  return { ok: true };
+}
+
+export async function lockShippingNoteAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = lockShippingNoteInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+    lockReason: readFormString(formData, "lockReason"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid shipping note selection.",
+    };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await lockShippingNote(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  return { ok: true };
+}
+
+export const closeShippingNoteAction = lockShippingNoteAction;
+
+export async function unlockShippingNoteAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = unlockShippingNoteInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+    unlockReason: readFormString(formData, "unlockReason"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid unlock reason.",
+    };
+  }
+
+  if (readFormString(formData, "unlockConfirmation") !== "confirmed") {
+    return { ok: false, error: "Unlock confirmation is required." };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await unlockShippingNote(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  return { ok: true };
+}
+
+export async function cancelShippingNoteAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = cancelShippingNoteInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+    expectedStatus: readFormString(formData, "expectedStatus"),
+    cancelReason: readFormString(formData, "cancelReason"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid cancellation request.",
+    };
+  }
+
+  if (readFormString(formData, "cancelConfirmation") !== "confirmed") {
+    return { ok: false, error: "Cancellation confirmation is required." };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await cancelShippingNote(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  return { ok: true };
+}
+
+export async function cancelFinalizedShippingNoteAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = cancelFinalizedShippingNoteInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+    expectedStatus: readFormString(formData, "expectedStatus"),
+    cancelReason: readFormString(formData, "cancelReason"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid cancellation request.",
+    };
+  }
+
+  if (readFormString(formData, "cancelConfirmation") !== "confirmed") {
+    return { ok: false, error: "Cancellation confirmation is required." };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await cancelFinalizedShippingNote(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  return { ok: true };
+}
+
+export async function reopenShippingNoteForCorrectionAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+
+  const parsed = reopenShippingNoteForCorrectionInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+    expectedStatus: readFormString(formData, "expectedStatus"),
+    reason: readFormString(formData, "reason"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid correction request.",
+    };
+  }
+
+  if (readFormString(formData, "reopenConfirmation") !== "confirmed") {
+    return { ok: false, error: "Correction confirmation is required." };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await reopenShippingNoteForCorrection(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------------------
 // Selling charge actions
 // ---------------------------------------------------------------------------
@@ -247,14 +568,15 @@ export async function createSellingChargeAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = createSellingChargeInputSchema.safeParse({
-    shippingNoteId: readString(formData, "shippingNoteId"),
-    chargeName: readString(formData, "chargeName"),
-    description: readString(formData, "description"),
-    quantity: readString(formData, "quantity"),
-    unit: readString(formData, "unit"),
-    unitPrice: readString(formData, "unitPrice"),
-    currency: readString(formData, "currency"),
-    exchangeRate: readString(formData, "exchangeRate"),
+    shippingNoteId: readFormString(formData, "shippingNoteId"),
+    serviceCatalogItemId: readFormString(formData, "serviceCatalogItemId"),
+    chargeName: readFormString(formData, "chargeName"),
+    description: readFormString(formData, "description"),
+    quantity: readFormString(formData, "quantity"),
+    unit: readFormString(formData, "unit"),
+    unitPrice: readFormString(formData, "unitPrice"),
+    currency: readFormString(formData, "currency"),
+    exchangeRate: readFormString(formData, "exchangeRate"),
   });
 
   if (!parsed.success) {
@@ -281,14 +603,15 @@ export async function updateSellingChargeAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = updateSellingChargeInputSchema.safeParse({
-    id: readString(formData, "id"),
-    chargeName: readString(formData, "chargeName"),
-    description: readString(formData, "description"),
-    quantity: readString(formData, "quantity"),
-    unit: readString(formData, "unit"),
-    unitPrice: readString(formData, "unitPrice"),
-    currency: readString(formData, "currency"),
-    exchangeRate: readString(formData, "exchangeRate"),
+    id: readFormString(formData, "id"),
+    serviceCatalogItemId: readFormString(formData, "serviceCatalogItemId"),
+    chargeName: readFormString(formData, "chargeName"),
+    description: readFormString(formData, "description"),
+    quantity: readFormString(formData, "quantity"),
+    unit: readFormString(formData, "unit"),
+    unitPrice: readFormString(formData, "unitPrice"),
+    currency: readFormString(formData, "currency"),
+    exchangeRate: readFormString(formData, "exchangeRate"),
   });
 
   if (!parsed.success) {
@@ -298,7 +621,7 @@ export async function updateSellingChargeAction(
     };
   }
 
-  const shippingNoteId = readString(formData, "shippingNoteId") ?? "";
+  const shippingNoteId = readFormString(formData, "shippingNoteId") ?? "";
 
   try {
     await updateSellingCharge(parsed.data, session.user);
@@ -317,8 +640,8 @@ export async function softDeleteSellingChargeAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = deleteSellingChargeInputSchema.safeParse({
-    id: readString(formData, "id"),
-    shippingNoteId: readString(formData, "shippingNoteId"),
+    id: readFormString(formData, "id"),
+    shippingNoteId: readFormString(formData, "shippingNoteId"),
   });
 
   if (!parsed.success) {
@@ -345,15 +668,16 @@ export async function createBuyingChargeAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = createBuyingChargeInputSchema.safeParse({
-    shippingNoteId: readString(formData, "shippingNoteId"),
-    chargeName: readString(formData, "chargeName"),
-    description: readString(formData, "description"),
-    quantity: readString(formData, "quantity"),
-    unit: readString(formData, "unit"),
-    unitPrice: readString(formData, "unitPrice"),
-    currency: readString(formData, "currency"),
-    exchangeRate: readString(formData, "exchangeRate"),
-    vendorOrAgentText: readString(formData, "vendorOrAgentText"),
+    shippingNoteId: readFormString(formData, "shippingNoteId"),
+    serviceCatalogItemId: readFormString(formData, "serviceCatalogItemId"),
+    chargeName: readFormString(formData, "chargeName"),
+    description: readFormString(formData, "description"),
+    quantity: readFormString(formData, "quantity"),
+    unit: readFormString(formData, "unit"),
+    unitPrice: readFormString(formData, "unitPrice"),
+    currency: readFormString(formData, "currency"),
+    exchangeRate: readFormString(formData, "exchangeRate"),
+    vendorOrAgentText: readFormString(formData, "vendorOrAgentText"),
   });
 
   if (!parsed.success) {
@@ -387,15 +711,16 @@ export async function updateBuyingChargeAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = updateBuyingChargeInputSchema.safeParse({
-    id: readString(formData, "id"),
-    chargeName: readString(formData, "chargeName"),
-    description: readString(formData, "description"),
-    quantity: readString(formData, "quantity"),
-    unit: readString(formData, "unit"),
-    unitPrice: readString(formData, "unitPrice"),
-    currency: readString(formData, "currency"),
-    exchangeRate: readString(formData, "exchangeRate"),
-    vendorOrAgentText: readString(formData, "vendorOrAgentText"),
+    id: readFormString(formData, "id"),
+    serviceCatalogItemId: readFormString(formData, "serviceCatalogItemId"),
+    chargeName: readFormString(formData, "chargeName"),
+    description: readFormString(formData, "description"),
+    quantity: readFormString(formData, "quantity"),
+    unit: readFormString(formData, "unit"),
+    unitPrice: readFormString(formData, "unitPrice"),
+    currency: readFormString(formData, "currency"),
+    exchangeRate: readFormString(formData, "exchangeRate"),
+    vendorOrAgentText: readFormString(formData, "vendorOrAgentText"),
   });
 
   if (!parsed.success) {
@@ -425,7 +750,7 @@ export async function softDeleteBuyingChargeAction(
   const session = await requireAuthenticatedUser();
 
   const parsed = deleteBuyingChargeInputSchema.safeParse({
-    id: readString(formData, "id"),
+    id: readFormString(formData, "id"),
   });
 
   if (!parsed.success) {
@@ -446,3 +771,4 @@ export async function softDeleteBuyingChargeAction(
   revalidatePath(`/shipping-notes/${shippingNoteId}`);
   return { ok: true };
 }
+

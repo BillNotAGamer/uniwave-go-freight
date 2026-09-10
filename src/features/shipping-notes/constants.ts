@@ -28,3 +28,15 @@ export type ShippingNoteStatus = (typeof SHIPPING_NOTE_STATUSES)[number];
 export const CURRENCY_CODES = ["VND", "USD"] as const;
 
 export type CurrencyCode = (typeof CURRENCY_CODES)[number];
+
+export const TAX_TREATMENTS = [
+  "taxable",
+  "zero_rated",
+  "non_taxable",
+] as const;
+
+export type TaxTreatment = (typeof TAX_TREATMENTS)[number];
+
+export const CHARGE_SECTIONS = ["selling", "buying"] as const;
+
+export type ChargeSection = (typeof CHARGE_SECTIONS)[number];

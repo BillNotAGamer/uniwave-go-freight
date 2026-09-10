@@ -1,11 +1,12 @@
 import { requireAuthenticatedUser } from "@/lib/auth/session";
+import { AppShell } from "@/components/shell/app-shell";
 
 export default async function DashboardLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  await requireAuthenticatedUser();
+  const session = await requireAuthenticatedUser();
 
-  return children;
+  return <AppShell session={session}>{children}</AppShell>;
 }

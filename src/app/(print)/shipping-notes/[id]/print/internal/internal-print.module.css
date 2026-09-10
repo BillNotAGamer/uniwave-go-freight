@@ -95,7 +95,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .table th,
@@ -134,7 +134,7 @@
 
 .totals {
   margin-left: auto;
-  width: min(100%, 360px);
+  width: min(100%, 440px);
   border: 1px solid #0f172a;
   border-bottom: 0;
   break-inside: avoid;

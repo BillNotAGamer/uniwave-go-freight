@@ -1,9 +1,11 @@
-import type { CurrencyCode, ShippingMode, VolumeUnit } from "../constants";
-
-export type InternalExportCurrencyTotal = {
-  currency: CurrencyCode;
-  amountOriginal: string;
-};
+import type {
+  CurrencyCode,
+  ShippingMode,
+  ShippingNoteStatus,
+  TaxTreatment,
+  VolumeUnit,
+} from "../constants";
+import type { FinancialSummary } from "../types";
 
 export type InternalExportCharge = {
   chargeName: string;
@@ -15,6 +17,14 @@ export type InternalExportCharge = {
   exchangeRate: string;
   amountOriginal: string;
   amountVnd: string;
+  taxRuleCodeSnapshot: string | null;
+  taxRuleNameSnapshot: string | null;
+  taxTreatmentSnapshot: TaxTreatment | null;
+  vatPercent: string;
+  vatAmount: string;
+  totalIncludingVatVnd: string;
+  isOverride: boolean;
+  overrideReason: string | null;
 };
 
 export type InternalExportBuyingCharge = InternalExportCharge & {
@@ -39,17 +49,9 @@ export type InternalShippingNoteExportDto = {
     volumeValue: string | null;
     volumeUnit: VolumeUnit | null;
     exchangeRate: string;
-    status: "checked";
+    status: Extract<ShippingNoteStatus, "checked" | "approved" | "locked">;
   };
   sellingCharges: InternalExportCharge[];
   buyingCharges: InternalExportBuyingCharge[];
-  summary: {
-    sellingChargeCount: number;
-    buyingChargeCount: number;
-    totalSellingVnd: string;
-    totalBuyingVnd: string;
-    grossProfitVnd: string;
-    sellingTotalsByCurrency: InternalExportCurrencyTotal[];
-    buyingTotalsByCurrency: InternalExportCurrencyTotal[];
-  };
+  summary: FinancialSummary;
 };

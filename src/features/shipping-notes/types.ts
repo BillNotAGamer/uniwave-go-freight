@@ -18,12 +18,30 @@ export type ShippingNoteListItem = {
 };
 
 export type ShippingNoteDetail = ShippingNoteListItem & {
+  shipperPartnerId: string | null;
+  consigneePartnerId: string | null;
+  customerPartnerId: string | null;
+  agentPartnerId: string | null;
   mawbHawbNo: string | null;
   customerText: string | null;
   agentText: string | null;
+  domesticOrigin: string | null;
+  domesticDestination: string | null;
+  airOrigin: string | null;
+  airDestination: string | null;
+  /** Legacy aliases retained while existing callers still use AOL/AOD. */
   aol: string | null;
   aod: string | null;
+  portOfLoading: string | null;
+  portOfDischarge: string | null;
   finalDestination: string | null;
+  mawbNo: string | null;
+  hawbNo: string | null;
+  mblNo: string | null;
+  hblNo: string | null;
+  flightNo: string | null;
+  vesselName: string | null;
+  voyageNo: string | null;
   etd: Date | null;
   eta: Date | null;
   volumeValue: string | null;
@@ -35,6 +53,12 @@ export type ShippingNoteDetail = ShippingNoteListItem & {
 };
 
 export type ShippingNoteActor = Pick<User, "id" | "role">;
+
+export type ShippingNoteCancellationMetadata = {
+  cancelledById: string | null;
+  cancelledAt: Date | null;
+  cancelReason: string | null;
+};
 
 /** Safe selling charge fields returned by queries. */
 export type SellingChargeDetail = {
@@ -49,6 +73,11 @@ export type SellingChargeDetail = {
   exchangeRate: string;
   amountOriginal: string;
   amountVnd: string;
+  serviceCatalogItemId: string | null;
+  catalogCodeSnapshot: string | null;
+  catalogNameSnapshot: string | null;
+  catalogUnitSnapshot: string | null;
+  catalogVatRateSnapshot: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -66,6 +95,11 @@ export type BuyingChargeDetail = {
   exchangeRate: string;
   amountOriginal: string;
   amountVnd: string;
+  serviceCatalogItemId: string | null;
+  catalogCodeSnapshot: string | null;
+  catalogNameSnapshot: string | null;
+  catalogUnitSnapshot: string | null;
+  catalogVatRateSnapshot: string | null;
   vendorOrAgentText: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -102,6 +136,7 @@ export type FinancialSummaryChargeRow = {
   currency: CurrencyCode;
   amountOriginal: string;
   amountVnd: string;
+  vatAmount?: string;
 };
 
 export type FinancialSummary = {
@@ -110,6 +145,13 @@ export type FinancialSummary = {
   totalSellingVnd: string;
   totalBuyingVnd: string;
   grossProfitVnd: string;
+  sellingSubtotalExcludingVatVnd: string;
+  sellingVatVnd: string;
+  sellingTotalIncludingVatVnd: string;
+  buyingSubtotalExcludingVatVnd: string;
+  buyingVatVnd: string;
+  buyingTotalIncludingVatVnd: string;
+  grossProfitExcludingVatVnd: string;
   sellingTotalsByCurrency: FinancialCurrencyTotal[];
   buyingTotalsByCurrency: FinancialCurrencyTotal[];
 };

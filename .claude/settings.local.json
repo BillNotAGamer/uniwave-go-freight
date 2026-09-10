@@ -1,0 +1,32 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8787",
+    "ENABLE_TOOL_SEARCH": "true"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "c:/users/admin/.local/bin/headroom.EXE init hook ensure --profile init-uniwave-go-freight-b66c521c --marker headroom-init-claude",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "c:/users/admin/.local/bin/headroom.EXE init hook ensure --profile init-uniwave-go-freight-b66c521c --marker headroom-init-claude",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -9,6 +9,10 @@ import {
   SHIPPING_MODES,
   VOLUME_UNITS,
 } from "./constants";
+import {
+  canonicalizeShippingNoteModeFields,
+  validateShippingNoteModeFields,
+} from "./mode-rules";
 
 function optionalTrimmedText() {
   return z.preprocess((value) => {
@@ -30,6 +34,17 @@ function optionalTrimmedTextWithMax(maxLength: number) {
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : undefined;
   }, z.string().trim().min(1).max(maxLength));
+}
+
+function optionalWorkflowReason() {
+  return z.preprocess((value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }, z.string().min(1).optional());
 }
 
 function optionalDatetime() {
@@ -126,17 +141,34 @@ function normalizeJobsheetNo(value: string): string {
 
 const shippingModeSchema = z.enum(SHIPPING_MODES);
 const volumeUnitSchema = z.enum(VOLUME_UNITS);
-export const shippingNoteDraftInputSchema = z.object({
+const shippingNoteDraftBaseInputSchema = z.object({
   jobsheetNo: z.string().trim().min(1).transform(normalizeJobsheetNo),
   shippingMode: shippingModeSchema,
+  shipperPartnerId: optionalTrimmedText().optional(),
+  consigneePartnerId: optionalTrimmedText().optional(),
+  customerPartnerId: optionalTrimmedText().optional(),
+  agentPartnerId: optionalTrimmedText().optional(),
   mawbHawbNo: optionalTrimmedText().optional(),
   shipperText: optionalTrimmedText().optional(),
   consigneeText: optionalTrimmedText().optional(),
   customerText: optionalTrimmedText().optional(),
   agentText: optionalTrimmedText().optional(),
+  domesticOrigin: optionalTrimmedText().optional(),
+  domesticDestination: optionalTrimmedText().optional(),
+  airOrigin: optionalTrimmedText().optional(),
+  airDestination: optionalTrimmedText().optional(),
   aol: optionalTrimmedText().optional(),
   aod: optionalTrimmedText().optional(),
+  portOfLoading: optionalTrimmedText().optional(),
+  portOfDischarge: optionalTrimmedText().optional(),
   finalDestination: optionalTrimmedText().optional(),
+  mawbNo: optionalTrimmedText().optional(),
+  hawbNo: optionalTrimmedText().optional(),
+  mblNo: optionalTrimmedText().optional(),
+  hblNo: optionalTrimmedText().optional(),
+  flightNo: optionalTrimmedText().optional(),
+  vesselName: optionalTrimmedText().optional(),
+  voyageNo: optionalTrimmedText().optional(),
   etd: optionalDatetime().optional(),
   eta: optionalDatetime().optional(),
   volumeValue: optionalPositiveNumber().optional(),
@@ -144,12 +176,32 @@ export const shippingNoteDraftInputSchema = z.object({
   exchangeRate: optionalPositiveNumber().optional(),
 });
 
+export const shippingNoteDraftInputSchema = shippingNoteDraftBaseInputSchema
+  .superRefine((input, ctx) => {
+    for (const issue of validateShippingNoteModeFields(
+      canonicalizeShippingNoteModeFields(input),
+    )) {
+      ctx.addIssue({ code: "custom", path: [issue.path], message: issue.message });
+    }
+  })
+  .transform(canonicalizeShippingNoteModeFields);
+
 export const createShippingNoteDraftInputSchema = shippingNoteDraftInputSchema;
 
+export const partnerLookupSearchSchema = z.string().trim().min(1).max(120);
+
 export const updateShippingNoteDraftInputSchema =
-  shippingNoteDraftInputSchema.extend({
+  shippingNoteDraftBaseInputSchema.extend({
     id: z.string().trim().min(1),
-  });
+  })
+    .superRefine((input, ctx) => {
+      for (const issue of validateShippingNoteModeFields(
+        canonicalizeShippingNoteModeFields(input),
+      )) {
+        ctx.addIssue({ code: "custom", path: [issue.path], message: issue.message });
+      }
+    })
+    .transform(canonicalizeShippingNoteModeFields);
 
 export const submitShippingNoteInputSchema = z.object({
   id: z.string().trim().min(1),
@@ -161,6 +213,38 @@ export const startAccountingReviewInputSchema = z.object({
 
 export const markShippingNoteCheckedInputSchema = z.object({
   id: z.string().trim().min(1),
+});
+
+export const approveShippingNoteInputSchema = z.object({
+  id: z.string().trim().min(1),
+});
+
+export const lockShippingNoteInputSchema = z.object({
+  id: z.string().trim().min(1),
+  lockReason: optionalWorkflowReason(),
+});
+
+export const unlockShippingNoteInputSchema = z.object({
+  id: z.string().trim().min(1),
+  unlockReason: z.string().trim().min(1, "Unlock reason is required."),
+});
+
+export const cancelShippingNoteInputSchema = z.object({
+  id: z.string().trim().min(1),
+  expectedStatus: z.enum(["draft", "submitted", "accounting_reviewing"]),
+  cancelReason: optionalWorkflowReason(),
+});
+
+export const cancelFinalizedShippingNoteInputSchema = z.object({
+  id: z.string().trim().min(1),
+  expectedStatus: z.enum(["checked", "approved"]),
+  cancelReason: z.string().trim().min(1, "Cancellation reason is required."),
+});
+
+export const reopenShippingNoteForCorrectionInputSchema = z.object({
+  id: z.string().trim().min(1),
+  expectedStatus: z.enum(["checked", "approved"]),
+  reason: z.string().trim().min(1, "Correction reason is required."),
 });
 
 export type ShippingNoteDraftInput = z.infer<typeof shippingNoteDraftInputSchema>;
@@ -177,6 +261,22 @@ export type StartAccountingReviewInput = z.infer<
 export type MarkShippingNoteCheckedInput = z.infer<
   typeof markShippingNoteCheckedInputSchema
 >;
+export type ApproveShippingNoteInput = z.infer<
+  typeof approveShippingNoteInputSchema
+>;
+export type LockShippingNoteInput = z.infer<typeof lockShippingNoteInputSchema>;
+export type UnlockShippingNoteInput = z.infer<
+  typeof unlockShippingNoteInputSchema
+>;
+export type CancelShippingNoteInput = z.infer<
+  typeof cancelShippingNoteInputSchema
+>;
+export type CancelFinalizedShippingNoteInput = z.infer<
+  typeof cancelFinalizedShippingNoteInputSchema
+>;
+export type ReopenShippingNoteForCorrectionInput = z.infer<
+  typeof reopenShippingNoteForCorrectionInputSchema
+>;
 
 // ---------------------------------------------------------------------------
 // Selling charge validators
@@ -187,6 +287,7 @@ const currencySchema = z.enum(CURRENCY_CODES);
 export const createSellingChargeInputSchema = z
   .object({
     shippingNoteId: z.string().trim().min(1),
+    serviceCatalogItemId: optionalTrimmedText().optional(),
     chargeName: z.string().trim().min(1),
     description: optionalTrimmedText().optional(),
     quantity: chargeQuantitySchema,
@@ -209,6 +310,7 @@ export const createSellingChargeInputSchema = z
 export const updateSellingChargeInputSchema = z
   .object({
     id: z.string().trim().min(1),
+    serviceCatalogItemId: optionalTrimmedText().optional(),
     chargeName: z.string().trim().min(1),
     description: optionalTrimmedText().optional(),
     quantity: chargeQuantitySchema,
@@ -245,6 +347,7 @@ const vendorOrAgentTextSchema = optionalTrimmedTextWithMax(200).optional();
 
 const buyingChargeBaseInputSchema = z
   .object({
+    serviceCatalogItemId: optionalTrimmedText().optional(),
     chargeName: z.string().trim().min(1),
     description: optionalTrimmedText().optional(),
     quantity: chargeQuantitySchema,
