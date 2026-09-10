@@ -6,6 +6,7 @@ import {
   ADMIN_USER_MANAGEMENT_ERROR_CODES,
   AdminUserManagementError,
 } from "./errors";
+import { adminUserActionInitialState } from "./types";
 
 vi.mock("server-only", () => ({}));
 
@@ -74,10 +75,7 @@ describe("admin user server actions", () => {
   });
 
   it("sets an existing user's temporary password through the production service", async () => {
-    const {
-      adminUserActionInitialState,
-      setAdminUserTemporaryPasswordAction,
-    } = await import("./actions");
+    const { setAdminUserTemporaryPasswordAction } = await import("./actions");
 
     const result = await setAdminUserTemporaryPasswordAction(
       adminUserActionInitialState,
@@ -102,10 +100,7 @@ describe("admin user server actions", () => {
   });
 
   it("requires explicit confirmation before calling the password service", async () => {
-    const {
-      adminUserActionInitialState,
-      setAdminUserTemporaryPasswordAction,
-    } = await import("./actions");
+    const { setAdminUserTemporaryPasswordAction } = await import("./actions");
 
     const result = await setAdminUserTemporaryPasswordAction(
       adminUserActionInitialState,
@@ -132,10 +127,7 @@ describe("admin user server actions", () => {
       ),
     );
 
-    const {
-      adminUserActionInitialState,
-      setAdminUserTemporaryPasswordAction,
-    } = await import("./actions");
+    const { setAdminUserTemporaryPasswordAction } = await import("./actions");
 
     const result = await setAdminUserTemporaryPasswordAction(
       adminUserActionInitialState,
@@ -155,10 +147,7 @@ describe("admin user server actions", () => {
   });
 
   it("keeps create-user validation in the action and does not call the service on invalid form data", async () => {
-    const {
-      adminUserActionInitialState,
-      createAdminUserAction,
-    } = await import("./actions");
+    const { createAdminUserAction } = await import("./actions");
 
     const result = await createAdminUserAction(
       adminUserActionInitialState,
