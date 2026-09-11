@@ -11,7 +11,7 @@ function readMigration(name: string): string {
 }
 
 describe("static migration readiness", () => {
-  it("has migration files through 0011", () => {
+  it("has migration files through 0012", () => {
     expect(readdirSync(drizzleDir).filter((file) => file.endsWith(".sql"))).toEqual([
       "0000_new_nick_fury.sql",
       "0001_dazzling_saracen.sql",
@@ -25,10 +25,11 @@ describe("static migration readiness", () => {
       "0009_flowery_switch.sql",
       "0010_soft_lorna_dane.sql",
       "0011_fresh_radioactive_man.sql",
+      "0012_sweet_brood.sql",
     ]);
   });
 
-  it("has journal entries through 0011 in order", () => {
+  it("has journal entries through 0012 in order", () => {
     const journal = JSON.parse(
       readFileSync(path.join(drizzleDir, "meta", "_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
@@ -46,6 +47,7 @@ describe("static migration readiness", () => {
       "9:0009_flowery_switch",
       "10:0010_soft_lorna_dane",
       "11:0011_fresh_radioactive_man",
+      "12:0012_sweet_brood",
     ]);
   });
 
@@ -229,6 +231,23 @@ describe("static migration readiness", () => {
     expect(migration).toContain('ADD COLUMN "custom_origin" text');
     expect(migration).toContain('ADD COLUMN "custom_destination" text');
     expect(migration).not.toMatch(/(?:^|\n)(?:DROP|TRUNCATE|DELETE|UPDATE|INSERT|CREATE TYPE)\s/im);
+  });
+
+  it("0012 contains only additive Routing Location structures", () => {
+    const migration = readMigration("0012_sweet_brood.sql");
+    for (const expected of [
+      'CREATE TYPE "public"."routing_location_type"',
+      'CREATE TYPE "public"."routing_location_applicability"',
+      'CREATE TABLE "routing_locations"',
+      'CREATE TABLE "routing_location_applicabilities"',
+      '"routing_location_applicabilities_location_id_routing_locations_id_fk"',
+      '"routing_locations_type_code_uidx"',
+      '"routing_location_applicabilities_location_id_applicability_uidx"',
+    ]) {
+      expect(migration).toContain(expected);
+    }
+    expect(migration).not.toMatch(/(?:^|\n)(?:DROP|TRUNCATE|DELETE|UPDATE|INSERT)\s/im);
+    expect(migration).not.toContain('"shipping_notes"');
   });
 });
 
