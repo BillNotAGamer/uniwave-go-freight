@@ -1,5 +1,6 @@
 import {
   ClipboardList,
+  Building2,
   FileText,
   LayoutDashboard,
   Package,
@@ -58,6 +59,12 @@ export function getNavLinks(role: Role): NavItem[] {
   }
 
   if (hasPermission(role, PERMISSIONS.USERS_MANAGE)) {
+    links.push({
+      title: "Master Data",
+      href: "/admin/master-data/partners",
+      icon: Building2,
+    });
+
     links.push({
       title: "Users",
       href: "/admin/users",

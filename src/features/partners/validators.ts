@@ -112,6 +112,12 @@ export const listPartnersFilterSchema = z.object({
   offset: z.coerce.number().int().nonnegative().optional().default(0),
 });
 
+export const adminPartnerListQuerySchema = z.object({
+  search: optionalTrimmedText(100),
+  status: z.enum(["active", "inactive", "deleted", "all"]).default("active"),
+  page: z.coerce.number().int().positive().max(100_000).default(1),
+});
+
 export type PartnerContactInput = z.input<typeof partnerContactInputSchema>;
 export type CreatePartnerInput = z.input<typeof createPartnerInputSchema>;
 export type UpdatePartnerInput = z.input<typeof updatePartnerInputSchema>;
@@ -122,3 +128,4 @@ export type SoftDeletePartnerInput = z.input<typeof softDeletePartnerInputSchema
 export type RestorePartnerInput = z.input<typeof restorePartnerInputSchema>;
 export type SoftDeletePartnerContactInput = z.input<typeof softDeletePartnerContactInputSchema>;
 export type ListPartnersFilterInput = z.input<typeof listPartnersFilterSchema>;
+export type AdminPartnerListQueryInput = z.input<typeof adminPartnerListQuerySchema>;

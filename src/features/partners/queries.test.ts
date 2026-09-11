@@ -17,8 +17,10 @@ import { AuthorizationError } from "@/lib/permissions/require-permission";
 
 import {
   getPartnerById,
+  getPartnerByIdForAdmin,
   listPartnerCategories,
   listPartners,
+  listPartnersForAdmin,
   searchPartners,
 } from "./queries";
 
@@ -70,6 +72,25 @@ describe("Partner Master Queries", () => {
       await expect(listPartners({}, makeUser("sale"))).resolves.toEqual([]);
       await expect(listPartners({}, makeUser("accountant"))).resolves.toEqual([]);
       await expect(listPartners({}, makeUser("admin"))).resolves.toEqual([]);
+    });
+
+    it("limits the Admin lifecycle read model to Admin", async () => {
+      await expect(listPartnersForAdmin({}, makeUser("sale"))).rejects.toBeInstanceOf(
+        AuthorizationError,
+      );
+      await expect(getPartnerByIdForAdmin("partner-1", makeUser("accountant"))).rejects.toBeInstanceOf(
+        AuthorizationError,
+      );
+
+      const offset = vi.fn().mockResolvedValue([]);
+      const limit = vi.fn(() => ({ offset }));
+      const orderBy = vi.fn(() => ({ limit }));
+      const where = vi.fn(() => ({ orderBy }));
+      const from = vi.fn(() => ({ where }));
+      mocks.select.mockReturnValueOnce({ from } as never);
+
+      await expect(listPartnersForAdmin({ status: "deleted" }, makeUser("admin")))
+        .resolves.toEqual([]);
     });
   });
 

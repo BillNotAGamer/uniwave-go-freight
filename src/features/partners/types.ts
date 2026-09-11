@@ -42,8 +42,15 @@ export interface BusinessPartnerListItem {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt: Date | null;
   categories: PartnerCategoryDetail[];
 }
+
+export type AdminPartnerLifecycleStatus =
+  | "active"
+  | "inactive"
+  | "deleted"
+  | "all";
 
 export interface ListPartnersFilter {
   activeOnly?: boolean;
@@ -51,4 +58,8 @@ export interface ListPartnersFilter {
   search?: string;
   limit?: number;
   offset?: number;
+}
+
+export interface ListAdminPartnersFilter extends Omit<ListPartnersFilter, "activeOnly"> {
+  status?: AdminPartnerLifecycleStatus;
 }

@@ -6,6 +6,7 @@ import {
   eq,
   ilike,
   inArray,
+  isNotNull,
   isNull,
   or,
   type SQL,
@@ -21,10 +22,12 @@ import {
 } from "@/lib/db/schema";
 
 import type { PartnerCategoryCode } from "./constants";
-import { assertCanReadPartners } from "./permissions";
+import { assertCanMutatePartners, assertCanReadPartners } from "./permissions";
 import type {
+  AdminPartnerLifecycleStatus,
   BusinessPartnerDetail,
   BusinessPartnerListItem,
+  ListAdminPartnersFilter,
   ListPartnersFilter,
   PartnerCategoryDetail,
   PartnerContactDetail,
@@ -35,11 +38,10 @@ function escapeLike(term: string): string {
   return term.replace(/[%_\\]/g, "\\$&");
 }
 
-export async function getPartnerById(
+async function getPartnerDetail(
   id: string,
-  actor: DbUser,
+  includeDeleted: boolean,
 ): Promise<BusinessPartnerDetail | null> {
-  assertCanReadPartners(actor);
 
   const [partner] = await db
     .select({
@@ -57,7 +59,7 @@ export async function getPartnerById(
     .where(
       and(
         eq(businessPartners.id, id),
-        isNull(businessPartners.deletedAt),
+        ...(includeDeleted ? [] : [isNull(businessPartners.deletedAt)]),
       ),
     )
     .limit(1);
@@ -109,14 +111,29 @@ export async function getPartnerById(
   };
 }
 
-export async function listPartners(
-  filter: ListPartnersFilter,
+export async function getPartnerById(
+  id: string,
   actor: DbUser,
-): Promise<BusinessPartnerListItem[]> {
+): Promise<BusinessPartnerDetail | null> {
   assertCanReadPartners(actor);
+  return getPartnerDetail(id, false);
+}
 
+/** Admin-only read model; standard Partner reads remain lifecycle-filtered. */
+export async function getPartnerByIdForAdmin(
+  id: string,
+  actor: DbUser,
+): Promise<BusinessPartnerDetail | null> {
+  assertCanMutatePartners(actor);
+  return getPartnerDetail(id, true);
+}
+
+async function listPartnerRows(
+  filter: ListPartnersFilter,
+  lifecycleCondition: SQL | undefined,
+): Promise<BusinessPartnerListItem[]> {
   const parsedFilter = listPartnersFilterSchema.parse(filter);
-  const conditions: SQL[] = [isNull(businessPartners.deletedAt)];
+  const conditions: SQL[] = lifecycleCondition ? [lifecycleCondition] : [];
 
   if (parsedFilter.activeOnly) {
     conditions.push(eq(businessPartners.isActive, true));
@@ -157,6 +174,7 @@ export async function listPartners(
       isActive: businessPartners.isActive,
       createdAt: businessPartners.createdAt,
       updatedAt: businessPartners.updatedAt,
+      deletedAt: businessPartners.deletedAt,
     })
     .from(businessPartners)
     .where(and(...conditions))
@@ -200,6 +218,45 @@ export async function listPartners(
     ...partner,
     categories: categoriesByPartnerId.get(partner.id) ?? [],
   }));
+}
+
+export async function listPartners(
+  filter: ListPartnersFilter,
+  actor: DbUser,
+): Promise<BusinessPartnerListItem[]> {
+  assertCanReadPartners(actor);
+  return listPartnerRows(filter, isNull(businessPartners.deletedAt));
+}
+
+/**
+ * Admin-only Partner list including lifecycle states needed for deactivation
+ * and restoration. Shipping Note search continues to use listPartners.
+ */
+export async function listPartnersForAdmin(
+  filter: ListAdminPartnersFilter,
+  actor: DbUser,
+): Promise<BusinessPartnerListItem[]> {
+  assertCanMutatePartners(actor);
+
+  const status: AdminPartnerLifecycleStatus = filter.status ?? "active";
+  const lifecycleCondition = status === "active"
+    ? and(isNull(businessPartners.deletedAt), eq(businessPartners.isActive, true))
+    : status === "inactive"
+      ? and(isNull(businessPartners.deletedAt), eq(businessPartners.isActive, false))
+      : status === "deleted"
+        ? isNotNull(businessPartners.deletedAt)
+        : undefined;
+
+  return listPartnerRows(
+    {
+      search: filter.search,
+      categoryCode: filter.categoryCode,
+      limit: filter.limit,
+      offset: filter.offset,
+      activeOnly: false,
+    },
+    lifecycleCondition,
+  );
 }
 
 export async function searchPartners(

@@ -18,6 +18,10 @@ const protectedRoutes = [
     protectedContent: /Audit Log/i,
   },
   {
+    path: "/admin/master-data/partners",
+    protectedContent: /Master Data.*Partners/i,
+  },
+  {
     path: "/documents",
     protectedContent: /Document Library/i,
   },
