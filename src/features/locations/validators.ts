@@ -49,6 +49,13 @@ export const listRoutingLocationsFilterSchema = z.object({
   offset: z.coerce.number().int().nonnegative().optional().default(0),
 });
 
+export const adminRoutingLocationListQuerySchema = z.object({
+  search: optionalNormalizedText(100),
+  type: z.enum(ROUTING_LOCATION_TYPES).optional(),
+  status: z.enum(ROUTING_LOCATION_LIFECYCLE_STATUSES).default("active"),
+  page: z.coerce.number().int().positive().max(100_000).default(1),
+});
+
 export const searchRoutingLocationsInputSchema = z.object({
   search: z.string().trim().min(1).max(100),
   applicability: z.enum(ROUTING_LOCATION_APPLICABILITIES).optional(),

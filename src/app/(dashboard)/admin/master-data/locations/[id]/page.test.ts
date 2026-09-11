@@ -1,0 +1,12 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { User } from "@/lib/db/schema";
+vi.mock("server-only", () => ({}));
+const mocks = vi.hoisted(() => ({ requireAuthenticatedUser: vi.fn(), getRoutingLocationByIdForAdmin: vi.fn(), notFound: vi.fn(() => { throw new Error("NEXT_NOT_FOUND"); }) }));
+vi.mock("@/lib/auth/session", () => ({ requireAuthenticatedUser: mocks.requireAuthenticatedUser }));
+vi.mock("@/features/locations/queries", () => ({ getRoutingLocationByIdForAdmin: mocks.getRoutingLocationByIdForAdmin }));
+vi.mock("@/features/locations/components/admin-location-form", () => ({ EditLocationForm: () => null, LocationLifecycleControls: () => null }));
+vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
+import LocationDetailPage from "./page";
+const now = new Date();
+function user(role: User["role"]): User { return { id: role, email: `${role}@example.test`, name: role, image: null, emailVerified: true, role, isActive: true, createdAt: now, updatedAt: now, deletedAt: null }; }
+describe("/admin/master-data/locations/[id] page", () => { beforeEach(() => { vi.clearAllMocks(); mocks.getRoutingLocationByIdForAdmin.mockResolvedValue({ id: "location-1", code: "XY-01", name: "Synthetic", type: "airport", countryCode: null, subdivision: null, isActive: true, deletedAt: null, applicabilities: ["air_aol"], createdAt: now, updatedAt: now }); }); it("allows Admin and loads canonical detail", async () => { const admin = user("admin"); mocks.requireAuthenticatedUser.mockResolvedValue({ user: admin }); await expect(LocationDetailPage({ params: Promise.resolve({ id: "location-1" }) })).resolves.toBeTruthy(); expect(mocks.getRoutingLocationByIdForAdmin).toHaveBeenCalledWith("location-1", admin); }); it.each(["sale", "accountant"] as const)("blocks %s before detail query", async (role) => { mocks.requireAuthenticatedUser.mockResolvedValue({ user: user(role) }); await expect(LocationDetailPage({ params: Promise.resolve({ id: "location-1" }) })).rejects.toThrow("NEXT_NOT_FOUND"); expect(mocks.getRoutingLocationByIdForAdmin).not.toHaveBeenCalled(); }); it("uses notFound for a missing Location", async () => { mocks.requireAuthenticatedUser.mockResolvedValue({ user: user("admin") }); mocks.getRoutingLocationByIdForAdmin.mockResolvedValue(null); await expect(LocationDetailPage({ params: Promise.resolve({ id: "missing" }) })).rejects.toThrow("NEXT_NOT_FOUND"); }); });
