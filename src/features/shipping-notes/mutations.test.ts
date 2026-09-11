@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   dbSelect: vi.fn(),
   transaction: vi.fn(),
   getShippingNoteById: vi.fn(),
+  getShippingNoteForUser: vi.fn(),
   logAuditEvent: vi.fn(),
 }));
 
@@ -22,13 +23,14 @@ vi.mock("@/lib/audit/log", () => ({
 
 vi.mock("./queries", () => ({
   getShippingNoteById: mocks.getShippingNoteById,
-  getShippingNoteForUser: vi.fn(),
+  getShippingNoteForUser: mocks.getShippingNoteForUser,
   shippingNoteDetailSelect: { id: "id" },
 }));
 
 import type { User } from "@/lib/db/schema";
 import {
   createShippingNoteDraft,
+  startAccountingReview,
   submitShippingNote,
   updateShippingNoteDraft,
 } from "./mutations";
@@ -49,6 +51,16 @@ function saleUser(): User {
     createdAt: new Date("2026-01-01T00:00:00Z"),
     updatedAt: new Date("2026-01-01T00:00:00Z"),
     deletedAt: null,
+  };
+}
+
+function adminUser(): User {
+  return {
+    ...saleUser(),
+    id: "admin-1",
+    email: "admin@example.test",
+    name: "Admin User",
+    role: "admin",
   };
 }
 
@@ -143,12 +155,16 @@ function seaDraft(overrides: Record<string, unknown> = {}) {
   });
 }
 
-function draftRecord(id: string, jobsheetNo: string) {
+function draftRecord(
+  id: string,
+  jobsheetNo: string,
+  createdById = "sale-1",
+) {
   return {
     id,
     jobsheetNo,
     status: "draft" as const,
-    createdById: "sale-1",
+    createdById,
   };
 }
 
@@ -359,7 +375,7 @@ describe("C4/C6 Shipping Note draft persistence", () => {
     expect(configured.updatedValues()).not.toHaveProperty("createdById");
   });
 
-  it("does not change creator attribution when submitting a Draft", async () => {
+  it("allows a Sale creator to submit without changing creator attribution", async () => {
     mocks.getShippingNoteById.mockResolvedValue(
       draftRecord("note-submit", "SUBMIT-001"),
     );
@@ -369,6 +385,57 @@ describe("C4/C6 Shipping Note draft persistence", () => {
 
     expect(configured.updatedValues()).toMatchObject({ status: "submitted" });
     expect(configured.updatedValues()).not.toHaveProperty("createdById");
+  });
+
+  it("allows an Admin creator to submit their own Draft", async () => {
+    mocks.getShippingNoteById.mockResolvedValue(
+      draftRecord("note-admin-submit", "ADMIN-SUBMIT-001", "admin-1"),
+    );
+    const configured = configureTransaction();
+
+    await submitShippingNote({ id: "note-admin-submit" }, adminUser());
+
+    expect(configured.updatedValues()).toMatchObject({ status: "submitted" });
+    expect(configured.updatedValues()).not.toHaveProperty("createdById");
+  });
+
+  it("rejects an Admin submitting a Sale-created Draft", async () => {
+    mocks.getShippingNoteById.mockResolvedValue(
+      draftRecord("note-sale-submit", "SALE-SUBMIT-001"),
+    );
+    const configured = configureTransaction();
+
+    await expect(
+      submitShippingNote({ id: "note-sale-submit" }, adminUser()),
+    ).rejects.toThrow("You do not have permission to perform this action.");
+
+    expect(configured.tx.update).not.toHaveBeenCalled();
+    expect(mocks.logAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it("keeps creator attribution while auditing a downstream Admin actor", async () => {
+    const current = {
+      id: "note-review",
+      status: "submitted" as const,
+      createdById: "sale-1",
+    };
+    mocks.getShippingNoteForUser.mockResolvedValue(current);
+    const configured = configureTransaction();
+
+    await startAccountingReview({ id: "note-review" }, adminUser());
+
+    expect(configured.updatedValues()).toMatchObject({
+      status: "accounting_reviewing",
+    });
+    expect(configured.updatedValues()).not.toHaveProperty("createdById");
+    expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+      configured.tx,
+      expect.objectContaining({
+        actorUserId: "admin-1",
+        action: "shipping_note.accounting_review.start",
+        before: current,
+      }),
+    );
   });
 
   it("canonicalizes hostile inactive Air values to null on a Sea create", async () => {

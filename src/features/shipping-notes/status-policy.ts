@@ -78,6 +78,13 @@ export function canAccessDraftMutationSubject(
   );
 }
 
+export function canSubmitShippingNoteDraft(
+  note: ShippingNotePolicySubject,
+  actor: ShippingNotePolicyActor,
+): boolean {
+  return note.status === "draft" && note.createdById === actor.id;
+}
+
 export function canMutateSellingChargeForDraft(
   note: ShippingNotePolicySubject,
   actor: ShippingNotePolicyActor,

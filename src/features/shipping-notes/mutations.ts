@@ -63,6 +63,7 @@ import {
   canMutateBuyingChargeAtStatus,
   canMutateSellingChargeForDraft,
   canReopenShippingNoteForCorrectionStatus,
+  canSubmitShippingNoteDraft,
   canUnlockShippingNoteStatus,
   isExpectedAccountingTransitionSource,
 } from "./status-policy";
@@ -155,6 +156,17 @@ function ensureDraftAccess(note: ShippingNoteDetail | null, user: DbUser): Shipp
   }
 
   if (!canAccessDraftMutationSubject(note, user)) {
+    throw new AuthorizationError();
+  }
+
+  return note;
+}
+
+function ensureSubmitDraftAccess(
+  note: ShippingNoteDetail | null,
+  user: DbUser,
+): ShippingNoteDetail {
+  if (!note || !canSubmitShippingNoteDraft(note, user)) {
     throw new AuthorizationError();
   }
 
@@ -565,7 +577,10 @@ export async function submitShippingNote(
 ): Promise<ShippingNoteDetail> {
   requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_EDIT_OWN);
 
-  const current = ensureDraftAccess(await getShippingNoteById(input.id), user);
+  const current = ensureSubmitDraftAccess(
+    await getShippingNoteById(input.id),
+    user,
+  );
 
   try {
     return await db.transaction(async (tx) => {

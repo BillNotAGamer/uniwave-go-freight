@@ -51,6 +51,7 @@ import {
 import {
   canCancelFinalizedShippingNoteStatus,
   canCancelShippingNoteStatus,
+  canSubmitShippingNoteDraft,
   canReopenShippingNoteForCorrectionStatus,
   isInternalXlsxExportEligibleStatus,
 } from "@/features/shipping-notes/status-policy";
@@ -89,6 +90,9 @@ export default async function ShippingNoteDetailPage({
     note.status === "draft" &&
     hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_EDIT_OWN) &&
     (user.role === "admin" || note.createdById === user.id);
+  const canSubmitDraft =
+    hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_EDIT_OWN) &&
+    canSubmitShippingNoteDraft(note, user);
 
   // Accountant cannot mutate charges, even though they can view.
   const canMutateCharges =
@@ -572,11 +576,13 @@ export default async function ShippingNoteDetailPage({
               values={note}
             />
 
-            <ShippingNoteSubmitForm
-              action={submitShippingNoteAction}
-              noteId={note.id}
-              submitLabel="Submit Draft"
-            />
+            {canSubmitDraft ? (
+              <ShippingNoteSubmitForm
+                action={submitShippingNoteAction}
+                noteId={note.id}
+                submitLabel="Submit Draft"
+              />
+            ) : null}
           </section>
         ) : (
           <p className="border-t border-border pt-6 text-sm text-muted-foreground">

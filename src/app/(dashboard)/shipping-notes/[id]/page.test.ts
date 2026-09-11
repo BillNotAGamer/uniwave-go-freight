@@ -62,6 +62,8 @@ vi.mock("@/features/shipping-notes/documents/queries", () => ({
 
 import ShippingNoteDetailPage from "./page";
 import { CustomsDeclarationsPanel } from "@/features/shipping-notes/customs-declarations/components/customs-declarations-panel";
+import { ShippingNoteDraftForm } from "@/features/shipping-notes/components/shipping-note-draft-form";
+import { ShippingNoteSubmitForm } from "@/features/shipping-notes/components/shipping-note-submit-form";
 
 const now = new Date("2026-09-01T00:00:00.000Z");
 
@@ -281,6 +283,7 @@ describe("ShippingNoteDetailPage Draft edit presentation", () => {
     mocks.listChargeTaxDetailsForNoteForUser.mockResolvedValue([]);
     mocks.listTaxRulesForUser.mockResolvedValue([]);
     mocks.listShippingNoteExportHistoryForUser.mockResolvedValue([]);
+    mocks.listCustomsDeclarationsForNoteForUser.mockResolvedValue([]);
     mocks.listShippingNoteDocumentsForUser.mockResolvedValue([]);
   });
 
@@ -295,6 +298,51 @@ describe("ShippingNoteDetailPage Draft edit presentation", () => {
     expect(text).toContain("Edit Shipment");
     expect(text).toContain("Update shipment details while this shipment is still in Draft.");
     expect(text).not.toContain("Draft-only edit path");
+  });
+
+  it("keeps Admin edit access but hides Submit for a Sale-created Draft", async () => {
+    const adminUser = makeUser("admin");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: adminUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("draft"));
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findComponentInTree(jsx, ShippingNoteDraftForm)).not.toBeNull();
+    expect(findComponentInTree(jsx, ShippingNoteSubmitForm)).toBeNull();
+  });
+
+  it("shows Submit for an Admin-created Draft viewed by that Admin", async () => {
+    const adminUser = makeUser("admin");
+    const note = makeNote("draft");
+    note.createdById = adminUser.id;
+    note.createdBy = {
+      name: adminUser.name,
+      email: adminUser.email,
+    };
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: adminUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findComponentInTree(jsx, ShippingNoteDraftForm)).not.toBeNull();
+    expect(findComponentInTree(jsx, ShippingNoteSubmitForm)).not.toBeNull();
+  });
+
+  it("shows Edit and Submit for a Sale creator viewing their own Draft", async () => {
+    const saleUser = makeUser("sale");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("draft"));
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findComponentInTree(jsx, ShippingNoteDraftForm)).not.toBeNull();
+    expect(findComponentInTree(jsx, ShippingNoteSubmitForm)).not.toBeNull();
   });
 });
 

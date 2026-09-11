@@ -11,6 +11,7 @@ import {
   canMutateBuyingChargeAtStatus,
   canMutateSellingChargeForDraft,
   canReopenShippingNoteForCorrectionStatus,
+  canSubmitShippingNoteDraft,
   canUnlockShippingNoteStatus,
   canCloseShippingNoteStatus,
   hasNormalOutboundBusinessTransition,
@@ -31,10 +32,13 @@ const accountant: ShippingNotePolicyActor = {
 };
 const admin: ShippingNotePolicyActor = { id: "admin-1", role: "admin" };
 
-function note(status: ShippingNoteStatus): ShippingNotePolicySubject {
+function note(
+  status: ShippingNoteStatus,
+  createdById = "sale-1",
+): ShippingNotePolicySubject {
   return {
     status,
-    createdById: "sale-1",
+    createdById,
   };
 }
 
@@ -48,6 +52,16 @@ describe("shipping note status policy", () => {
     expect(canAccessDraftMutationSubject(note("draft"), saleOther)).toBe(false);
     expect(canAccessDraftMutationSubject(note("submitted"), saleOwner)).toBe(false);
     expect(canAccessDraftMutationSubject(note("checked"), admin)).toBe(false);
+  });
+
+  it("allows submit only when the actor created the Draft", () => {
+    expect(canSubmitShippingNoteDraft(note("draft"), saleOwner)).toBe(true);
+    expect(
+      canSubmitShippingNoteDraft(note("draft", "admin-1"), admin),
+    ).toBe(true);
+    expect(canSubmitShippingNoteDraft(note("draft"), admin)).toBe(false);
+    expect(canSubmitShippingNoteDraft(note("draft"), saleOther)).toBe(false);
+    expect(canSubmitShippingNoteDraft(note("submitted"), saleOwner)).toBe(false);
   });
 
   it("keeps selling charge mutations draft-only and denies accountant", () => {
