@@ -20,6 +20,10 @@ import {
   getShippingNoteCreateModeFieldsForShipmentType,
   SHIPPING_NOTE_PARTY_SELECTOR_FIELDS,
 } from "./shipping-note-create-fields";
+import {
+  getShippingNoteLocationApplicability,
+  LocationSelector,
+} from "./location-selector";
 import { PartnerSelector } from "./partner-selector";
 
 type CreateFormAction = (
@@ -158,7 +162,15 @@ export function ShippingNoteCreateForm({ action }: { action: CreateFormAction })
       </Section>
 
       {modeFields ? <Section title="Routing">
-        {modeFields.routing.map((field) => <TextField key={field.name} {...field} />)}
+        {modeFields.routing.map((field) => (
+          <LocationSelector
+            applicability={getShippingNoteLocationApplicability(shipmentType!, field.name)}
+            key={field.name}
+            label={field.label}
+            name={field.name}
+            required
+          />
+        ))}
       </Section> : null}
 
       {modeFields && modeFields.transport.length > 0 ? (

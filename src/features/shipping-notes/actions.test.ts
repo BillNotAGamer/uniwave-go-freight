@@ -5,6 +5,7 @@ vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
 const mocks = vi.hoisted(() => ({
   requireAuthenticatedUser: vi.fn(),
+  searchRoutingLocations: vi.fn(),
   searchPartners: vi.fn(),
   searchServiceCatalogItems: vi.fn(),
 }));
@@ -15,6 +16,9 @@ vi.mock("@/lib/auth/session", () => ({
 
 vi.mock("@/features/partners/queries", () => ({
   searchPartners: mocks.searchPartners,
+}));
+vi.mock("@/features/locations/queries", () => ({
+  searchRoutingLocations: mocks.searchRoutingLocations,
 }));
 vi.mock("@/features/service-catalog/queries", () => ({
   SERVICE_CATALOG_LOOKUP_LIMIT: 12,
@@ -43,6 +47,7 @@ vi.mock("./mutations", () => ({
 
 import {
   searchShippingNotePartnersAction,
+  searchShippingNoteLocationsAction,
   searchShippingNoteServiceCatalogAction,
 } from "./actions";
 
@@ -115,5 +120,50 @@ describe("Shipping Note Service Catalog lookup action", () => {
   it("does not query the catalog for blank input", async () => {
     await expect(searchShippingNoteServiceCatalogAction("  ")).resolves.toEqual([]);
     expect(mocks.searchServiceCatalogItems).not.toHaveBeenCalled();
+  });
+});
+
+describe("Shipping Note Location lookup action", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each(["admin", "sale", "accountant"] as const)("allows %s through the canonical read query", async (role) => {
+    const actor = { id: `${role}-1`, role };
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: actor });
+    mocks.searchRoutingLocations.mockResolvedValue([{
+      id: "location-1",
+      code: "SYN-AIR",
+      name: "Synthetic Other Location",
+      type: "other",
+      countryCode: "ZZ",
+      subdivision: null,
+      isActive: true,
+      deletedAt: null,
+      applicabilities: ["air_aol"],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }]);
+
+    await expect(searchShippingNoteLocationsAction(" Synthetic ", "air_aol")).resolves.toEqual([{
+      code: "SYN-AIR",
+      name: "Synthetic Other Location",
+      type: "other",
+      countryCode: "ZZ",
+    }]);
+    expect(mocks.searchRoutingLocations).toHaveBeenCalledWith(
+      "Synthetic",
+      actor,
+      { applicability: "air_aol", limit: 12 },
+    );
+  });
+
+  it("rejects invalid applicability without querying and never infers a type filter", async () => {
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: { id: "sale-1", role: "sale" } });
+
+    await expect(
+      searchShippingNoteLocationsAction("Synthetic", "airport" as never),
+    ).resolves.toEqual([]);
+    expect(mocks.searchRoutingLocations).not.toHaveBeenCalled();
   });
 });

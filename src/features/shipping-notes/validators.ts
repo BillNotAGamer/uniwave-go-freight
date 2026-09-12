@@ -13,6 +13,7 @@ import {
   canonicalizeShippingNoteModeFields,
   validateShippingNoteModeFields,
 } from "./mode-rules";
+import { ROUTING_LOCATION_APPLICABILITIES } from "../locations/constants";
 
 function optionalTrimmedText() {
   return z.preprocess((value) => {
@@ -192,6 +193,11 @@ export const shippingNoteDraftInputSchema = shippingNoteDraftBaseInputSchema
 export const createShippingNoteDraftInputSchema = shippingNoteDraftInputSchema;
 
 export const partnerLookupSearchSchema = z.string().trim().min(1).max(120);
+
+export const shippingNoteLocationLookupInputSchema = z.object({
+  searchTerm: z.string().trim().min(1).max(100),
+  applicability: z.enum(ROUTING_LOCATION_APPLICABILITIES),
+});
 
 export const updateShippingNoteDraftInputSchema =
   shippingNoteDraftBaseInputSchema.extend({

@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireAuthenticatedUser } from "@/lib/auth/session";
+import { searchRoutingLocations } from "@/features/locations/queries";
+import type { RoutingLocationApplicability } from "@/features/locations/constants";
 import { searchPartners } from "@/features/partners/queries";
 import {
   searchServiceCatalogItems,
@@ -38,6 +40,7 @@ import {
   createBuyingChargeInputSchema,
   createShippingNoteDraftInputSchema,
   partnerLookupSearchSchema,
+  shippingNoteLocationLookupInputSchema,
   deleteBuyingChargeInputSchema,
   createSellingChargeInputSchema,
   lockShippingNoteInputSchema,
@@ -65,6 +68,13 @@ export type ShippingNotePartnerLookupResult = {
 };
 
 export type ShippingNoteServiceCatalogLookupResult = ServiceCatalogLookupItem;
+
+export type ShippingNoteLocationLookupResult = {
+  code: string;
+  name: string;
+  type: string;
+  countryCode: string | null;
+};
 
 /**
  * Safe, authenticated Partner lookup for Shipping Note party selection.
@@ -109,6 +119,38 @@ export async function searchShippingNoteServiceCatalogAction(
     session.user,
     SERVICE_CATALOG_LOOKUP_LIMIT,
   );
+}
+
+/**
+ * Safe, authenticated Location lookup for Shipping Note routing selection.
+ * Applicability is the only selection authority; Location type is not passed
+ * as a filter and therefore cannot be inferred by the UI.
+ */
+export async function searchShippingNoteLocationsAction(
+  searchTerm: string,
+  applicability: RoutingLocationApplicability,
+): Promise<ShippingNoteLocationLookupResult[]> {
+  const session = await requireAuthenticatedUser();
+  const parsed = shippingNoteLocationLookupInputSchema.safeParse({
+    searchTerm,
+    applicability,
+  });
+
+  if (!parsed.success) {
+    return [];
+  }
+
+  const locations = await searchRoutingLocations(parsed.data.searchTerm, session.user, {
+    applicability: parsed.data.applicability,
+    limit: 12,
+  });
+
+  return locations.map((location) => ({
+    code: location.code,
+    name: location.name,
+    type: location.type,
+    countryCode: location.countryCode,
+  }));
 }
 
 function parseBooleanishError(error: unknown): string {
