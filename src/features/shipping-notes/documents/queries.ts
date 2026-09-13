@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, ilike, isNull } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, notInArray } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import {
@@ -44,6 +44,10 @@ const documentDetailColumns = {
 export async function listShippingNoteDocumentsForUser(
   shippingNoteId: string,
   user: DbUser,
+  options: {
+    documentType?: ShippingNoteDocumentType;
+    excludeDocumentTypes?: readonly ShippingNoteDocumentType[];
+  } = {},
 ): Promise<ShippingNoteDocumentListItem[]> {
   if (!rejectInactiveOrSoftDeletedUsers(user)) {
     throw new AuthorizationError();
@@ -54,14 +58,27 @@ export async function listShippingNoteDocumentsForUser(
     return [];
   }
 
+  const conditions = [
+    eq(shippingNoteDocuments.shippingNoteId, shippingNoteId),
+    isNull(shippingNoteDocuments.deletedAt),
+  ];
+
+  if (options.documentType) {
+    conditions.push(eq(shippingNoteDocuments.documentType, options.documentType));
+  }
+
+  if (options.excludeDocumentTypes?.length) {
+    conditions.push(notInArray(
+      shippingNoteDocuments.documentType,
+      [...options.excludeDocumentTypes],
+    ));
+  }
+
   return db
     .select(documentListColumns)
     .from(shippingNoteDocuments)
     .where(
-      and(
-        eq(shippingNoteDocuments.shippingNoteId, shippingNoteId),
-        isNull(shippingNoteDocuments.deletedAt),
-      ),
+      and(...conditions),
     )
     .orderBy(
       desc(shippingNoteDocuments.createdAt),

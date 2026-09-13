@@ -3,7 +3,7 @@ export type ArtifactStoragePutInput = {
   body: Buffer;
   mimeType: string;
   checksumSha256: string;
-  exportId: string;
+  exportId?: string;
 };
 
 export type StoredArtifact = {

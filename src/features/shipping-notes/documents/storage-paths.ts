@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 
+import { extractFileExtension } from "./file-security";
+
 export function sanitizeFileNameForStorage(fileName: string): string {
   // Normalize and preserve safe base name and extension
   const trimmed = fileName.trim();
@@ -15,20 +17,27 @@ export function sanitizeSegmentForStorage(segment: string): string {
   return sanitized.slice(0, 100) || "shipment";
 }
 
+/**
+ * Derives a server-generated R2 object key:
+ * `shipping-notes/<shipping-note-id>/documents/<document-id>/<uuid>.<ext>`
+ *
+ * User original filename is NEVER part of the storage key; only the validated extension is kept.
+ */
 export function buildDocumentR2Key(input: {
   shippingNoteId: string;
   originalFileName: string;
-  now?: Date;
+  documentId?: string;
   uniqueId?: string;
+  now?: Date;
 }): string {
-  const now = input.now ?? new Date();
-  const year = now.getUTCFullYear().toString();
-  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
   const unique = input.uniqueId ?? randomUUID();
-  const safeFileName = sanitizeFileNameForStorage(input.originalFileName);
+  const docId = input.documentId
+    ? sanitizeSegmentForStorage(input.documentId)
+    : unique;
   const safeNoteId = sanitizeSegmentForStorage(input.shippingNoteId);
+  const ext = extractFileExtension(input.originalFileName) || "bin";
 
-  const key = `shipping-note-documents/${year}/${month}/${safeNoteId}/${unique}-${safeFileName}`;
+  const key = `shipping-notes/${safeNoteId}/documents/${docId}/${unique}.${ext}`;
 
   if (key.includes("..")) {
     throw new Error("Generated storage key contains invalid directory traversal sequences.");

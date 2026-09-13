@@ -8,6 +8,7 @@ import { AuthorizationError } from "@/lib/permissions/require-permission";
 const mocks = vi.hoisted(() => ({
   getCurrentSession: vi.fn(),
   uploadShippingNoteDocument: vi.fn(),
+  listShippingNoteDocumentsForUser: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/session", () => ({
@@ -18,7 +19,11 @@ vi.mock("@/features/shipping-notes/documents/service", () => ({
   uploadShippingNoteDocument: mocks.uploadShippingNoteDocument,
 }));
 
-import { POST } from "./route";
+vi.mock("@/features/shipping-notes/documents/queries", () => ({
+  listShippingNoteDocumentsForUser: mocks.listShippingNoteDocumentsForUser,
+}));
+
+import { POST, GET } from "./route";
 
 function makeUploadRequest(formData: FormData, origin = "http://localhost:3000"): NextRequest {
   const req = new NextRequest("http://localhost:3000/api/shipping-notes/note-1/documents", {
@@ -113,6 +118,41 @@ describe("Document upload route handler", () => {
     expect(json.document.id).toBe("doc-new");
   });
 
+  it("accepts the canonical customs declaration category and delegates to the shared upload service", async () => {
+    mocks.getCurrentSession.mockResolvedValue({
+      user: { id: "user-1", role: "admin", email: "admin@test.com" },
+    });
+    mocks.uploadShippingNoteDocument.mockResolvedValue({
+      id: "doc-customs",
+      shippingNoteId: "note-1",
+      documentType: "customs_declaration",
+      originalFileName: "declaration.pdf",
+      storageProvider: "r2",
+      mimeType: "application/pdf",
+      sizeBytes: 8,
+      uploadedById: "user-1",
+      createdAt: new Date(),
+    });
+
+    const formData = new FormData();
+    formData.append("documentType", "customs_declaration");
+    formData.append(
+      "file",
+      new Blob(["fake-pdf"], { type: "application/pdf" }),
+      "declaration.pdf",
+    );
+
+    const response = await POST(makeUploadRequest(formData), {
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(mocks.uploadShippingNoteDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ documentType: "customs_declaration" }),
+      expect.anything(),
+    );
+  });
+
   it("returns 403 on AuthorizationError (e.g. locked note or unauthorized)", async () => {
     mocks.getCurrentSession.mockResolvedValue({
       user: { id: "user-1", role: "sale", email: "sale@test.com" },
@@ -131,5 +171,90 @@ describe("Document upload route handler", () => {
     });
 
     expect(response.status).toBe(403);
+  });
+});
+describe("Document list route handler (GET)", () => {
+  function makeGetRequest(origin = "http://localhost:3000"): NextRequest {
+    return new NextRequest("http://localhost:3000/api/shipping-notes/note-1/documents", {
+      method: "GET",
+      headers: {
+        origin,
+        "sec-fetch-site": "same-origin",
+      },
+    });
+  }
+
+  it("rejects cross-origin requests with 403", async () => {
+    const req = new NextRequest("http://localhost:3000/api/shipping-notes/note-1/documents", {
+      method: "GET",
+      headers: {
+        origin: "http://evil.com",
+        "sec-fetch-site": "cross-site",
+      },
+    });
+
+    const response = await GET(req, {
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it("rejects unauthenticated requests with 401", async () => {
+    mocks.getCurrentSession.mockResolvedValue(null);
+
+    const response = await GET(makeGetRequest(), {
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(response.status).toBe(401);
+  });
+
+  it("returns 403 when user is not authorized to read shipping note documents", async () => {
+    mocks.getCurrentSession.mockResolvedValue({
+      user: { id: "sale-unauth", role: "sale", email: "sale2@test.com" },
+    });
+
+    mocks.listShippingNoteDocumentsForUser.mockRejectedValue(
+      new AuthorizationError("Forbidden."),
+    );
+
+    const response = await GET(makeGetRequest(), {
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it("returns 200 with list of documents for authorized user", async () => {
+    mocks.getCurrentSession.mockResolvedValue({
+      user: { id: "admin-1", role: "admin", email: "admin@test.com" },
+    });
+
+    const mockDocs = [
+      {
+        id: "doc-1",
+        shippingNoteId: "note-1",
+        documentType: "pre_alert_hbl",
+        originalFileName: "hbl.pdf",
+        storageProvider: "r2",
+        mimeType: "application/pdf",
+        sizeBytes: 1024,
+        uploadedById: "admin-1",
+        createdAt: new Date("2026-09-10T12:00:00Z"),
+      },
+    ];
+
+    mocks.listShippingNoteDocumentsForUser.mockResolvedValue(mockDocs);
+
+    const response = await GET(makeGetRequest(), {
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.ok).toBe(true);
+    expect(json.documents).toHaveLength(1);
+    expect(json.documents[0].originalFileName).toBe("hbl.pdf");
   });
 });

@@ -13,11 +13,6 @@ import {
 import { PERMISSIONS } from "@/lib/permissions/permissions";
 import { requireAnyPermission } from "@/lib/permissions/require-permission";
 import { getShippingNoteForUser } from "../queries";
-import {
-  getDriveArtifactEligibility,
-  type DriveUploadNoteContract,
-} from "./drive/policy";
-import { isDriveUploadStale } from "./drive/service";
 
 export type ExportHistoryItem = {
   id: string;
@@ -30,11 +25,6 @@ export type ExportHistoryItem = {
   generatedByDisplay: string | null;
   artifactAvailable: boolean;
   artifactSizeBytes: number | null;
-  driveUploadStatus: ShippingNoteExport["driveUploadStatus"];
-  driveUploadedAt: Date | null;
-  driveUrl: string | null;
-  driveErrorCode: string | null;
-  isDriveUploadStale: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -49,14 +39,7 @@ type ExportHistorySourceRow = {
 
 export function toExportHistoryItem(input: {
   row: ExportHistorySourceRow;
-  note: DriveUploadNoteContract;
-  viewer: DbUser;
-  now?: Date;
 }): ExportHistoryItem {
-  const eligibility = getDriveArtifactEligibility({
-    exportRecord: input.row.exportRecord,
-    note: input.note,
-  });
   const generatedByDisplay = input.row.generatedBy?.name ||
     input.row.generatedBy?.email ||
     null;
@@ -70,19 +53,12 @@ export function toExportHistoryItem(input: {
     checksum: input.row.exportRecord.checksum,
     generatedAt: input.row.exportRecord.generatedAt,
     generatedByDisplay,
-    artifactAvailable: eligibility.eligible,
+    artifactAvailable:
+      input.row.exportRecord.status === "generated" &&
+      input.row.exportRecord.artifactStorageKey !== null &&
+      input.row.exportRecord.artifactSizeBytes !== null &&
+      input.row.exportRecord.artifactMimeType !== null,
     artifactSizeBytes: input.row.exportRecord.artifactSizeBytes,
-    driveUploadStatus: input.row.exportRecord.driveUploadStatus,
-    driveUploadedAt: input.row.exportRecord.driveUploadedAt,
-    driveUrl: input.row.exportRecord.driveUrl,
-    driveErrorCode: input.viewer.role === "admin"
-      ? input.row.exportRecord.driveErrorMessage
-      : null,
-    isDriveUploadStale: isDriveUploadStale({
-      driveUploadStatus: input.row.exportRecord.driveUploadStatus,
-      updatedAt: input.row.exportRecord.updatedAt,
-      now: input.now,
-    }),
     createdAt: input.row.exportRecord.createdAt,
     updatedAt: input.row.exportRecord.updatedAt,
   };
@@ -91,7 +67,6 @@ export function toExportHistoryItem(input: {
 export async function listShippingNoteExportHistoryForUser(
   noteId: string,
   user: DbUser,
-  options: { now?: Date } = {},
 ): Promise<ExportHistoryItem[]> {
   requireAnyPermission(user.role, PERMISSIONS.SHIPPING_NOTES_EXPORT_INTERNAL);
 
@@ -128,12 +103,5 @@ export async function listShippingNoteExportHistoryForUser(
 
   return rows.map((row) => toExportHistoryItem({
     row,
-    note: {
-      id: note.id,
-      status: note.status,
-      deletedAt: null,
-    },
-    viewer: user,
-    now: options.now,
   }));
 }

@@ -7,6 +7,7 @@ import {
   SHIPPING_NOTE_DOCUMENT_TYPES,
   type ShippingNoteDocumentType,
 } from "@/features/shipping-notes/documents/constants";
+import { listShippingNoteDocumentsForUser } from "@/features/shipping-notes/documents/queries";
 import { uploadShippingNoteDocument } from "@/features/shipping-notes/documents/service";
 
 export const runtime = "nodejs";
@@ -25,7 +26,6 @@ function noStoreHeaders(): HeadersInit {
     "X-Content-Type-Options": "nosniff",
   };
 }
-
 function isSameOriginRequest(request: NextRequest): boolean {
   return isSameOriginRequestMetadata({
     requestOrigin: request.nextUrl.origin,
@@ -33,7 +33,6 @@ function isSameOriginRequest(request: NextRequest): boolean {
     secFetchSite: request.headers.get("sec-fetch-site"),
   });
 }
-
 export async function POST(
   request: NextRequest,
   context: RouteContext,
@@ -122,6 +121,59 @@ export async function POST(
     return NextResponse.json(
       { error: message },
       { status: 400, headers: noStoreHeaders() },
+    );
+  }
+}
+export async function GET(
+  request: NextRequest,
+  context: RouteContext,
+): Promise<Response> {
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json(
+      { error: "Forbidden cross-origin request." },
+      { status: 403, headers: noStoreHeaders() },
+    );
+  }
+
+  const session = await getCurrentSession();
+  if (!session) {
+    return NextResponse.json(
+      { error: "Authentication required." },
+      { status: 401, headers: noStoreHeaders() },
+    );
+  }
+
+  const { id: shippingNoteId } = await context.params;
+  if (!shippingNoteId) {
+    return NextResponse.json(
+      { error: "Shipping note ID is required." },
+      { status: 400, headers: noStoreHeaders() },
+    );
+  }
+
+  try {
+    const documents = await listShippingNoteDocumentsForUser(
+      shippingNoteId,
+      session.user,
+    );
+
+    return NextResponse.json(
+      { ok: true, documents },
+      { status: 200, headers: noStoreHeaders() },
+    );
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json(
+        { error: error.message || "Forbidden." },
+        { status: 403, headers: noStoreHeaders() },
+      );
+    }
+
+    const message =
+      error instanceof Error ? error.message : "Failed to retrieve documents.";
+    return NextResponse.json(
+      { error: message },
+      { status: 500, headers: noStoreHeaders() },
     );
   }
 }

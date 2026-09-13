@@ -7,7 +7,7 @@ import { isR2Configured } from "@/lib/artifact-storage/r2";
 import type { ArtifactStorage } from "@/lib/artifact-storage/types";
 import { rejectInactiveOrSoftDeletedUsers } from "@/lib/auth/user-state";
 import type { User as DbUser } from "@/lib/db/schema";
-import { isGoogleDriveConfigured, readGoogleDriveConfig } from "@/lib/drive/config";
+import { readGoogleDriveConfig } from "@/lib/drive/config";
 import { GoogleDriveArtifactUploader } from "@/lib/drive/google-drive";
 import type { DriveArtifactUploader } from "@/lib/drive/types";
 import { AuthorizationError } from "@/lib/permissions/require-permission";
@@ -23,9 +23,6 @@ import { canMutateShippingNoteDocuments, canReadShippingNoteDocuments } from "./
 import { getShippingNoteDocumentByIdForUser } from "./queries";
 import {
   buildDocumentR2Key,
-  getDocumentYearMonth,
-  sanitizeFileNameForStorage,
-  sanitizeSegmentForStorage,
 } from "./storage-paths";
 import type { ShippingNoteDocumentListItem } from "./types";
 
@@ -35,7 +32,6 @@ export type DocumentServiceDependencies = {
   driveRootFolderId?: string;
   now?: Date;
   isR2Available?: boolean;
-  isDriveAvailable?: boolean;
 };
 
 export type UploadDocumentInput = {
@@ -56,6 +52,7 @@ export type RemoveDocumentInput = {
 
 export type DownloadDocumentResult = {
   documentId: string;
+  shippingNoteId: string;
   fileName: string;
   mimeType: string;
   sizeBytes: number;
@@ -64,28 +61,19 @@ export type DownloadDocumentResult = {
 
 export type StorageAvailability = {
   available: boolean;
-  preferredProvider: "r2" | "google_drive" | null;
+  preferredProvider: "r2" | null;
   r2Configured: boolean;
-  driveConfigured: boolean;
 };
 
 export function getStorageAvailability(
   dependencies: DocumentServiceDependencies = {},
 ): StorageAvailability {
   const r2Configured = dependencies.isR2Available ?? isR2Configured();
-  const driveConfigured = dependencies.isDriveAvailable ?? isGoogleDriveConfigured();
-
-  const preferredProvider = r2Configured
-    ? "r2"
-    : driveConfigured
-      ? "google_drive"
-      : null;
 
   return {
-    available: preferredProvider !== null,
-    preferredProvider,
+    available: r2Configured,
+    preferredProvider: r2Configured ? "r2" : null,
     r2Configured,
-    driveConfigured,
   };
 }
 
@@ -139,60 +127,24 @@ export async function uploadShippingNoteDocument(
     throw new Error("Document storage is not configured. Please contact an administrator.");
   }
 
-  const chosenProvider = availability.preferredProvider;
-  let storageKey = "";
+  const storage = resolveR2Storage(dependencies);
+  const storageKey = buildDocumentR2Key({
+    shippingNoteId: note.id,
+    originalFileName: validation.originalFileName,
+    now: dependencies.now,
+  });
+  const checksumSha256 = createHash("sha256")
+    .update(input.file.bytes)
+    .digest("hex");
 
-  // 4. Upload object to chosen provider
-  if (chosenProvider === "r2") {
-    const storage = resolveR2Storage(dependencies);
-    storageKey = buildDocumentR2Key({
-      shippingNoteId: note.id,
-      originalFileName: validation.originalFileName,
-      now: dependencies.now,
-    });
-
-    const checksumSha256 = createHash("sha256")
-      .update(input.file.bytes)
-      .digest("hex");
-
-    await storage.put({
-      key: storageKey,
-      body: input.file.bytes,
-      mimeType: validation.mimeType,
-      checksumSha256,
-      exportId: `doc-${note.id}`,
-    });
-  } else {
-    const { uploader, rootFolderId } = resolveDriveUploader(dependencies);
-    const { year, month } = getDocumentYearMonth(dependencies.now);
-
-    let shipmentFolderId = rootFolderId;
-    if (uploader.getOrCreateFolder) {
-      const yearFolderId = await uploader.getOrCreateFolder(year, rootFolderId);
-      const monthFolderId = await uploader.getOrCreateFolder(month, yearFolderId);
-      const shipmentFolderName = sanitizeSegmentForStorage(note.jobsheetNo || note.id);
-      shipmentFolderId = await uploader.getOrCreateFolder(
-        shipmentFolderName,
-        monthFolderId,
-      );
-    }
-
-    const uniqueDriveFileName = `${Date.now()}_${sanitizeFileNameForStorage(validation.originalFileName)}`;
-
-    const uploadResult = await uploader.upload({
-      fileName: uniqueDriveFileName,
-      mimeType: validation.mimeType,
-      bytes: input.file.bytes,
-      appProperties: {
-        uniwaveShippingNoteId: note.id,
-        uniwaveDocumentType: input.documentType,
-        uniwaveOriginalFileName: validation.originalFileName,
-      },
-      parentFolderId: shipmentFolderId,
-    });
-
-    storageKey = uploadResult.file.id;
-  }
+  // 4. Upload all new supporting documents to private R2.
+  await storage.put({
+    key: storageKey,
+    body: input.file.bytes,
+    mimeType: validation.mimeType,
+    checksumSha256,
+    exportId: `doc-${note.id}`,
+  });
 
   // 5. Register metadata in PostgreSQL with compensating failure cleanup
   try {
@@ -201,7 +153,7 @@ export async function uploadShippingNoteDocument(
         shippingNoteId: note.id,
         documentType: input.documentType,
         originalFileName: validation.originalFileName,
-        storageProvider: chosenProvider,
+        storageProvider: "r2",
         storageKey,
         mimeType: validation.mimeType,
         sizeBytes: validation.sizeBytes,
@@ -213,16 +165,8 @@ export async function uploadShippingNoteDocument(
   } catch (error) {
     // Compensating cleanup: attempt to delete the orphaned provider object
     try {
-      if (chosenProvider === "r2") {
-        const storage = resolveR2Storage(dependencies);
-        if (storage.delete) {
-          await storage.delete(storageKey);
-        }
-      } else {
-        const { uploader } = resolveDriveUploader(dependencies);
-        if (uploader.delete) {
-          await uploader.delete(storageKey);
-        }
+      if (storage.delete) {
+        await storage.delete(storageKey);
       }
     } catch (cleanupError) {
       // Log sanitized warning without credentials
@@ -321,6 +265,7 @@ export async function downloadShippingNoteDocument(
 
   return {
     documentId: document.id,
+    shippingNoteId: document.shippingNoteId,
     fileName: document.originalFileName,
     mimeType: document.mimeType,
     sizeBytes: document.sizeBytes,

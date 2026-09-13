@@ -1,14 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Download, ExternalLink, RefreshCw, UploadCloud } from "lucide-react";
+import { Download } from "lucide-react";
 
 import type { Role } from "@/lib/permissions/roles";
 import type { ExportHistoryItem } from "../export/history";
 import {
   canDownloadHistoricalArtifact,
-  getDriveHistoryAction,
 } from "../export/history-ui-policy";
 
 type ExportHistoryPanelProps = {
@@ -56,61 +53,10 @@ function generationStatusLabel(row: ExportHistoryItem): string {
   return row.status === "pending" ? "Pending" : "Generation failed";
 }
 
-function driveStatusLabel(row: ExportHistoryItem, viewerRole: Role): string {
-  if (row.driveUploadStatus === "uploaded" && row.driveUrl) {
-    return "Uploaded";
-  }
-
-  if (row.driveUploadStatus === "upload_failed") {
-    return viewerRole === "admin" && row.driveErrorCode
-      ? `Upload failed (${row.driveErrorCode})`
-      : "Upload failed";
-  }
-
-  if (row.driveUploadStatus === "uploading") {
-    return row.isDriveUploadStale ? "Upload stale" : "Uploading";
-  }
-
-  return "Not uploaded";
-}
-
 export function ExportHistoryPanel({
   rows,
   viewerRole,
 }: ExportHistoryPanelProps) {
-  const router = useRouter();
-  const [pendingExportId, setPendingExportId] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-
-  async function handleDriveUpload(exportId: string): Promise<void> {
-    setPendingExportId(exportId);
-    setMessage(null);
-
-    try {
-      const response = await fetch(
-        `/api/shipping-note-exports/${encodeURIComponent(exportId)}/drive`,
-        {
-          method: "POST",
-          credentials: "same-origin",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Drive upload failed.");
-      }
-
-      setMessage("Drive status updated.");
-      router.refresh();
-    } catch {
-      setMessage("Drive upload could not be completed.");
-    } finally {
-      setPendingExportId(null);
-    }
-  }
-
   return (
     <section className="grid gap-4 border-t border-border pt-6">
       <div className="space-y-2">
@@ -132,26 +78,11 @@ export function ExportHistoryPanel({
                 <th className="px-4 py-3">Artifact</th>
                 <th className="px-4 py-3">Generated</th>
                 <th className="px-4 py-3">State</th>
-                <th className="px-4 py-3">Drive</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-card">
               {rows.map((row) => {
-                const driveAction = getDriveHistoryAction({
-                  role: viewerRole,
-                  row,
-                });
-                const driveButtonText =
-                  driveAction === "upload"
-                    ? "Upload to Drive"
-                    : driveAction === "retry"
-                      ? "Retry Drive Upload"
-                      : driveAction === "recover"
-                        ? "Recover Upload"
-                        : "Uploading";
-                const pending = pendingExportId === row.id;
-
                 return (
                   <tr key={row.id}>
                     <td className="px-4 py-3 align-top">
@@ -176,9 +107,6 @@ export function ExportHistoryPanel({
                     <td className="px-4 py-3 align-top text-slate-700 dark:text-slate-300">
                       {generationStatusLabel(row)}
                     </td>
-                    <td className="px-4 py-3 align-top text-slate-700 dark:text-slate-300">
-                      {driveStatusLabel(row, viewerRole)}
-                    </td>
                     <td className="px-4 py-3 align-top">
                       <div className="flex flex-wrap gap-2">
                         {row.artifactAvailable &&
@@ -192,41 +120,6 @@ export function ExportHistoryPanel({
                           </a>
                         ) : null}
 
-                        {driveAction === "view" && row.driveUrl ? (
-                          <a
-                            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-                            href={row.driveUrl}
-                            rel="noopener noreferrer"
-                            target="_blank"
-                          >
-                            <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                            View in Drive
-                          </a>
-                        ) : null}
-
-                        {driveAction === "upload" ||
-                        driveAction === "retry" ||
-                        driveAction === "recover" ? (
-                          <button
-                            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:disabled:bg-slate-950 dark:disabled:text-slate-600"
-                            disabled={pendingExportId !== null}
-                            onClick={() => void handleDriveUpload(row.id)}
-                            type="button"
-                          >
-                            {driveAction === "retry" || driveAction === "recover" ? (
-                              <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                            ) : (
-                              <UploadCloud className="h-4 w-4" aria-hidden="true" />
-                            )}
-                            {pending ? "Working" : driveButtonText}
-                          </button>
-                        ) : null}
-
-                        {driveAction === "wait" ? (
-                          <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-                            Uploading
-                          </span>
-                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -237,11 +130,6 @@ export function ExportHistoryPanel({
         </div>
       )}
 
-      {message ? (
-        <p className="text-sm text-slate-600 dark:text-slate-300" role="status">
-          {message}
-        </p>
-      ) : null}
     </section>
   );
 }

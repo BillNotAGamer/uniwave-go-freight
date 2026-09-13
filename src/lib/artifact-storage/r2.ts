@@ -156,7 +156,7 @@ export class R2ArtifactStorage implements ArtifactStorage {
         Body: input.body,
         ContentType: input.mimeType,
         Metadata: {
-          "uniwave-export-id": input.exportId,
+          ...(input.exportId ? { "uniwave-export-id": input.exportId } : {}),
           sha256: input.checksumSha256,
         },
       }));

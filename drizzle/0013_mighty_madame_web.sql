@@ -1,0 +1,1 @@
+ALTER TYPE "public"."shipping_note_document_type" ADD VALUE 'customs_declaration';

@@ -72,7 +72,7 @@ describe("export history read model", () => {
       .toBeInstanceOf(AuthorizationError);
   });
 
-  it("maps safe DTO fields without storage keys or Drive folder IDs", () => {
+  it("maps safe artifact DTO fields without Drive data", () => {
     const item = toExportHistoryItem({
       row: {
         exportRecord: exportRecord(),
@@ -81,12 +81,6 @@ describe("export history read model", () => {
           email: "accountant@example.test",
         },
       },
-      note: {
-        id: "note-1",
-        status: "checked",
-        deletedAt: null,
-      },
-      viewer: user("accountant"),
     });
 
     expect(item).toMatchObject({
@@ -95,29 +89,11 @@ describe("export history read model", () => {
       version: 2,
       artifactAvailable: true,
       generatedByDisplay: "Accountant",
-      driveUrl: "https://drive.google.test/file/1",
-      driveErrorCode: null,
     });
     expect(item).not.toHaveProperty("artifactStorageKey");
-    expect(item).not.toHaveProperty("driveFolderId");
+    expect(item).not.toHaveProperty("driveUrl");
+    expect(item).not.toHaveProperty("driveUploadStatus");
     expect(item).not.toHaveProperty("errorMessage");
-  });
-
-  it("shows sanitized Drive error codes only to Admin", () => {
-    const adminItem = toExportHistoryItem({
-      row: {
-        exportRecord: exportRecord({ driveUploadStatus: "upload_failed" }),
-        generatedBy: null,
-      },
-      note: {
-        id: "note-1",
-        status: "checked",
-        deletedAt: null,
-      },
-      viewer: user("admin"),
-    });
-
-    expect(adminItem.driveErrorCode).toBe("DRIVE_UPLOAD_FAILED");
   });
 
   it("allows Accountant/Admin and applies newest-first ordering in the query", async () => {

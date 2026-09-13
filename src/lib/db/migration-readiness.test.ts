@@ -11,7 +11,7 @@ function readMigration(name: string): string {
 }
 
 describe("static migration readiness", () => {
-  it("has migration files through 0012", () => {
+  it("has migration files through 0013", () => {
     expect(readdirSync(drizzleDir).filter((file) => file.endsWith(".sql"))).toEqual([
       "0000_new_nick_fury.sql",
       "0001_dazzling_saracen.sql",
@@ -26,10 +26,11 @@ describe("static migration readiness", () => {
       "0010_soft_lorna_dane.sql",
       "0011_fresh_radioactive_man.sql",
       "0012_sweet_brood.sql",
+      "0013_mighty_madame_web.sql",
     ]);
   });
 
-  it("has journal entries through 0012 in order", () => {
+  it("has journal entries through 0013 in order", () => {
     const journal = JSON.parse(
       readFileSync(path.join(drizzleDir, "meta", "_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
@@ -48,6 +49,7 @@ describe("static migration readiness", () => {
       "10:0010_soft_lorna_dane",
       "11:0011_fresh_radioactive_man",
       "12:0012_sweet_brood",
+      "13:0013_mighty_madame_web",
     ]);
   });
 
@@ -248,6 +250,14 @@ describe("static migration readiness", () => {
     }
     expect(migration).not.toMatch(/(?:^|\n)(?:DROP|TRUNCATE|DELETE|UPDATE|INSERT)\s/im);
     expect(migration).not.toContain('"shipping_notes"');
+  });
+
+  it("0013 additively adds the customs declaration document type", () => {
+    const migration = readMigration("0013_mighty_madame_web.sql").trim();
+
+    expect(migration).toBe(
+      'ALTER TYPE "public"."shipping_note_document_type" ADD VALUE \'customs_declaration\';',
+    );
   });
 });
 

@@ -63,6 +63,7 @@ import {
 } from "@/features/shipping-notes/documents/policy";
 import { listShippingNoteDocumentsForUser } from "@/features/shipping-notes/documents/queries";
 import { getStorageAvailability } from "@/features/shipping-notes/documents/service";
+import { CUSTOMS_DECLARATION_DOCUMENT_TYPE } from "@/features/shipping-notes/documents/constants";
 import { getShippingModePresentation } from "@/features/shipping-notes/mode-rules";
 
 function formatDateTime(value: Date | null | undefined): string {
@@ -238,7 +239,14 @@ export default async function ShippingNoteDetailPage({
   const canReadDocs = canReadShippingNoteDocuments(note, user);
   const canMutateDocs = canMutateShippingNoteDocuments(note, user);
   const documents = canReadDocs
-    ? await listShippingNoteDocumentsForUser(id, user)
+    ? await listShippingNoteDocumentsForUser(id, user, {
+      excludeDocumentTypes: [CUSTOMS_DECLARATION_DOCUMENT_TYPE],
+    })
+    : [];
+  const customsDocuments = canReadDocs
+    ? await listShippingNoteDocumentsForUser(id, user, {
+      documentType: CUSTOMS_DECLARATION_DOCUMENT_TYPE,
+    })
     : [];
   const storageAvailability = getStorageAvailability();
 
@@ -502,6 +510,20 @@ export default async function ShippingNoteDetailPage({
 
         {canReadExportHistory ? (
           <ExportHistoryPanel rows={exportHistory} viewerRole={user.role} />
+        ) : null}
+
+        {canReadDocs ? (
+          <ShippingNoteDocumentsPanel
+            shippingNoteId={note.id}
+            documents={customsDocuments}
+            canMutate={canMutateDocs}
+            storageAvailable={storageAvailability.available}
+            fixedDocumentType={CUSTOMS_DECLARATION_DOCUMENT_TYPE}
+            sectionEyebrow="Customs Declarations"
+            sectionTitle="Tờ khai hải quan"
+            uploadLabel="Upload customs declaration"
+            emptyMessage="No customs declarations uploaded."
+          />
         ) : null}
 
         {canReadDocs ? (

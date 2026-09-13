@@ -152,6 +152,7 @@ describe("Shipping Note Documents Domain — Phase C10A", () => {
         "pre_alert_mbl",
         "contract",
         "invoice",
+        "customs_declaration",
       ]);
     });
 
@@ -160,6 +161,9 @@ describe("Shipping Note Documents Domain — Phase C10A", () => {
       expect(SHIPPING_NOTE_DOCUMENT_TYPE_LABELS.pre_alert_mbl).toBe("Pre-alert MBL");
       expect(SHIPPING_NOTE_DOCUMENT_TYPE_LABELS.contract).toBe("Contract");
       expect(SHIPPING_NOTE_DOCUMENT_TYPE_LABELS.invoice).toBe("Invoice");
+      expect(SHIPPING_NOTE_DOCUMENT_TYPE_LABELS.customs_declaration).toBe(
+        "Customs declaration",
+      );
     });
 
     it("defines supported storage providers", () => {
@@ -180,6 +184,20 @@ describe("Shipping Note Documents Domain — Phase C10A", () => {
       });
       expect(valid.documentType).toBe("pre_alert_hbl");
       expect(valid.sizeBytes).toBe(1048576);
+    });
+
+    it("accepts the canonical customs declaration type", () => {
+      const valid = registerShippingNoteDocumentInputSchema.parse({
+        shippingNoteId: "note-1",
+        documentType: "customs_declaration",
+        originalFileName: "declaration.pdf",
+        storageProvider: "r2",
+        storageKey: "documents/2026/09/note-1/declaration.pdf",
+        mimeType: "application/pdf",
+        sizeBytes: 1024,
+      });
+
+      expect(valid.documentType).toBe("customs_declaration");
     });
 
     it("fails closed on unsupported document type", () => {

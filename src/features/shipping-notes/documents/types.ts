@@ -12,6 +12,7 @@ export type ShippingNoteDocumentListItem = {
   mimeType: string;
   sizeBytes: number;
   uploadedById: string;
+  uploadedByName?: string | null;
   createdAt: Date;
 };
 

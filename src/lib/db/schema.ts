@@ -96,6 +96,7 @@ export const shippingNoteDocumentTypeEnum = pgEnum(
     "pre_alert_mbl",
     "contract",
     "invoice",
+    "customs_declaration",
   ],
 );
 

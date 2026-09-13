@@ -15,6 +15,7 @@ import {
   uploadShippingNoteDocument,
 } from "./service";
 import { validateDocumentFile, MAX_DOCUMENT_FILE_SIZE_BYTES } from "./file-security";
+import { buildDocumentR2Key } from "./storage-paths";
 
 const mocks = vi.hoisted(() => ({
   db: {
@@ -105,33 +106,117 @@ function makeMockNote(overrides: Partial<ShippingNoteDetail>): ShippingNoteDetai
 }
 
 describe("Document file security validation", () => {
-  it("accepts valid PDF, Word, Excel, and image files within 15 MB", () => {
+  it("accepts valid PDF, JPG, JPEG, PNG, and WEBP files within 15 MB", () => {
+    // PDF accepted
     const validPdf = validateDocumentFile({
       name: "contract.pdf",
       size: 1024 * 1024,
       type: "application/pdf",
+      bytes: Buffer.from("%PDF-1.4 mock pdf"),
     });
     expect(validPdf.valid).toBe(true);
 
-    const validDocx = validateDocumentFile({
-      name: "pre-alert.docx",
+    // JPG accepted
+    const validJpg = validateDocumentFile({
+      name: "bol_scan.jpg",
       size: 500 * 1024,
-      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      type: "image/jpeg",
+      bytes: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]),
     });
-    expect(validDocx.valid).toBe(true);
+    expect(validJpg.valid).toBe(true);
 
-    const validXlsx = validateDocumentFile({
-      name: "invoice.xlsx",
+    // JPEG accepted
+    const validJpeg = validateDocumentFile({
+      name: "customs.jpeg",
       size: 200 * 1024,
+      type: "image/jpeg",
+      bytes: Buffer.from([0xff, 0xd8, 0xff, 0xe1]),
     });
-    expect(validXlsx.valid).toBe(true);
+    expect(validJpeg.valid).toBe(true);
 
+    // PNG accepted
     const validPng = validateDocumentFile({
       name: "bol_scan.png",
       size: 800 * 1024,
       type: "image/png",
+      bytes: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     });
     expect(validPng.valid).toBe(true);
+
+    // WEBP accepted
+    const validWebp = validateDocumentFile({
+      name: "receipt.webp",
+      size: 400 * 1024,
+      type: "image/webp",
+      bytes: Buffer.from([
+        0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
+      ]),
+    });
+    expect(validWebp.valid).toBe(true);
+  });
+
+  it("rejects extension/MIME mismatch", () => {
+    const mismatch = validateDocumentFile({
+      name: "doc.pdf",
+      size: 1024,
+      type: "image/png",
+      bytes: Buffer.from("%PDF-1.4 test"),
+    });
+    expect(mismatch.valid).toBe(false);
+    if (!mismatch.valid) {
+      expect(mismatch.error).toContain("does not match provided MIME type");
+    }
+  });
+
+  it("rejects fake .pdf when signature is wrong", () => {
+    const fakePdf = validateDocumentFile({
+      name: "fake.pdf",
+      size: 1024,
+      type: "application/pdf",
+      bytes: Buffer.from("NOT_A_PDF_CONTENT"),
+    });
+    expect(fakePdf.valid).toBe(false);
+    if (!fakePdf.valid) {
+      expect(fakePdf.error).toContain("does not match the expected signature");
+    }
+  });
+
+  it("rejects fake .jpg when signature is wrong", () => {
+    const fakeJpg = validateDocumentFile({
+      name: "fake.jpg",
+      size: 1024,
+      type: "image/jpeg",
+      bytes: Buffer.from("NOT_A_JPEG_FILE"),
+    });
+    expect(fakeJpg.valid).toBe(false);
+    if (!fakeJpg.valid) {
+      expect(fakeJpg.error).toContain("does not match the expected signature");
+    }
+  });
+
+  it("rejects SVG uploads", () => {
+    const svg = validateDocumentFile({
+      name: "vector.svg",
+      size: 1024,
+      type: "image/svg+xml",
+    });
+    expect(svg.valid).toBe(false);
+  });
+
+  it("rejects XLSX uploads", () => {
+    const xlsx = validateDocumentFile({
+      name: "sheet.xlsx",
+      size: 1024,
+    });
+    expect(xlsx.valid).toBe(false);
+  });
+
+  it("rejects ZIP uploads", () => {
+    const zip = validateDocumentFile({
+      name: "archive.zip",
+      size: 1024,
+    });
+    expect(zip.valid).toBe(false);
   });
 
   it("rejects files exceeding 15 MB", () => {
@@ -154,6 +239,13 @@ describe("Document file security validation", () => {
     if (!empty.valid) {
       expect(empty.error).toContain("cannot be empty");
     }
+
+    const emptyBytes = validateDocumentFile({
+      name: "empty2.pdf",
+      size: 10,
+      bytes: Buffer.alloc(0),
+    });
+    expect(emptyBytes.valid).toBe(false);
   });
 
   it("explicitly rejects dangerous active and executable files", () => {
@@ -185,31 +277,50 @@ describe("Document file security validation", () => {
     const unsupported = validateDocumentFile({ name: "file.xyz", size: 1024 });
     expect(unsupported.valid).toBe(false);
   });
+
+  it("generates storage key that does not contain raw filename", () => {
+    const key = buildDocumentR2Key({
+      shippingNoteId: "note-123",
+      originalFileName: "Confidential_Contract_v2.pdf",
+      documentId: "doc-456",
+      uniqueId: "uuid-789",
+    });
+    expect(key).toBe("shipping-notes/note-123/documents/doc-456/uuid-789.pdf");
+    expect(key).not.toContain("Confidential_Contract_v2");
+  });
+
+  it("prevents path traversal filenames from affecting the storage key", () => {
+    const key = buildDocumentR2Key({
+      shippingNoteId: "note-123",
+      originalFileName: "../../../etc/passwd.pdf",
+      documentId: "doc-456",
+      uniqueId: "uuid-789",
+    });
+    expect(key).toBe("shipping-notes/note-123/documents/doc-456/uuid-789.pdf");
+    expect(key).not.toContain("..");
+  });
 });
 
 describe("Document storage availability helper", () => {
-  it("prioritizes R2 when both R2 and Drive are available", () => {
+  it("uses R2 when configured", () => {
     const availability = getStorageAvailability({
       isR2Available: true,
-      isDriveAvailable: true,
     });
     expect(availability.available).toBe(true);
     expect(availability.preferredProvider).toBe("r2");
   });
 
-  it("selects Google Drive when R2 is unavailable but Drive is configured", () => {
+  it("does not fall back to Google Drive when R2 is unavailable", () => {
     const availability = getStorageAvailability({
       isR2Available: false,
-      isDriveAvailable: true,
     });
-    expect(availability.available).toBe(true);
-    expect(availability.preferredProvider).toBe("google_drive");
+    expect(availability.available).toBe(false);
+    expect(availability.preferredProvider).toBe(null);
   });
 
   it("indicates unavailable when neither is configured", () => {
     const availability = getStorageAvailability({
       isR2Available: false,
-      isDriveAvailable: false,
     });
     expect(availability.available).toBe(false);
     expect(availability.preferredProvider).toBe(null);
@@ -272,7 +383,7 @@ describe("Document upload orchestration", () => {
           name: "HBL-PreAlert.pdf",
           size: 1024,
           type: "application/pdf",
-          bytes: Buffer.from("fake-pdf-content"),
+          bytes: Buffer.from("%PDF-1.4 mock pdf content"),
         },
       },
       adminUser,
@@ -297,71 +408,27 @@ describe("Document upload orchestration", () => {
     );
   });
 
-  it("uploads to Google Drive with Year/Month/Shipment folders when R2 is unconfigured", async () => {
+  it("does not upload to Google Drive when R2 is unconfigured", async () => {
     const note = makeMockNote({ id: "note-1", jobsheetNo: "JS-2026-001", status: "submitted" });
     mocks.getShippingNoteForUser.mockResolvedValue(note);
-
-    const fakeRow: ShippingNoteDocumentListItem = {
-      id: "doc-2",
-      shippingNoteId: "note-1",
-      documentType: "contract",
-      originalFileName: "Service-Contract.docx",
-      storageProvider: "google_drive",
-      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      sizeBytes: 2048,
-      uploadedById: adminUser.id,
-      createdAt: fixedDate,
-    };
-
-    mocks.db.transaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => {
-      const tx = {
-        select: vi.fn().mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([]),
-            }),
-          }),
-        }),
-        insert: vi.fn().mockReturnValue({
-          values: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([fakeRow]),
-          }),
-        }),
-      };
-      return callback(tx);
-    });
-
-    const result = await uploadShippingNoteDocument(
+    await expect(uploadShippingNoteDocument(
       {
         shippingNoteId: "note-1",
         documentType: "contract",
         file: {
-          name: "Service-Contract.docx",
+          name: "Service-Contract.pdf",
           size: 2048,
-          bytes: Buffer.from("fake-docx-content"),
+          type: "application/pdf",
+          bytes: Buffer.from("%PDF-1.4 mock pdf content"),
         },
       },
       adminUser,
       {
         driveUploader: fakeDrive,
-        driveRootFolderId: "root-1",
         isR2Available: false,
-        isDriveAvailable: true,
-        now: fixedDate,
       },
-    );
-
-    expect(result.id).toBe("doc-2");
-    expect(result.storageProvider).toBe("google_drive");
-
-    // Verify Drive folders were created: Year 2026, Month 09, Shipment JS_2026_001
-    expect(fakeDrive.folders.size).toBe(3);
-    expect(fakeDrive.uploads.length).toBe(1);
-    expect(fakeDrive.uploads[0].appProperties).toEqual({
-      uniwaveShippingNoteId: "note-1",
-      uniwaveDocumentType: "contract",
-      uniwaveOriginalFileName: "Service-Contract.docx",
-    });
+    )).rejects.toThrow("Document storage is not configured");
+    expect(fakeDrive.uploads).toHaveLength(0);
   });
 
   it("performs compensating cleanup on provider object when DB registration fails", async () => {
@@ -378,7 +445,8 @@ describe("Document upload orchestration", () => {
           file: {
             name: "invoice.pdf",
             size: 512,
-            bytes: Buffer.from("fake-invoice"),
+            type: "application/pdf",
+            bytes: Buffer.from("%PDF-1.4 mock pdf invoice"),
           },
         },
         adminUser,
@@ -408,7 +476,8 @@ describe("Document upload orchestration", () => {
           file: {
             name: "invoice.pdf",
             size: 512,
-            bytes: Buffer.from("fake-invoice"),
+            type: "application/pdf",
+            bytes: Buffer.from("%PDF-1.4 mock pdf invoice"),
           },
         },
         adminUser,
@@ -436,7 +505,8 @@ describe("Document upload orchestration", () => {
           file: {
             name: "hbl.pdf",
             size: 512,
-            bytes: Buffer.from("bytes"),
+            type: "application/pdf",
+            bytes: Buffer.from("%PDF-1.4 mock pdf"),
           },
         },
         adminUser,
@@ -462,7 +532,8 @@ describe("Document upload orchestration", () => {
           file: {
             name: "hbl.pdf",
             size: 512,
-            bytes: Buffer.from("bytes"),
+            type: "application/pdf",
+            bytes: Buffer.from("%PDF-1.4 mock pdf"),
           },
         },
         adminUser,
@@ -488,7 +559,8 @@ describe("Document upload orchestration", () => {
           file: {
             name: "hbl.pdf",
             size: 512,
-            bytes: Buffer.from("bytes"),
+            type: "application/pdf",
+            bytes: Buffer.from("%PDF-1.4 mock pdf"),
           },
         },
         saleUser,
@@ -883,5 +955,82 @@ describe("Document download orchestration", () => {
         r2Storage: fakeR2,
       }),
     ).rejects.toThrow(AuthorizationError);
+  });
+
+  it("returns stable sanitized error when storage object is missing without leaking secrets", async () => {
+    const note = makeMockNote({ id: "note-1", status: "checked" });
+    mocks.getShippingNoteForUser.mockResolvedValue(note);
+
+    const docDetail: ShippingNoteDocumentDetail = {
+      id: "doc-missing",
+      shippingNoteId: "note-1",
+      documentType: "invoice",
+      originalFileName: "missing.pdf",
+      storageProvider: "r2",
+      storageKey: "shipping-notes/note-1/documents/doc-missing/file.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 100,
+      uploadedById: adminUser.id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    mocks.db.select.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([docDetail]),
+        }),
+      }),
+    });
+
+    await expect(
+      downloadShippingNoteDocument("doc-missing", adminUser, {
+        r2Storage: fakeR2,
+      }),
+    ).rejects.toThrow("Artifact object was not found.");
+  });
+
+  it("verifies download result includes shippingNoteId for caller route verification", async () => {
+    const note = makeMockNote({ id: "note-abc", status: "draft" });
+    mocks.getShippingNoteForUser.mockResolvedValue(note);
+
+    const storageKey = "shipping-notes/note-abc/documents/doc-abc/contract.pdf";
+    await fakeR2.put({
+      key: storageKey,
+      body: Buffer.from("%PDF-1.4 contract data"),
+      mimeType: "application/pdf",
+      checksumSha256: "checksum",
+      exportId: "exp-abc",
+    });
+
+    const docDetail: ShippingNoteDocumentDetail = {
+      id: "doc-abc",
+      shippingNoteId: "note-abc",
+      documentType: "contract",
+      originalFileName: "contract.pdf",
+      storageProvider: "r2",
+      storageKey,
+      mimeType: "application/pdf",
+      sizeBytes: 25,
+      uploadedById: adminUser.id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    mocks.db.select.mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue([docDetail]),
+        }),
+      }),
+    });
+
+    const result = await downloadShippingNoteDocument("doc-abc", adminUser, {
+      r2Storage: fakeR2,
+    });
+
+    expect(result.shippingNoteId).toBe("note-abc");
+    expect(result.fileName).toBe("contract.pdf");
+    expect(result.mimeType).toBe("application/pdf");
   });
 });

@@ -46,12 +46,13 @@ function makeMockUser(overrides: Partial<DbUser>): DbUser {
 }
 
 describe("Document Library and Pre-alert UI options", () => {
-  it("exposes exactly the four accepted document categories without speculative additions", () => {
+  it("exposes the canonical general and customs document categories", () => {
     expect(SHIPPING_NOTE_DOCUMENT_TYPES).toEqual([
       "pre_alert_hbl",
       "pre_alert_mbl",
       "contract",
       "invoice",
+      "customs_declaration",
     ]);
 
     expect(SHIPPING_NOTE_DOCUMENT_TYPE_LABELS).toEqual({
@@ -59,6 +60,7 @@ describe("Document Library and Pre-alert UI options", () => {
       pre_alert_mbl: "Pre-alert MBL",
       contract: "Contract",
       invoice: "Invoice",
+      customs_declaration: "Customs declaration",
     });
   });
 
