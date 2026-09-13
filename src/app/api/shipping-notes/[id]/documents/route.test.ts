@@ -1,6 +1,6 @@
 vi.mock("server-only", () => ({}));
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 import { AuthorizationError } from "@/lib/permissions/require-permission";
@@ -25,8 +25,12 @@ vi.mock("@/features/shipping-notes/documents/queries", () => ({
 
 import { POST, GET } from "./route";
 
-function makeUploadRequest(formData: FormData, origin = "http://localhost:3000"): NextRequest {
-  const req = new NextRequest("http://localhost:3000/api/shipping-notes/note-1/documents", {
+function makeUploadRequest(
+  formData: FormData,
+  origin = "http://localhost:3000",
+  requestUrl = "http://localhost:3000/api/shipping-notes/note-1/documents",
+): NextRequest {
+  const req = new NextRequest(requestUrl, {
     method: "POST",
     headers: {
       origin,
@@ -38,6 +42,16 @@ function makeUploadRequest(formData: FormData, origin = "http://localhost:3000")
 }
 
 describe("Document upload route handler", () => {
+  beforeEach(() => {
+    vi.stubEnv("AUTH_URL", "http://localhost:3000");
+    vi.stubEnv("NODE_ENV", "test");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
   it("rejects cross-origin requests with 403", async () => {
     const formData = new FormData();
     const req = new NextRequest("http://localhost:3000/api/shipping-notes/note-1/documents", {
@@ -54,6 +68,36 @@ describe("Document upload route handler", () => {
     });
 
     expect(response.status).toBe(403);
+    expect(mocks.getCurrentSession).not.toHaveBeenCalled();
+    expect(mocks.uploadShippingNoteDocument).not.toHaveBeenCalled();
+  });
+
+  it("uses AUTH_URL for a proxied public customs upload before authentication", async () => {
+    const publicOrigin = "https://uniwave-go-freight-production-8da8.up.railway.app";
+    vi.stubEnv("AUTH_URL", publicOrigin);
+    vi.stubEnv("NODE_ENV", "production");
+    mocks.getCurrentSession.mockResolvedValue(null);
+
+    const formData = new FormData();
+    formData.append("documentType", "customs_declaration");
+    formData.append(
+      "file",
+      new Blob(["fake-pdf"], { type: "application/pdf" }),
+      "declaration.pdf",
+    );
+
+    const response = await POST(
+      makeUploadRequest(
+        formData,
+        publicOrigin,
+        "http://railway-internal:8080/api/shipping-notes/note-1/documents",
+      ),
+      { params: Promise.resolve({ id: "note-1" }) },
+    );
+
+    expect(response.status).toBe(401);
+    expect(mocks.getCurrentSession).toHaveBeenCalledOnce();
+    expect(mocks.uploadShippingNoteDocument).not.toHaveBeenCalled();
   });
 
   it("rejects unauthenticated requests with 401", async () => {
@@ -174,6 +218,16 @@ describe("Document upload route handler", () => {
   });
 });
 describe("Document list route handler (GET)", () => {
+  beforeEach(() => {
+    vi.stubEnv("AUTH_URL", "http://localhost:3000");
+    vi.stubEnv("NODE_ENV", "test");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
   function makeGetRequest(origin = "http://localhost:3000"): NextRequest {
     return new NextRequest("http://localhost:3000/api/shipping-notes/note-1/documents", {
       method: "GET",
