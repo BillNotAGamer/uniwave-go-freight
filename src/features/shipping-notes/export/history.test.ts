@@ -119,6 +119,7 @@ describe("export history read model", () => {
       consigneePartnerId: null,
       customerPartnerId: null,
       agentPartnerId: null,
+      commodityHsCode: null,
       shipperText: null,
       consigneeText: null,
       status: "checked",

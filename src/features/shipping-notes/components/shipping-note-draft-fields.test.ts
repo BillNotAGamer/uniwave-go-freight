@@ -13,6 +13,7 @@ function render(mode: "sea_export" | "air_export" | "domestic_truck" | "custom")
   return renderToStaticMarkup(createElement(ShippingNoteDraftFields, {
     values: {
       jobsheetNo: "QA-EDIT-001", shippingMode: mode,
+      commodityHsCode: "Electronics / 8517",
       aol: "SGN", aod: "NRT", portOfLoading: "VNSGN", portOfDischarge: "USLAX",
       finalDestination: "Destination", domesticOrigin: "HCM", domesticDestination: "DAD",
       customModeName: "Rail", customOrigin: "HCM", customDestination: "Phnom Penh",
@@ -31,6 +32,14 @@ describe("Shipping Note Draft field presentation", () => {
     expect(html).toContain("Direction");
     expect(html).toContain("Export");
     expect(html).not.toContain(">air_export<");
+  });
+
+  it("renders the optional commodity/HS code field with its saved value", () => {
+    const html = render("air_export");
+
+    expect(html).toContain("Commidity/HS code");
+    expect(html).toContain('name="commodityHsCode"');
+    expect(html).toContain('value="Electronics / 8517"');
   });
 
   it("renders Air routing and separate Air Freight controls", () => {

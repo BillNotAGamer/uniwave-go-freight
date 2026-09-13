@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   searchPartners: vi.fn(),
   searchServiceCatalogItems: vi.fn(),
   hardDeleteShippingNote: vi.fn(),
+  createShippingNoteDraft: vi.fn(),
+  updateShippingNoteDraft: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/session", () => ({
@@ -32,7 +34,7 @@ vi.mock("./mutations", () => ({
   cancelShippingNote: vi.fn(),
   createBuyingChargeForNote: vi.fn(),
   createSellingChargeForNote: vi.fn(),
-  createShippingNoteDraft: vi.fn(),
+  createShippingNoteDraft: mocks.createShippingNoteDraft,
   lockShippingNote: vi.fn(),
   markShippingNoteChecked: vi.fn(),
   reopenShippingNoteForCorrection: vi.fn(),
@@ -43,7 +45,7 @@ vi.mock("./mutations", () => ({
   unlockShippingNote: vi.fn(),
   updateBuyingCharge: vi.fn(),
   updateSellingCharge: vi.fn(),
-  updateShippingNoteDraft: vi.fn(),
+  updateShippingNoteDraft: mocks.updateShippingNoteDraft,
 }));
 
 vi.mock("./hard-delete", () => ({
@@ -51,10 +53,57 @@ vi.mock("./hard-delete", () => ({
 }));
 
 import {
+  createShippingNoteDraftAction,
   searchShippingNotePartnersAction,
   searchShippingNoteLocationsAction,
   searchShippingNoteServiceCatalogAction,
+  updateShippingNoteDraftAction,
 } from "./actions";
+
+describe("Shipping Note commodity/HS code actions", () => {
+  const actor = { id: "sale-1", role: "sale" as const };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: actor });
+    mocks.createShippingNoteDraft.mockResolvedValue({ id: "note-1" });
+    mocks.updateShippingNoteDraft.mockResolvedValue({ id: "note-1" });
+  });
+
+  it("passes a trimmed optional commodity/HS code through create", async () => {
+    const formData = new FormData();
+    formData.set("jobsheetNo", "DOM-001");
+    formData.set("shippingMode", "domestic_truck");
+    formData.set("domesticOrigin", "HCM");
+    formData.set("domesticDestination", "DAD");
+    formData.set("commodityHsCode", "  Electronics / 8517  ");
+
+    await createShippingNoteDraftAction({ ok: true }, formData);
+
+    expect(mocks.createShippingNoteDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ commodityHsCode: "Electronics / 8517" }),
+      actor,
+    );
+  });
+
+  it("passes the exact trimmed commodity/HS code through draft update", async () => {
+    const formData = new FormData();
+    formData.set("id", "note-1");
+    formData.set("jobsheetNo", "DOM-001");
+    formData.set("shippingMode", "domestic_truck");
+    formData.set("domesticOrigin", "HCM");
+    formData.set("domesticDestination", "DAD");
+    formData.set("commodityHsCode", "  Textiles / 5208  ");
+
+    await updateShippingNoteDraftAction({ ok: true }, formData);
+
+    expect(mocks.updateShippingNoteDraft).toHaveBeenCalledWith(
+      "note-1",
+      expect.objectContaining({ commodityHsCode: "Textiles / 5208" }),
+      actor,
+    );
+  });
+});
 
 describe("Shipping Note Partner lookup action", () => {
   beforeEach(() => {

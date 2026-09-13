@@ -304,6 +304,10 @@ export default async function ShippingNoteDetailPage({
                 <dd>{note.mawbHawbNo ?? "-"}</dd>
               </div>
               <div>
+                <dt className="font-medium text-foreground">Commidity/HS code</dt>
+                <dd>{note.commodityHsCode ?? "-"}</dd>
+              </div>
+              <div>
                 <dt className="font-medium text-foreground">AOL</dt>
                 <dd>{note.aol ?? "-"}</dd>
               </div>

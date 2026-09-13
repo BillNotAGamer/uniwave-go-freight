@@ -171,6 +171,7 @@ export async function createShippingNoteDraftAction(
 
   const parsed = createShippingNoteDraftInputSchema.safeParse({
     jobsheetNo: readFormString(formData, "jobsheetNo"),
+    commodityHsCode: readFormString(formData, "commodityHsCode"),
     shippingMode: readFormString(formData, "shippingMode"),
     shipperPartnerId: readFormString(formData, "shipperPartnerId"),
     consigneePartnerId: readFormString(formData, "consigneePartnerId"),
@@ -237,6 +238,7 @@ export async function updateShippingNoteDraftAction(
   const parsed = updateShippingNoteDraftInputSchema.safeParse({
     id: readFormString(formData, "id"),
     jobsheetNo: readFormString(formData, "jobsheetNo"),
+    commodityHsCode: readFormString(formData, "commodityHsCode"),
     shippingMode: readFormString(formData, "shippingMode"),
     shipperPartnerId: readFormString(formData, "shipperPartnerId"),
     consigneePartnerId: readFormString(formData, "consigneePartnerId"),

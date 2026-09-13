@@ -442,6 +442,7 @@ export async function createShippingNoteDraft(
         .insert(shippingNotes)
         .values({
           jobsheetNo: canonicalInput.jobsheetNo,
+          commodityHsCode: normalizeOptionalText(canonicalInput.commodityHsCode),
           shippingMode: canonicalInput.shippingMode,
           mawbHawbNo: normalizeOptionalText(canonicalInput.mawbHawbNo),
           ...partyPersistence,
@@ -518,6 +519,7 @@ export async function updateShippingNoteDraft(
         .update(shippingNotes)
         .set({
           jobsheetNo: canonicalInput.jobsheetNo,
+          commodityHsCode: normalizeOptionalText(canonicalInput.commodityHsCode),
           shippingMode: canonicalInput.shippingMode,
           mawbHawbNo: normalizeOptionalText(canonicalInput.mawbHawbNo),
           ...partyPersistence,

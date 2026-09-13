@@ -144,6 +144,7 @@ const shippingModeSchema = z.enum(SHIPPING_MODES);
 const volumeUnitSchema = z.enum(VOLUME_UNITS);
 const shippingNoteDraftBaseInputSchema = z.object({
   jobsheetNo: z.string().trim().min(1).transform(normalizeJobsheetNo),
+  commodityHsCode: optionalTrimmedText().optional(),
   shippingMode: shippingModeSchema,
   shipperPartnerId: optionalTrimmedText().optional(),
   consigneePartnerId: optionalTrimmedText().optional(),

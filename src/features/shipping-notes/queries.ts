@@ -104,6 +104,7 @@ const shippingNoteListColumns = {
 
 const shippingNoteDetailColumns = {
   ...shippingNoteListColumns,
+  commodityHsCode: shippingNotes.commodityHsCode,
   shipperPartnerId: shippingNotes.shipperPartnerId,
   consigneePartnerId: shippingNotes.consigneePartnerId,
   customerPartnerId: shippingNotes.customerPartnerId,

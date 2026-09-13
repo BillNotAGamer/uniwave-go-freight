@@ -74,6 +74,7 @@ function makeMockNote(overrides: Partial<ShippingNoteDetail>): ShippingNoteDetai
     consigneePartnerId: null,
     customerPartnerId: null,
     agentPartnerId: null,
+    commodityHsCode: null,
     mawbHawbNo: null,
     customerText: null,
     agentText: null,

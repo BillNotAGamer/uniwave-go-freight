@@ -100,6 +100,7 @@ function makeNote(
     consigneePartnerId: null,
     customerPartnerId: null,
     agentPartnerId: null,
+    commodityHsCode: null,
     mawbHawbNo: null,
     customerText: null,
     agentText: null,
@@ -299,6 +300,22 @@ describe("ShippingNoteDetailPage Draft edit presentation", () => {
     expect(text).toContain("Edit Shipment");
     expect(text).toContain("Update shipment details while this shipment is still in Draft.");
     expect(text).not.toContain("Draft-only edit path");
+  });
+
+  it("shows the commodity/HS code in the Shipping information", async () => {
+    const saleUser = makeUser("sale");
+    const note = makeNote("draft");
+    note.commodityHsCode = "Electronics / 8517";
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+    const text = collectText(jsx);
+
+    expect(text).toContain("Commidity/HS code");
+    expect(text).toContain("Electronics / 8517");
   });
 
   it("keeps Admin edit access but hides Submit for a Sale-created Draft", async () => {

@@ -192,6 +192,7 @@ describe("C4/C6 Shipping Note draft persistence", () => {
     expect(configured.insertedValues()).toMatchObject({
       shippingMode: "domestic_truck",
       createdById: "sale-1",
+      commodityHsCode: null,
       shipperPartnerId: null,
       shipperText: "Legacy Shipper",
       consigneePartnerId: null,
@@ -291,6 +292,7 @@ describe("C4/C6 Shipping Note draft persistence", () => {
     const configured = configureTransaction();
     const input = shippingNoteDraftInputSchema.parse({
       jobsheetNo: "C4-FIELDS",
+      commodityHsCode: "  Furniture / 9403  ",
       shippingMode: "sea_import",
       domesticOrigin: "HCM",
       domesticDestination: "DAD",
@@ -313,6 +315,7 @@ describe("C4/C6 Shipping Note draft persistence", () => {
     await createShippingNoteDraft(input, saleUser());
 
     expect(configured.insertedValues()).toMatchObject({
+      commodityHsCode: "Furniture / 9403",
       domesticOrigin: null,
       domesticDestination: null,
       aol: null,
@@ -346,6 +349,7 @@ describe("C4/C6 Shipping Note draft persistence", () => {
     const input = updateShippingNoteDraftInputSchema.parse({
       id: "note-1",
       jobsheetNo: "C4-UPDATE",
+      commodityHsCode: "  Textiles / 5208  ",
       shippingMode: "sea_export",
       agentPartnerId: "partner-beta",
       agentText: "Untrusted Name",
@@ -363,6 +367,7 @@ describe("C4/C6 Shipping Note draft persistence", () => {
     await updateShippingNoteDraft("note-1", input, saleUser());
 
     expect(configured.updatedValues()).toMatchObject({
+      commodityHsCode: "Textiles / 5208",
       agentPartnerId: "partner-beta",
       agentText: "Beta Logistics",
       portOfLoading: "VNSGN",

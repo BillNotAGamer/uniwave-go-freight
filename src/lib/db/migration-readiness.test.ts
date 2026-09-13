@@ -11,7 +11,7 @@ function readMigration(name: string): string {
 }
 
 describe("static migration readiness", () => {
-  it("has migration files through 0013", () => {
+  it("has migration files through 0014", () => {
     expect(readdirSync(drizzleDir).filter((file) => file.endsWith(".sql"))).toEqual([
       "0000_new_nick_fury.sql",
       "0001_dazzling_saracen.sql",
@@ -27,10 +27,11 @@ describe("static migration readiness", () => {
       "0011_fresh_radioactive_man.sql",
       "0012_sweet_brood.sql",
       "0013_mighty_madame_web.sql",
+      "0014_dark_sentinels.sql",
     ]);
   });
 
-  it("has journal entries through 0013 in order", () => {
+  it("has journal entries through 0014 in order", () => {
     const journal = JSON.parse(
       readFileSync(path.join(drizzleDir, "meta", "_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
@@ -50,6 +51,7 @@ describe("static migration readiness", () => {
       "11:0011_fresh_radioactive_man",
       "12:0012_sweet_brood",
       "13:0013_mighty_madame_web",
+      "14:0014_dark_sentinels",
     ]);
   });
 
@@ -257,6 +259,14 @@ describe("static migration readiness", () => {
 
     expect(migration).toBe(
       'ALTER TYPE "public"."shipping_note_document_type" ADD VALUE \'customs_declaration\';',
+    );
+  });
+
+  it("0014 only adds the nullable Shipping Note commodity/HS code", () => {
+    const migration = readMigration("0014_dark_sentinels.sql").trim();
+
+    expect(migration).toBe(
+      'ALTER TABLE "shipping_notes" ADD COLUMN "commodity_hs_code" text;',
     );
   });
 });

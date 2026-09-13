@@ -60,6 +60,9 @@ describe("C4 Shipping Note historical read model", () => {
       shippingNotes.shipperPartnerId,
     );
     expect(shippingNoteDetailSelect.shipperText).toBe(shippingNotes.shipperText);
+    expect(shippingNoteDetailSelect.commodityHsCode).toBe(
+      shippingNotes.commodityHsCode,
+    );
     expect(shippingNoteDetailSelect.airOrigin).toBe(shippingNotes.aol);
     expect(shippingNoteDetailSelect.airDestination).toBe(shippingNotes.aod);
     expect(shippingNoteDetailSelect.portOfLoading).toBe(

@@ -223,6 +223,7 @@ export const shippingNotes = pgTable(
   {
     id: idColumn(),
     jobsheetNo: text("jobsheet_no").notNull().unique(),
+    commodityHsCode: text("commodity_hs_code"),
     mawbHawbNo: text("mawb_hawb_no"),
     shippingMode: shippingModeEnum("shipping_mode")
       .notNull()

@@ -63,6 +63,11 @@ describe("C4 Shipping Note schema contract", () => {
     expect(shippingNotes.mawbHawbNo).toBeDefined();
   });
 
+  it("defines a nullable commodity/HS code column for existing-note compatibility", () => {
+    expect(shippingNotes.commodityHsCode.name).toBe("commodity_hs_code");
+    expect(shippingNotes.commodityHsCode.notNull).toBe(false);
+  });
+
   it("defines four nullable, non-unique Partner references with lookup indexes", () => {
     const config = getTableConfig(shippingNotes);
     const uniqueColumns = new Set(

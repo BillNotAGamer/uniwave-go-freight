@@ -66,6 +66,7 @@ export function ShippingNoteDraftFields({ values, includeJobsheetNo = true }: Sh
   return <>
     <Section title="Shipment">
       {includeJobsheetNo ? <TextField defaultValue={values?.jobsheetNo} label="Jobsheet No" name="jobsheetNo" required /> : null}
+      <TextField defaultValue={values?.commodityHsCode} label="Commidity/HS code" name="commodityHsCode" />
       <label className="text-sm font-medium text-foreground" htmlFor="shipmentType">
         Shipment Type
         <select className={controlClassName} id="shipmentType" onChange={(event) => updateShipmentFamily(event.target.value as EditShipmentFamily)} value={shipmentFamily}>

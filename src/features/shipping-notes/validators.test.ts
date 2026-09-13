@@ -82,6 +82,7 @@ describe("shipping note validation schemas", () => {
     const parsed = shippingNoteDraftInputSchema.parse({
       ...validSeaInput,
       jobsheetNo: " js   001 ",
+      commodityHsCode: "  Electronics / 8517  ",
       mawbHawbNo: "  MAWB-1  ",
       volumeValue: "12.5",
       volumeUnit: "cbm",
@@ -90,11 +91,18 @@ describe("shipping note validation schemas", () => {
     });
 
     expect(parsed.jobsheetNo).toBe("JS 001");
+    expect(parsed.commodityHsCode).toBe("Electronics / 8517");
     expect(parsed.mawbHawbNo).toBe("MAWB-1");
     expect(parsed.shipperText).toBeUndefined();
     expect(parsed.volumeValue).toBe(12.5);
     expect(parsed.exchangeRate).toBe(25000);
     expect("unexpected" in parsed).toBe(false);
+  });
+
+  it("keeps the commodity/HS code optional for existing Shipping Notes", () => {
+    const parsed = shippingNoteDraftInputSchema.parse(validDomesticInput);
+
+    expect(parsed.commodityHsCode).toBeUndefined();
   });
 
   it("rejects explicit blank optional text at the pure schema boundary", () => {

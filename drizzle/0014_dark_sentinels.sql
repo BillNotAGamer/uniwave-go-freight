@@ -1,0 +1,1 @@
+ALTER TABLE "shipping_notes" ADD COLUMN "commodity_hs_code" text;
