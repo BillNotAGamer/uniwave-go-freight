@@ -64,6 +64,7 @@ import ShippingNoteDetailPage from "./page";
 import { CustomsDeclarationsPanel } from "@/features/shipping-notes/customs-declarations/components/customs-declarations-panel";
 import { ShippingNoteDraftForm } from "@/features/shipping-notes/components/shipping-note-draft-form";
 import { ShippingNoteSubmitForm } from "@/features/shipping-notes/components/shipping-note-submit-form";
+import { ShippingNoteHardDeleteControls } from "@/features/shipping-notes/components/shipping-note-hard-delete-controls";
 
 const now = new Date("2026-09-01T00:00:00.000Z");
 
@@ -343,6 +344,34 @@ describe("ShippingNoteDetailPage Draft edit presentation", () => {
 
     expect(findComponentInTree(jsx, ShippingNoteDraftForm)).not.toBeNull();
     expect(findComponentInTree(jsx, ShippingNoteSubmitForm)).not.toBeNull();
+  });
+});
+
+describe("ShippingNoteDetailPage hard-delete presentation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getSellingChargesAndSummaryForNoteForUser.mockResolvedValue({ charges: [], summary: { totalAmountVnd: "0.00" } });
+    mocks.listBuyingChargesForNoteForUser.mockResolvedValue([]);
+    mocks.listChargeTaxDetailsForNoteForUser.mockResolvedValue([]);
+    mocks.listTaxRulesForUser.mockResolvedValue([]);
+    mocks.listShippingNoteExportHistoryForUser.mockResolvedValue([]);
+    mocks.listCustomsDeclarationsForNoteForUser.mockResolvedValue([]);
+    mocks.listShippingNoteDocumentsForUser.mockResolvedValue([]);
+  });
+
+  it("renders the destructive hard-delete control only for Admin", async () => {
+    const adminUser = makeUser("admin");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: adminUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
+
+    const adminPage = await ShippingNoteDetailPage({ params: Promise.resolve({ id: "note-1" }) });
+    expect(findComponentInTree(adminPage, ShippingNoteHardDeleteControls)).not.toBeNull();
+
+    const saleUser = makeUser("sale");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
+    const salePage = await ShippingNoteDetailPage({ params: Promise.resolve({ id: "note-1" }) });
+    expect(findComponentInTree(salePage, ShippingNoteHardDeleteControls)).toBeNull();
   });
 });
 

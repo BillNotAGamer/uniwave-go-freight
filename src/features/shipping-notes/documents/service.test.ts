@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
     select: vi.fn(),
     insert: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
     transaction: vi.fn(),
   },
   getShippingNoteForUser: vi.fn(),
@@ -573,19 +574,36 @@ describe("Document upload orchestration", () => {
   });
 });
 
-describe("Document removal orchestration", () => {
+describe("Document hard-delete orchestration", () => {
   let fakeR2: FakeArtifactStorage;
-  let fakeDrive: FakeDriveArtifactUploader;
   const adminUser = makeMockUser({ id: "admin-1", role: "admin" });
 
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.rejectInactiveOrSoftDeletedUsers.mockReturnValue(true);
     fakeR2 = new FakeArtifactStorage();
-    fakeDrive = new FakeDriveArtifactUploader();
   });
 
-  it("deletes provider object and soft-deletes DB metadata on success", async () => {
+  function configureHardDeleteTransaction(docDetail: ShippingNoteDocumentDetail) {
+    const tx = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([docDetail]),
+          }),
+        }),
+      }),
+      delete: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([{ id: docDetail.id }]),
+        }),
+      }),
+    };
+    mocks.db.transaction.mockImplementation(async (callback: (value: typeof tx) => Promise<unknown>) => callback(tx));
+    return tx;
+  }
+
+  it("hard deletes R2 metadata first, then deletes its exact object key and audits the reason", async () => {
     const note = makeMockNote({ id: "note-1", status: "checked" });
     mocks.getShippingNoteForUser.mockResolvedValue(note);
 
@@ -603,37 +621,74 @@ describe("Document removal orchestration", () => {
       updatedAt: new Date(),
     };
 
-    // getShippingNoteDocumentByIdForUser query mock
-    mocks.db.select.mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([docDetail]),
-        }),
-      }),
-    });
-
-    mocks.db.transaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => {
-      const tx = {
-        select: vi.fn().mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([docDetail]),
-            }),
-          }),
-        }),
-        update: vi.fn().mockReturnValue({
-          set: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue([{ id: "doc-1" }]),
-          }),
-        }),
-      };
-      return callback(tx);
-    });
+    const tx = configureHardDeleteTransaction(docDetail);
 
     await removeShippingNoteDocument(
       {
         documentId: "doc-1",
         shippingNoteId: "note-1",
+        reason: "Superseded file",
+      },
+      adminUser,
+      {
+        r2Storage: fakeR2,
+      },
+    );
+
+    expect(fakeR2.deletedKeys).toContain(docDetail.storageKey);
+    expect(tx.delete).toHaveBeenCalled();
+    expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: "shipping_note.document.hard_delete",
+        entityId: "doc-1",
+        reason: "Superseded file",
+      }),
+    );
+  });
+
+  it("rejects a whitespace-only delete reason before metadata deletion", async () => {
+    mocks.getShippingNoteForUser.mockResolvedValue(
+      makeMockNote({ id: "note-1", status: "submitted" }),
+    );
+
+    await expect(
+      removeShippingNoteDocument(
+        { documentId: "doc-1", shippingNoteId: "note-1", reason: "   " },
+        adminUser,
+        { r2Storage: fakeR2 },
+      ),
+    ).rejects.toThrow("Delete reason is required");
+
+    expect(mocks.db.transaction).not.toHaveBeenCalled();
+    expect(fakeR2.deletedKeys).toHaveLength(0);
+  });
+
+  it("uses the same hard-delete service for customs declaration metadata", async () => {
+    const note = makeMockNote({ id: "note-1", status: "checked" });
+    mocks.getShippingNoteForUser.mockResolvedValue(note);
+
+    const docDetail: ShippingNoteDocumentDetail = {
+      id: "doc-customs-1",
+      shippingNoteId: "note-1",
+      documentType: "customs_declaration",
+      originalFileName: "declaration.pdf",
+      storageProvider: "r2",
+      storageKey: "shipping-note-documents/note-1/declaration.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 1024,
+      uploadedById: adminUser.id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    configureHardDeleteTransaction(docDetail);
+
+    await removeShippingNoteDocument(
+      {
+        documentId: "doc-customs-1",
+        shippingNoteId: "note-1",
+        reason: "Incorrect declaration",
       },
       adminUser,
       {
@@ -643,75 +698,9 @@ describe("Document removal orchestration", () => {
 
     expect(fakeR2.deletedKeys).toContain(docDetail.storageKey);
     expect(mocks.db.transaction).toHaveBeenCalled();
-    expect(mocks.logAuditEvent).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        action: "shipping_note.document.remove",
-        entityId: "note-1",
-      }),
-    );
   });
 
-  it("deletes Google Drive file and soft-deletes DB metadata on success", async () => {
-    const note = makeMockNote({ id: "note-1", status: "checked" });
-    mocks.getShippingNoteForUser.mockResolvedValue(note);
-
-    const docDetail: ShippingNoteDocumentDetail = {
-      id: "doc-drive-1",
-      shippingNoteId: "note-1",
-      documentType: "contract",
-      originalFileName: "contract.pdf",
-      storageProvider: "google_drive",
-      storageKey: "fake-drive-file-123",
-      mimeType: "application/pdf",
-      sizeBytes: 1024,
-      uploadedById: adminUser.id,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    mocks.db.select.mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([docDetail]),
-        }),
-      }),
-    });
-
-    mocks.db.transaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => {
-      const tx = {
-        select: vi.fn().mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([docDetail]),
-            }),
-          }),
-        }),
-        update: vi.fn().mockReturnValue({
-          set: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue([{ id: "doc-drive-1" }]),
-          }),
-        }),
-      };
-      return callback(tx);
-    });
-
-    await removeShippingNoteDocument(
-      {
-        documentId: "doc-drive-1",
-        shippingNoteId: "note-1",
-      },
-      adminUser,
-      {
-        driveUploader: fakeDrive,
-      },
-    );
-
-    expect(fakeDrive.deletedFileIds).toContain("fake-drive-file-123");
-    expect(mocks.db.transaction).toHaveBeenCalled();
-  });
-
-  it("fails closed when provider deletion fails (metadata remains active)", async () => {
+  it("reports sanitized cleanup failure only after metadata deletion and writes a cleanup audit", async () => {
     const note = makeMockNote({ id: "note-1", status: "submitted" });
     mocks.getShippingNoteForUser.mockResolvedValue(note);
 
@@ -729,13 +718,7 @@ describe("Document removal orchestration", () => {
       updatedAt: new Date(),
     };
 
-    mocks.db.select.mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([docDetail]),
-        }),
-      }),
-    });
+    configureHardDeleteTransaction(docDetail);
 
     fakeR2.failNextDelete();
 
@@ -744,19 +727,57 @@ describe("Document removal orchestration", () => {
         {
           documentId: "doc-1",
           shippingNoteId: "note-1",
+          reason: "Superseded file",
         },
         adminUser,
         {
           r2Storage: fakeR2,
         },
       ),
-    ).rejects.toThrow("Fake artifact storage delete failed.");
+    ).rejects.toThrow("Document metadata was deleted, but private artifact cleanup failed.");
 
-    // DB transaction was NOT called because provider delete failed!
-    expect(mocks.db.transaction).not.toHaveBeenCalled();
+    expect(mocks.db.transaction).toHaveBeenCalled();
+    expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: "shipping_note.document.hard_delete.cleanup_failed",
+        entityId: "doc-1",
+      }),
+    );
   });
 
-  it("G6 forensic: provider delete succeeds but DB soft-delete transaction fails (leaves stale metadata until retry)", async () => {
+  it("does not leak an audit-storage error when cleanup reporting also fails", async () => {
+    const note = makeMockNote({ id: "note-1", status: "submitted" });
+    mocks.getShippingNoteForUser.mockResolvedValue(note);
+    const docDetail: ShippingNoteDocumentDetail = {
+      id: "doc-1",
+      shippingNoteId: "note-1",
+      documentType: "invoice",
+      originalFileName: "inv.pdf",
+      storageProvider: "r2",
+      storageKey: "shipping-note-documents/2026/09/note-1/inv.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 1024,
+      uploadedById: adminUser.id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    configureHardDeleteTransaction(docDetail);
+    fakeR2.failNextDelete();
+    mocks.logAuditEvent
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("internal audit database error"));
+
+    await expect(
+      removeShippingNoteDocument(
+        { documentId: "doc-1", shippingNoteId: "note-1", reason: "Superseded file" },
+        adminUser,
+        { r2Storage: fakeR2 },
+      ),
+    ).rejects.toThrow("Document metadata was deleted, but private artifact cleanup failed.");
+  });
+
+  it("does not delete the R2 object when the authoritative DB delete fails", async () => {
     const note = makeMockNote({ id: "note-1", status: "submitted" });
     mocks.getShippingNoteForUser.mockResolvedValue(note);
 
@@ -774,33 +795,23 @@ describe("Document removal orchestration", () => {
       updatedAt: new Date(),
     };
 
-    mocks.db.select.mockReturnValue({
-      from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue([docDetail]),
-        }),
-      }),
-    });
-
-    // DB transaction throws error during soft-delete
-    mocks.db.transaction.mockRejectedValueOnce(new Error("Database connection dropped during soft-delete."));
+    mocks.db.transaction.mockRejectedValueOnce(new Error("Database connection dropped during hard delete."));
 
     await expect(
       removeShippingNoteDocument(
         {
           documentId: "doc-1",
           shippingNoteId: "note-1",
+          reason: "Superseded file",
         },
         adminUser,
         {
           r2Storage: fakeR2,
         },
       ),
-    ).rejects.toThrow("Database connection dropped during soft-delete.");
+    ).rejects.toThrow("Database connection dropped during hard delete.");
 
-    // Evidence: provider object was deleted from storage
-    expect(fakeR2.deletedKeys).toContain(docDetail.storageKey);
-    // But DB soft-delete threw, so DB row was not marked deleted
+    expect(fakeR2.deletedKeys).not.toContain(docDetail.storageKey);
     expect(mocks.logAuditEvent).not.toHaveBeenCalled();
   });
 
@@ -813,6 +824,7 @@ describe("Document removal orchestration", () => {
         {
           documentId: "doc-1",
           shippingNoteId: "note-locked",
+          reason: "Superseded file",
         },
         adminUser,
         {

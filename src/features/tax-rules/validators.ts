@@ -109,6 +109,12 @@ export const deactivateTaxRuleInputSchema = z.object({
   id: z.string().trim().min(1),
 });
 
+export const hardDeleteTaxRuleInputSchema = z.object({
+  id: z.string().trim().min(1),
+  reason: z.string().trim().min(1, "Delete reason is required.").max(500),
+});
+
 export type CreateTaxRuleInput = z.infer<typeof createTaxRuleInputSchema>;
 export type UpdateTaxRuleInput = z.infer<typeof updateTaxRuleInputSchema>;
 export type DeactivateTaxRuleInput = z.infer<typeof deactivateTaxRuleInputSchema>;
+export type HardDeleteTaxRuleInput = z.infer<typeof hardDeleteTaxRuleInputSchema>;

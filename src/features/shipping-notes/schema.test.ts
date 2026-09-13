@@ -19,8 +19,11 @@ import {
   businessPartners,
   businessPartnersRelations,
   serviceCatalogItems,
+  auditLogs,
   shippingNoteCharges,
   shippingNoteCustomsDeclarations,
+  shippingNoteDocuments,
+  shippingNoteExports,
   shippingNotes,
   shippingNotesRelations,
 } from "@/lib/db/schema";
@@ -142,5 +145,26 @@ describe("C8A Accounting schema contract", () => {
         "shipping_note_customs_declarations_active_note_number_uidx",
       ]),
     );
+  });
+});
+
+describe("Hard-delete dependency contract", () => {
+  it("cascades owned Shipping Note rows while retaining independent audit records", () => {
+    for (const table of [
+      shippingNoteCharges,
+      shippingNoteCustomsDeclarations,
+      shippingNoteDocuments,
+      shippingNoteExports,
+    ]) {
+      const [noteForeignKey] = getInlineForeignKeys(table).filter((key) =>
+        key.reference().foreignTable === shippingNotes,
+      );
+      expect(noteForeignKey?.onDelete).toBe("cascade");
+    }
+
+    const auditForeignKeys = getInlineForeignKeys(auditLogs).filter((key) =>
+      key.reference().foreignTable === shippingNotes,
+    );
+    expect(auditForeignKeys).toHaveLength(0);
   });
 });

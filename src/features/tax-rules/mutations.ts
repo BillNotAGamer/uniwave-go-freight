@@ -4,7 +4,11 @@ import { and, eq, ne } from "drizzle-orm";
 
 import { logAuditEvent } from "@/lib/audit/log";
 import { db } from "@/lib/db/client";
-import { taxRules, type User as DbUser } from "@/lib/db/schema";
+import {
+  shippingNoteCharges,
+  taxRules,
+  type User as DbUser,
+} from "@/lib/db/schema";
 import { PERMISSIONS } from "@/lib/permissions/permissions";
 import {
   AuthorizationError,
@@ -15,8 +19,10 @@ import { rejectInactiveOrSoftDeletedUsers } from "@/lib/auth/user-state";
 import type { TaxRuleDetail } from "./types";
 import type {
   CreateTaxRuleInput,
+  HardDeleteTaxRuleInput,
   UpdateTaxRuleInput,
 } from "./validators";
+import { hardDeleteTaxRuleInputSchema } from "./validators";
 
 const taxRuleReturnColumns = {
   id: taxRules.id,
@@ -198,4 +204,60 @@ export async function deactivateTaxRule(
 
     return updated;
   });
+}
+
+/**
+ * Tax charge snapshots preserve historical tax values. The nullable FK is
+ * cleared before deleting the master rule so PostgreSQL's restrict constraint
+ * cannot prevent the requested hard delete.
+ */
+export async function hardDeleteTaxRule(
+  input: HardDeleteTaxRuleInput,
+  user: DbUser,
+): Promise<void> {
+  requireActiveActor(user);
+  requirePermission(user.role, PERMISSIONS.TAX_RULES_MANAGE);
+  const normalized = hardDeleteTaxRuleInputSchema.parse(input);
+
+  try {
+    await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select(taxRuleReturnColumns)
+      .from(taxRules)
+      .where(eq(taxRules.id, normalized.id))
+      .limit(1);
+
+    if (!current) {
+      throw new Error("Tax rule was not found.");
+    }
+
+    await tx
+      .update(shippingNoteCharges)
+      .set({ taxRuleId: null })
+      .where(eq(shippingNoteCharges.taxRuleId, current.id));
+
+    const [deleted] = await tx
+      .delete(taxRules)
+      .where(eq(taxRules.id, current.id))
+      .returning({ id: taxRules.id });
+
+    if (!deleted) {
+      throw new Error("Failed to delete tax rule.");
+    }
+
+    await logAuditEvent(tx, {
+      actorUserId: user.id,
+      action: "tax_rule.hard_delete",
+      entityType: "tax_rule",
+      entityId: deleted.id,
+      before: { code: current.code, name: current.name },
+      reason: normalized.reason,
+    });
+    });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
+    throw new Error("Tax Rule deletion failed.");
+  }
 }

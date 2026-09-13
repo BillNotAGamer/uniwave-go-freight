@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { createTaxRuleInputSchema } from "./validators";
+import {
+  createTaxRuleInputSchema,
+  hardDeleteTaxRuleInputSchema,
+} from "./validators";
 
 const validRuleInput = {
   code: " selling vat 10 ",
@@ -43,5 +46,16 @@ describe("tax rule validators", () => {
       effectiveFrom: new Date("2026-02-01T00:00:00.000Z"),
       effectiveTo: new Date("2026-01-01T00:00:00.000Z"),
     }).success).toBe(false);
+  });
+
+  it("requires a non-whitespace reason for hard delete", () => {
+    expect(hardDeleteTaxRuleInputSchema.safeParse({
+      id: "tax-rule-1",
+      reason: "   ",
+    }).success).toBe(false);
+    expect(hardDeleteTaxRuleInputSchema.parse({
+      id: "tax-rule-1",
+      reason: "Duplicate tax rule",
+    }).reason).toBe("Duplicate tax rule");
   });
 });

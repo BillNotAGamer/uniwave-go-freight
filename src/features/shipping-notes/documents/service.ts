@@ -16,11 +16,13 @@ import { getShippingNoteForUser } from "../queries";
 import type { ShippingNoteDocumentType } from "./constants";
 import { validateDocumentFile } from "./file-security";
 import {
+  hardDeleteShippingNoteDocument,
+  logShippingNoteDocumentCleanupFailure,
   registerShippingNoteDocumentMetadata,
-  softDeleteShippingNoteDocument,
 } from "./mutations";
 import { canMutateShippingNoteDocuments, canReadShippingNoteDocuments } from "./policy";
 import { getShippingNoteDocumentByIdForUser } from "./queries";
+import { deleteExactArtifactKeys } from "../artifact-cleanup";
 import {
   buildDocumentR2Key,
 } from "./storage-paths";
@@ -48,6 +50,7 @@ export type UploadDocumentInput = {
 export type RemoveDocumentInput = {
   documentId: string;
   shippingNoteId: string;
+  reason: string;
 };
 
 export type DownloadDocumentResult = {
@@ -197,35 +200,47 @@ export async function removeShippingNoteDocument(
     );
   }
 
-  // 2. Resolve document record
-  const document = await getShippingNoteDocumentByIdForUser(input.documentId, user);
-  if (!document || document.shippingNoteId !== input.shippingNoteId) {
-    throw new Error("Document not found.");
-  }
+  // 2. The database delete is authoritative. It includes the hard-delete audit
+  // event and only returns the persisted, exact provider key for cleanup.
+  const document = await hardDeleteShippingNoteDocument({
+    id: input.documentId,
+    shippingNoteId: input.shippingNoteId,
+    reason: input.reason,
+  }, user);
 
-  // 3. Delete provider object first (fail closed if deletion fails)
+  // 3. Clean up only the exact object key after metadata is committed. A
+  // subsequent provider failure cannot leave live metadata pointing to a
+  // deleted object.
+  let cleanupFailed = false;
   if (document.storageProvider === "r2") {
-    const storage = resolveR2Storage(dependencies);
-    if (!storage.delete) {
-      throw new Error("R2 storage provider does not support delete.");
-    }
-    await storage.delete(document.storageKey);
+    const cleanup = await deleteExactArtifactKeys(
+      [document.storageKey],
+      resolveR2Storage(dependencies),
+    );
+    cleanupFailed = cleanup.failedKeyCount > 0;
   } else {
     const { uploader } = resolveDriveUploader(dependencies);
-    if (!uploader.delete) {
-      throw new Error("Google Drive provider does not support delete.");
+    try {
+      if (!uploader.delete) {
+        cleanupFailed = true;
+      } else {
+        await uploader.delete(document.storageKey);
+      }
+    } catch {
+      cleanupFailed = true;
     }
-    await uploader.delete(document.storageKey);
   }
 
-  // 4. Soft-delete metadata in database and audit
-  await softDeleteShippingNoteDocument(
-    {
-      id: input.documentId,
-      shippingNoteId: input.shippingNoteId,
-    },
-    user,
-  );
+  if (cleanupFailed) {
+    try {
+      await logShippingNoteDocumentCleanupFailure(document, user, input.reason);
+    } catch {
+      // The completed document hard-delete audit event remains durable.
+    }
+    throw new Error(
+      "Document metadata was deleted, but private artifact cleanup failed. An audit event was recorded.",
+    );
+  }
 }
 
 export async function downloadShippingNoteDocument(

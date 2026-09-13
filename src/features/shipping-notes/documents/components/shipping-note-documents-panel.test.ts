@@ -63,8 +63,8 @@ describe("ShippingNoteDocumentsPanel UI", () => {
     // Download action
     expect(html).toContain('href="/api/shipping-notes/note-1/documents/doc-123/download"');
     expect(html).toContain("Download");
-    // Ensure delete action is NOT rendered
-    expect(html).not.toContain("Delete");
+    expect(html).toContain("Delete");
+    expect(html).toContain('aria-label="Delete PreAlert-Scan.pdf"');
   });
 
   it("renders file input with strictly allowed accept attribute", () => {
@@ -97,11 +97,21 @@ describe("ShippingNoteDocumentsPanel UI", () => {
     expect(html).not.toContain("Upload document form");
   });
 
-  it("disables upload controls when shipping note is not mutable (e.g. locked/cancelled)", () => {
+  it("disables upload and hard-delete controls when shipping note is not mutable (e.g. locked/cancelled)", () => {
     const html = renderToStaticMarkup(
       createElement(ShippingNoteDocumentsPanel, {
         shippingNoteId: "note-1",
-        documents: [],
+        documents: [{
+          id: "doc-locked-1",
+          shippingNoteId: "note-1",
+          documentType: "invoice",
+          originalFileName: "locked.pdf",
+          storageProvider: "r2",
+          mimeType: "application/pdf",
+          sizeBytes: 1024,
+          uploadedById: "user-1",
+          createdAt: new Date(),
+        }],
         canMutate: false,
         storageAvailable: true,
       }),
@@ -109,6 +119,7 @@ describe("ShippingNoteDocumentsPanel UI", () => {
 
     expect(html).toContain("Document uploads are disabled because this shipping note is locked or cancelled");
     expect(html).not.toContain("Upload document form");
+    expect(html).not.toContain('aria-label="Delete locked.pdf"');
   });
 
   it("renders a dedicated customs section with a fixed canonical type", () => {

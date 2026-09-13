@@ -17,6 +17,7 @@ import {
 import {
   createTaxRuleAction,
   deactivateTaxRuleAction,
+  hardDeleteTaxRuleAction,
   updateTaxRuleAction,
   type TaxRuleActionResult,
 } from "../actions";
@@ -262,6 +263,69 @@ function DeactivateTaxRuleForm({ rule }: { rule: TaxRuleDetail }) {
   );
 }
 
+function HardDeleteTaxRuleDialog({ rule }: { rule: TaxRuleDetail }) {
+  const [open, setOpen] = useState(false);
+  const [state, formAction] = useActionState(
+    hardDeleteTaxRuleAction,
+    initialState,
+  );
+
+  return (
+    <>
+      <button
+        className="w-fit text-xs text-red-700 underline-offset-4 hover:underline dark:text-red-400"
+        type="button"
+        onClick={() => setOpen(true)}
+      >
+        Delete permanently
+      </button>
+      {open ? (
+        <div
+          aria-modal="true"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
+          role="dialog"
+          aria-labelledby={`hard-delete-tax-rule-${rule.id}`}
+        >
+          <form action={formAction} className="grid w-full max-w-md gap-4 rounded-lg border border-red-300 bg-card p-5 shadow-xl dark:border-red-900/70">
+            <input type="hidden" name="id" value={rule.id} />
+            <div className="space-y-2">
+              <h2 id={`hard-delete-tax-rule-${rule.id}`} className="text-base font-semibold text-foreground">
+                Permanently delete {rule.code}?
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                This is irreversible. Existing charge snapshots remain intact, but this Tax Rule master record will be removed.
+              </p>
+            </div>
+            <label className="grid gap-1 text-sm font-medium text-foreground" htmlFor={`hard-delete-tax-rule-reason-${rule.id}`}>
+              Delete reason
+              <textarea
+                id={`hard-delete-tax-rule-reason-${rule.id}`}
+                name="reason"
+                required
+                maxLength={500}
+                className="min-h-24 rounded-md border border-input bg-background px-3 py-2 text-sm font-normal"
+              />
+            </label>
+            {!state.ok ? (
+              <p className="text-sm text-red-700 dark:text-red-400" role="alert">{state.error}</p>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <button
+                className="rounded-md border border-border px-3 py-1.5 text-sm"
+                type="button"
+                onClick={() => setOpen(false)}
+              >
+                Cancel
+              </button>
+              <SubmitButton label="Delete permanently" pendingLabel="Deleting..." />
+            </div>
+          </form>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 type TaxRulesTableProps = {
   rules: TaxRuleDetail[];
   canManage: boolean;
@@ -380,6 +444,7 @@ export function TaxRulesTable({ rules, canManage }: TaxRulesTableProps) {
                             Edit
                           </button>
                           {rule.isActive ? <DeactivateTaxRuleForm rule={rule} /> : null}
+                          <HardDeleteTaxRuleDialog rule={rule} />
                         </div>
                       </td>
                     ) : null}

@@ -581,6 +581,7 @@ describe("Shipping Note Documents Domain — Phase C10A", () => {
     const removeInput = {
       id: "doc-to-remove",
       shippingNoteId: "note-1",
+      reason: "Superseded file",
     };
 
     it("soft deletes document and writes truthful audit", async () => {
@@ -634,7 +635,7 @@ describe("Shipping Note Documents Domain — Phase C10A", () => {
 
       await expect(
         softDeleteShippingNoteDocument(
-          { id: "doc-1", shippingNoteId: "note-locked" },
+          { id: "doc-1", shippingNoteId: "note-locked", reason: "Superseded file" },
           activeAdmin,
         ),
       ).rejects.toBeInstanceOf(AuthorizationError);

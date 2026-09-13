@@ -8,7 +8,11 @@ import {
   type ShippingNoteDocumentType,
 } from "@/features/shipping-notes/documents/constants";
 import { listShippingNoteDocumentsForUser } from "@/features/shipping-notes/documents/queries";
-import { uploadShippingNoteDocument } from "@/features/shipping-notes/documents/service";
+import {
+  removeShippingNoteDocument,
+  uploadShippingNoteDocument,
+} from "@/features/shipping-notes/documents/service";
+import { removeShippingNoteDocumentInputSchema } from "@/features/shipping-notes/documents/validators";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -174,6 +178,83 @@ export async function GET(
     return NextResponse.json(
       { error: message },
       { status: 500, headers: noStoreHeaders() },
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  context: RouteContext,
+): Promise<Response> {
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json(
+      { error: "Forbidden cross-origin request." },
+      { status: 403, headers: noStoreHeaders() },
+    );
+  }
+
+  const session = await getCurrentSession();
+  if (!session) {
+    return NextResponse.json(
+      { error: "Authentication required." },
+      { status: 401, headers: noStoreHeaders() },
+    );
+  }
+
+  const { id: shippingNoteId } = await context.params;
+  let body: unknown;
+
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid document deletion request." },
+      { status: 400, headers: noStoreHeaders() },
+    );
+  }
+
+  const parsed = removeShippingNoteDocumentInputSchema.safeParse({
+    id: typeof body === "object" && body !== null && "documentId" in body
+      ? body.documentId
+      : undefined,
+    shippingNoteId,
+    reason: typeof body === "object" && body !== null && "reason" in body
+      ? body.reason
+      : undefined,
+  });
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid document deletion request." },
+      { status: 400, headers: noStoreHeaders() },
+    );
+  }
+
+  try {
+    await removeShippingNoteDocument(
+      {
+        documentId: parsed.data.id,
+        shippingNoteId: parsed.data.shippingNoteId,
+        reason: parsed.data.reason,
+      },
+      session.user,
+    );
+    return NextResponse.json({ ok: true }, { headers: noStoreHeaders() });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return NextResponse.json(
+        { error: "Forbidden." },
+        { status: 403, headers: noStoreHeaders() },
+      );
+    }
+
+    const message = error instanceof Error &&
+      error.message === "Document metadata was deleted, but private artifact cleanup failed. An audit event was recorded."
+      ? error.message
+      : "Document deletion failed.";
+    return NextResponse.json(
+      { error: message },
+      { status: 400, headers: noStoreHeaders() },
     );
   }
 }

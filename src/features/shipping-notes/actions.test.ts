@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   searchRoutingLocations: vi.fn(),
   searchPartners: vi.fn(),
   searchServiceCatalogItems: vi.fn(),
+  hardDeleteShippingNote: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/session", () => ({
@@ -43,6 +44,10 @@ vi.mock("./mutations", () => ({
   updateBuyingCharge: vi.fn(),
   updateSellingCharge: vi.fn(),
   updateShippingNoteDraft: vi.fn(),
+}));
+
+vi.mock("./hard-delete", () => ({
+  hardDeleteShippingNote: mocks.hardDeleteShippingNote,
 }));
 
 import {

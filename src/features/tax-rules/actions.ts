@@ -8,11 +8,13 @@ import { readFormString } from "@/features/shipping-notes/form-data";
 import {
   createTaxRule,
   deactivateTaxRule,
+  hardDeleteTaxRule,
   updateTaxRule,
 } from "./mutations";
 import {
   createTaxRuleInputSchema,
   deactivateTaxRuleInputSchema,
+  hardDeleteTaxRuleInputSchema,
   updateTaxRuleInputSchema,
 } from "./validators";
 
@@ -106,6 +108,33 @@ export async function deactivateTaxRuleAction(
 
   try {
     await deactivateTaxRule(parsed.data.id, user);
+  } catch (error) {
+    return { ok: false, error: parseActionError(error) };
+  }
+
+  revalidatePath("/tax-rules");
+  return { ok: true };
+}
+
+export async function hardDeleteTaxRuleAction(
+  _state: TaxRuleActionResult,
+  formData: FormData,
+): Promise<TaxRuleActionResult> {
+  const { user } = await requireAuthenticatedUser();
+  const parsed = hardDeleteTaxRuleInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+    reason: readFormString(formData, "reason"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid tax rule deletion request.",
+    };
+  }
+
+  try {
+    await hardDeleteTaxRule(parsed.data, user);
   } catch (error) {
     return { ok: false, error: parseActionError(error) };
   }

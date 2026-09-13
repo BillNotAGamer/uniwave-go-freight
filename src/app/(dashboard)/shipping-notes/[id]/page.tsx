@@ -23,6 +23,7 @@ import { SellingChargeForm } from "@/features/shipping-notes/components/selling-
 import { SellingChargeSummaryView } from "@/features/shipping-notes/components/selling-charge-summary";
 import { AccountingReviewControls } from "@/features/shipping-notes/components/accounting-review-controls";
 import { CancellationControls } from "@/features/shipping-notes/components/cancellation-controls";
+import { ShippingNoteHardDeleteControls } from "@/features/shipping-notes/components/shipping-note-hard-delete-controls";
 import { CorrectionControls } from "@/features/shipping-notes/components/correction-controls";
 import { ExportHistoryPanel } from "@/features/shipping-notes/components/export-history-panel";
 import { InternalExportActions } from "@/features/shipping-notes/components/internal-export-actions";
@@ -143,7 +144,11 @@ export default async function ShippingNoteDetailPage({
   );
   const canReopenForCorrection =
     canReopenShippingNoteForCorrectionStatus(note.status) &&
-    hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_REOPEN_FOR_CORRECTION);
+      hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_REOPEN_FOR_CORRECTION);
+  const canHardDelete = hasPermission(
+    user.role,
+    PERMISSIONS.ADMIN_DESTRUCTIVE_ACTIONS,
+  );
   const hasNormalCancelPermission = hasPermission(
     user.role,
     PERMISSIONS.SHIPPING_NOTES_CANCEL,
@@ -578,6 +583,8 @@ export default async function ShippingNoteDetailPage({
             showLockedGuidance={note.status === "locked" && user.role === "admin"}
           />
         ) : null}
+
+        {canHardDelete ? <ShippingNoteHardDeleteControls noteId={note.id} /> : null}
 
         {canEditDraft ? (
           <section className="grid gap-6 border-t border-border pt-6">

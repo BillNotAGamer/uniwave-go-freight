@@ -256,6 +256,11 @@ export const reopenShippingNoteForCorrectionInputSchema = z.object({
   reason: z.string().trim().min(1, "Correction reason is required."),
 });
 
+export const hardDeleteShippingNoteInputSchema = z.object({
+  id: z.string().trim().min(1),
+  reason: z.string().trim().min(1, "Delete reason is required.").max(500),
+});
+
 export type ShippingNoteDraftInput = z.infer<typeof shippingNoteDraftInputSchema>;
 export type CreateShippingNoteDraftInput = z.infer<
   typeof createShippingNoteDraftInputSchema
@@ -285,6 +290,9 @@ export type CancelFinalizedShippingNoteInput = z.infer<
 >;
 export type ReopenShippingNoteForCorrectionInput = z.infer<
   typeof reopenShippingNoteForCorrectionInputSchema
+>;
+export type HardDeleteShippingNoteInput = z.infer<
+  typeof hardDeleteShippingNoteInputSchema
 >;
 
 // ---------------------------------------------------------------------------

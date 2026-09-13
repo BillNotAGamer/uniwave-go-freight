@@ -33,6 +33,7 @@ import {
   updateSellingCharge,
   softDeleteSellingCharge,
 } from "./mutations";
+import { hardDeleteShippingNote } from "./hard-delete";
 import {
   approveShippingNoteInputSchema,
   cancelFinalizedShippingNoteInputSchema,
@@ -47,6 +48,7 @@ import {
   markShippingNoteCheckedInputSchema,
   reopenShippingNoteForCorrectionInputSchema,
   deleteSellingChargeInputSchema,
+  hardDeleteShippingNoteInputSchema,
   startAccountingReviewInputSchema,
   submitShippingNoteInputSchema,
   unlockShippingNoteInputSchema,
@@ -565,6 +567,34 @@ export async function cancelFinalizedShippingNoteAction(
   revalidatePath("/shipping-notes");
   revalidatePath(`/shipping-notes/${noteId}`);
   return { ok: true };
+}
+
+export async function hardDeleteShippingNoteAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+  const parsed = hardDeleteShippingNoteInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+    reason: readFormString(formData, "reason"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid shipping note deletion request.",
+    };
+  }
+
+  try {
+    await hardDeleteShippingNote(parsed.data, session.user);
+  } catch (error: unknown) {
+    revalidatePath("/shipping-notes");
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  redirect("/shipping-notes");
 }
 
 export async function reopenShippingNoteForCorrectionAction(

@@ -18,10 +18,12 @@ export async function removeShippingNoteDocumentAction(
 
   const id = formData.get("id")?.toString();
   const shippingNoteId = formData.get("shippingNoteId")?.toString();
+  const reason = formData.get("reason")?.toString();
 
   const parsed = removeShippingNoteDocumentInputSchema.safeParse({
     id,
     shippingNoteId,
+    reason,
   });
 
   if (!parsed.success) {
@@ -33,6 +35,7 @@ export async function removeShippingNoteDocumentAction(
       {
         documentId: parsed.data.id,
         shippingNoteId: parsed.data.shippingNoteId,
+        reason: parsed.data.reason,
       },
       user,
     );
@@ -42,7 +45,10 @@ export async function removeShippingNoteDocumentAction(
   } catch (error) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : "Failed to remove document.",
+      error: error instanceof Error &&
+        error.message === "Document metadata was deleted, but private artifact cleanup failed. An audit event was recorded."
+        ? error.message
+        : "Document deletion failed.",
     };
   }
 }

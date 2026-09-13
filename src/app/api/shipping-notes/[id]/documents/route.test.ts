@@ -8,6 +8,7 @@ import { AuthorizationError } from "@/lib/permissions/require-permission";
 const mocks = vi.hoisted(() => ({
   getCurrentSession: vi.fn(),
   uploadShippingNoteDocument: vi.fn(),
+  removeShippingNoteDocument: vi.fn(),
   listShippingNoteDocumentsForUser: vi.fn(),
 }));
 
@@ -17,13 +18,14 @@ vi.mock("@/lib/auth/session", () => ({
 
 vi.mock("@/features/shipping-notes/documents/service", () => ({
   uploadShippingNoteDocument: mocks.uploadShippingNoteDocument,
+  removeShippingNoteDocument: mocks.removeShippingNoteDocument,
 }));
 
 vi.mock("@/features/shipping-notes/documents/queries", () => ({
   listShippingNoteDocumentsForUser: mocks.listShippingNoteDocumentsForUser,
 }));
 
-import { POST, GET } from "./route";
+import { DELETE, POST, GET } from "./route";
 
 function makeUploadRequest(
   formData: FormData,
@@ -310,5 +312,102 @@ describe("Document list route handler (GET)", () => {
     expect(json.ok).toBe(true);
     expect(json.documents).toHaveLength(1);
     expect(json.documents[0].originalFileName).toBe("hbl.pdf");
+  });
+});
+
+describe("Document hard-delete route handler", () => {
+  beforeEach(() => {
+    vi.stubEnv("AUTH_URL", "http://localhost:3000");
+    vi.stubEnv("NODE_ENV", "test");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.clearAllMocks();
+  });
+
+  function makeDeleteRequest(body: unknown, origin = "http://localhost:3000") {
+    return new NextRequest("http://localhost:3000/api/shipping-notes/note-1/documents", {
+      method: "DELETE",
+      headers: {
+        origin,
+        "sec-fetch-site": "same-origin",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it("requires a non-blank reason before the deletion service is called", async () => {
+    mocks.getCurrentSession.mockResolvedValue({
+      user: { id: "user-1", role: "admin", email: "admin@test.com" },
+    });
+
+    const response = await DELETE(
+      makeDeleteRequest({ documentId: "doc-1", reason: "   " }),
+      { params: Promise.resolve({ id: "note-1" }) },
+    );
+
+    expect(response.status).toBe(400);
+    expect(mocks.removeShippingNoteDocument).not.toHaveBeenCalled();
+  });
+
+  it("uses the same authorized service for general and customs document deletion", async () => {
+    mocks.getCurrentSession.mockResolvedValue({
+      user: { id: "user-1", role: "admin", email: "admin@test.com" },
+    });
+    mocks.removeShippingNoteDocument.mockResolvedValue(undefined);
+
+    const generalResponse = await DELETE(
+      makeDeleteRequest({ documentId: "doc-general-1", reason: "Superseded invoice" }),
+      { params: Promise.resolve({ id: "note-1" }) },
+    );
+    const customsResponse = await DELETE(
+      makeDeleteRequest({ documentId: "doc-customs-1", reason: "Incorrect declaration" }),
+      { params: Promise.resolve({ id: "note-1" }) },
+    );
+
+    expect(generalResponse.status).toBe(200);
+    expect(customsResponse.status).toBe(200);
+    expect(mocks.removeShippingNoteDocument).toHaveBeenNthCalledWith(
+      1,
+      {
+        documentId: "doc-general-1",
+        shippingNoteId: "note-1",
+        reason: "Superseded invoice",
+      },
+      expect.objectContaining({ id: "user-1" }),
+    );
+    expect(mocks.removeShippingNoteDocument).toHaveBeenNthCalledWith(
+      2,
+      {
+        documentId: "doc-customs-1",
+        shippingNoteId: "note-1",
+        reason: "Incorrect declaration",
+      },
+      expect.objectContaining({ id: "user-1" }),
+    );
+  });
+
+  it("retains same-origin and authorization protection", async () => {
+    const crossOriginResponse = await DELETE(
+      makeDeleteRequest(
+        { documentId: "doc-1", reason: "Superseded file" },
+        "https://evil.example",
+      ),
+      { params: Promise.resolve({ id: "note-1" }) },
+    );
+    expect(crossOriginResponse.status).toBe(403);
+    expect(mocks.getCurrentSession).not.toHaveBeenCalled();
+
+    mocks.getCurrentSession.mockResolvedValue({
+      user: { id: "sale-1", role: "sale", email: "sale@test.com" },
+    });
+    mocks.removeShippingNoteDocument.mockRejectedValue(new AuthorizationError());
+    const unauthorizedResponse = await DELETE(
+      makeDeleteRequest({ documentId: "doc-1", reason: "Superseded file" }),
+      { params: Promise.resolve({ id: "note-1" }) },
+    );
+    expect(unauthorizedResponse.status).toBe(403);
   });
 });

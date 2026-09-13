@@ -41,6 +41,7 @@ export type RegisterShippingNoteDocumentInput = z.infer<
 export const removeShippingNoteDocumentInputSchema = z.object({
   id: z.string().trim().min(1, "Document ID is required"),
   shippingNoteId: z.string().trim().min(1, "Shipping note ID is required"),
+  reason: z.string().trim().min(1, "Delete reason is required").max(500),
 });
 
 export type RemoveShippingNoteDocumentInput = z.infer<

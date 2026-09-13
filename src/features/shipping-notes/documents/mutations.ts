@@ -157,3 +157,97 @@ export async function softDeleteShippingNoteDocument(
     });
   });
 }
+
+export type HardDeletedShippingNoteDocument = {
+  id: string;
+  shippingNoteId: string;
+  documentType: string;
+  originalFileName: string;
+  storageProvider: string;
+  storageKey: string;
+};
+
+export async function hardDeleteShippingNoteDocument(
+  input: RemoveShippingNoteDocumentInput,
+  user: DbUser,
+): Promise<HardDeletedShippingNoteDocument> {
+  if (!rejectInactiveOrSoftDeletedUsers(user)) {
+    throw new AuthorizationError();
+  }
+
+  const normalized = removeShippingNoteDocumentInputSchema.parse(input);
+  const note = await getShippingNoteForUser(normalized.shippingNoteId, user);
+
+  if (!note || !canMutateShippingNoteDocuments(note, user)) {
+    throw new AuthorizationError();
+  }
+
+  return db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({
+        id: shippingNoteDocuments.id,
+        shippingNoteId: shippingNoteDocuments.shippingNoteId,
+        documentType: shippingNoteDocuments.documentType,
+        originalFileName: shippingNoteDocuments.originalFileName,
+        storageProvider: shippingNoteDocuments.storageProvider,
+        storageKey: shippingNoteDocuments.storageKey,
+      })
+      .from(shippingNoteDocuments)
+      .where(
+        and(
+          eq(shippingNoteDocuments.id, normalized.id),
+          eq(shippingNoteDocuments.shippingNoteId, normalized.shippingNoteId),
+          isNull(shippingNoteDocuments.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!existing) {
+      throw new AuthorizationError();
+    }
+
+    const [deleted] = await tx
+      .delete(shippingNoteDocuments)
+      .where(eq(shippingNoteDocuments.id, existing.id))
+      .returning({ id: shippingNoteDocuments.id });
+
+    if (!deleted) {
+      throw new Error("Failed to delete document metadata.");
+    }
+
+    await logAuditEvent(tx, {
+      actorUserId: user.id,
+      action: "shipping_note.document.hard_delete",
+      entityType: "shipping_note_document",
+      entityId: deleted.id,
+      before: {
+        shippingNoteId: existing.shippingNoteId,
+        documentType: existing.documentType,
+        originalFileName: existing.originalFileName,
+      },
+      reason: normalized.reason,
+    });
+
+    return existing;
+  });
+}
+
+export async function logShippingNoteDocumentCleanupFailure(
+  document: Pick<HardDeletedShippingNoteDocument, "id" | "shippingNoteId" | "documentType" | "originalFileName">,
+  user: DbUser,
+  reason: string,
+): Promise<void> {
+  await logAuditEvent(db, {
+    actorUserId: user.id,
+    action: "shipping_note.document.hard_delete.cleanup_failed",
+    entityType: "shipping_note_document",
+    entityId: document.id,
+    after: {
+      shippingNoteId: document.shippingNoteId,
+      documentType: document.documentType,
+      originalFileName: document.originalFileName,
+      failedKeyCount: 1,
+    },
+    reason,
+  });
+}
