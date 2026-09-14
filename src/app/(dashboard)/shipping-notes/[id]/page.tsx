@@ -482,6 +482,7 @@ export default async function ShippingNoteDetailPage({
               <BuyingChargeForm
                 shippingNoteId={note.id}
                 canManageBuyingCharges={canManageBuyingCharges}
+                defaultExchangeRate={note.exchangeRate}
               />
             ) : null}
 

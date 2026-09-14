@@ -2,6 +2,8 @@
 
 import { useState, useActionState } from "react";
 
+import { validateDecimalString } from "@/lib/calculations/decimal";
+
 import { createBuyingChargeAction } from "../actions";
 import { CURRENCY_CODES } from "../constants";
 import type { BuyingChargeActionState } from "../types";
@@ -18,16 +20,39 @@ function labelClassName() {
 type BuyingChargeFormProps = {
   shippingNoteId: string;
   canManageBuyingCharges: boolean;
+  defaultExchangeRate?: string | null;
 };
 
 const initialState: BuyingChargeActionState = { ok: true };
 
+function formatDefaultExchangeRate(value: string | null | undefined): string {
+  if (typeof value !== "string") return "1";
+
+  try {
+    const normalized = validateDecimalString(value, {
+      scale: 6,
+      maxIntegerDigits: 12,
+      minimum: "positive",
+    });
+    const [integerPart, fractionalPart = ""] = normalized.split(".");
+    const significantFraction = fractionalPart.replace(/0+$/, "");
+
+    return significantFraction.length > 0
+      ? `${integerPart}.${significantFraction}`
+      : integerPart;
+  } catch {
+    return "1";
+  }
+}
+
 export function BuyingChargeForm({
   shippingNoteId,
   canManageBuyingCharges,
+  defaultExchangeRate,
 }: BuyingChargeFormProps) {
   const [state, formAction] = useActionState(createBuyingChargeAction, initialState);
   const [unit, setUnit] = useState("");
+  const initialExchangeRate = formatDefaultExchangeRate(defaultExchangeRate);
 
   if (!canManageBuyingCharges) {
     return null;
@@ -124,7 +149,7 @@ export function BuyingChargeForm({
             type="number"
             min="0.000001"
             step="0.000001"
-            defaultValue="1"
+            defaultValue={initialExchangeRate}
           />
         </label>
 

@@ -65,6 +65,7 @@ import { ShippingNoteDocumentsPanel } from "@/features/shipping-notes/documents/
 import { ShippingNoteDraftForm } from "@/features/shipping-notes/components/shipping-note-draft-form";
 import { ShippingNoteSubmitForm } from "@/features/shipping-notes/components/shipping-note-submit-form";
 import { ShippingNoteHardDeleteControls } from "@/features/shipping-notes/components/shipping-note-hard-delete-controls";
+import { BuyingChargeForm } from "@/features/shipping-notes/components/buying-charge-form";
 
 const now = new Date("2026-09-01T00:00:00.000Z");
 
@@ -134,6 +135,7 @@ function makeNote(
 }
 
 type TargetElement = React.ReactElement<{
+  defaultExchangeRate?: string | null;
   documents?: unknown[];
   canManage?: boolean;
   children?: unknown;
@@ -334,6 +336,36 @@ describe("ShippingNoteDetailPage Draft edit presentation", () => {
 
     expect(findComponentInTree(jsx, ShippingNoteDraftForm)).not.toBeNull();
     expect(findComponentInTree(jsx, ShippingNoteSubmitForm)).not.toBeNull();
+  });
+});
+
+describe("ShippingNoteDetailPage Buying Charge defaults", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getSellingChargesAndSummaryForNoteForUser.mockResolvedValue({
+      charges: [],
+      summary: { totalAmountVnd: "0.00" },
+    });
+    mocks.listBuyingChargesForNoteForUser.mockResolvedValue([]);
+    mocks.listChargeTaxDetailsForNoteForUser.mockResolvedValue([]);
+    mocks.listTaxRulesForUser.mockResolvedValue([]);
+    mocks.listShippingNoteExportHistoryForUser.mockResolvedValue([]);
+    mocks.listShippingNoteDocumentsForUser.mockResolvedValue([]);
+  });
+
+  it("passes the saved Shipping Note exchange rate to the new Buying Charge form", async () => {
+    const accountantUser = makeUser("accountant");
+    const note = makeNote("submitted");
+    note.exchangeRate = "25450.000000";
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: accountantUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    const buyingChargeForm = findComponentInTree(jsx, BuyingChargeForm);
+    expect(buyingChargeForm?.props.defaultExchangeRate).toBe("25450.000000");
   });
 });
 
