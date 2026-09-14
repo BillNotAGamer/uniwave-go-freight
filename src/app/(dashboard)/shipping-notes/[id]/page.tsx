@@ -29,12 +29,6 @@ import { ExportHistoryPanel } from "@/features/shipping-notes/components/export-
 import { InternalExportActions } from "@/features/shipping-notes/components/internal-export-actions";
 import { AccountingTaxChargeTable } from "@/features/shipping-notes/tax/components/accounting-tax-charge-table";
 import { TaxCompletenessPanel } from "@/features/shipping-notes/tax/components/tax-completeness-panel";
-import { CustomsDeclarationsPanel } from "@/features/shipping-notes/customs-declarations/components/customs-declarations-panel";
-import {
-  canReadCustomsDeclarations,
-  canManageCustomsDeclarations,
-} from "@/features/shipping-notes/customs-declarations/ui-policy";
-import { listCustomsDeclarationsForNoteForUser } from "@/features/shipping-notes/customs-declarations/queries";
 import {
   getCancellationMetadataForNoteForUser,
   getFinancialSummaryForNoteForUser,
@@ -64,7 +58,6 @@ import {
 } from "@/features/shipping-notes/documents/policy";
 import { listShippingNoteDocumentsForUser } from "@/features/shipping-notes/documents/queries";
 import { getStorageAvailability } from "@/features/shipping-notes/documents/service";
-import { CUSTOMS_DECLARATION_DOCUMENT_TYPE } from "@/features/shipping-notes/documents/constants";
 import { getShippingModePresentation } from "@/features/shipping-notes/mode-rules";
 import { formatMawbHawb } from "@/features/shipping-notes/presentation";
 
@@ -233,26 +226,10 @@ export default async function ShippingNoteDetailPage({
   const exportHistory = canReadExportHistory
     ? await listShippingNoteExportHistoryForUser(id, user)
     : [];
-  const canReadCustoms = canReadCustomsDeclarations(user.role);
-  const canManageCustoms = canManageCustomsDeclarations({
-    role: user.role,
-    status: note.status,
-  });
-  const customsDeclarations = canReadCustoms
-    ? await listCustomsDeclarationsForNoteForUser(id, user)
-    : [];
-
   const canReadDocs = canReadShippingNoteDocuments(note, user);
   const canMutateDocs = canMutateShippingNoteDocuments(note, user);
   const documents = canReadDocs
-    ? await listShippingNoteDocumentsForUser(id, user, {
-      excludeDocumentTypes: [CUSTOMS_DECLARATION_DOCUMENT_TYPE],
-    })
-    : [];
-  const customsDocuments = canReadDocs
-    ? await listShippingNoteDocumentsForUser(id, user, {
-      documentType: CUSTOMS_DECLARATION_DOCUMENT_TYPE,
-    })
+    ? await listShippingNoteDocumentsForUser(id, user)
     : [];
   const storageAvailability = getStorageAvailability();
 
@@ -508,32 +485,11 @@ export default async function ShippingNoteDetailPage({
               />
             ) : null}
 
-            {canReadCustoms ? (
-              <CustomsDeclarationsPanel
-                shippingNoteId={note.id}
-                declarations={customsDeclarations}
-                canManage={canManageCustoms}
-              />
-            ) : null}
           </section>
         ) : null}
 
         {canReadExportHistory ? (
           <ExportHistoryPanel rows={exportHistory} viewerRole={user.role} />
-        ) : null}
-
-        {canReadDocs ? (
-          <ShippingNoteDocumentsPanel
-            shippingNoteId={note.id}
-            documents={customsDocuments}
-            canMutate={canMutateDocs}
-            storageAvailable={storageAvailability.available}
-            fixedDocumentType={CUSTOMS_DECLARATION_DOCUMENT_TYPE}
-            sectionEyebrow="Customs Declarations"
-            sectionTitle="Tờ khai hải quan"
-            uploadLabel="Upload customs declaration"
-            emptyMessage="No customs declarations uploaded."
-          />
         ) : null}
 
         {canReadDocs ? (

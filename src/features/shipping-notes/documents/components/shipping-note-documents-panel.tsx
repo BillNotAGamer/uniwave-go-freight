@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { Download, FileText, Trash2, Upload } from "lucide-react";
 
 import {
-  GENERAL_SHIPPING_NOTE_DOCUMENT_TYPES,
   SHIPPING_NOTE_DOCUMENT_TYPE_LABELS,
+  SHIPPING_NOTE_DOCUMENT_TYPES,
   type ShippingNoteDocumentType,
 } from "../constants";
 import type { ShippingNoteDocumentListItem } from "../types";
@@ -16,11 +16,6 @@ type ShippingNoteDocumentsPanelProps = {
   documents: ShippingNoteDocumentListItem[];
   canMutate: boolean;
   storageAvailable: boolean;
-  fixedDocumentType?: ShippingNoteDocumentType;
-  sectionTitle?: string;
-  sectionEyebrow?: string;
-  uploadLabel?: string;
-  emptyMessage?: string;
 };
 
 const ALLOWED_EXTENSIONS = new Set(["pdf", "jpg", "jpeg", "png", "webp"]);
@@ -36,19 +31,14 @@ export function ShippingNoteDocumentsPanel({
   documents,
   canMutate,
   storageAvailable,
-  fixedDocumentType,
-  sectionTitle = "Documents",
-  sectionEyebrow = "Supporting Materials",
-  uploadLabel = "Upload document",
-  emptyMessage = "No documents uploaded.",
 }: ShippingNoteDocumentsPanelProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const sectionIdPrefix = fixedDocumentType ? "customs" : "general";
+  const sectionIdPrefix = "documents";
 
   const [documentType, setDocumentType] =
     useState<ShippingNoteDocumentType>(
-      fixedDocumentType ?? GENERAL_SHIPPING_NOTE_DOCUMENT_TYPES[0],
+      SHIPPING_NOTE_DOCUMENT_TYPES[0],
     );
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -93,7 +83,7 @@ export function ShippingNoteDocumentsPanel({
 
     try {
       const formData = new FormData();
-      formData.append("documentType", fixedDocumentType ?? documentType);
+      formData.append("documentType", documentType);
       formData.append("file", selectedFile);
 
       const response = await fetch(
@@ -176,10 +166,10 @@ export function ShippingNoteDocumentsPanel({
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {sectionEyebrow}
+            Supporting Materials
           </p>
           <h2 id={`${sectionIdPrefix}-documents-section-title`} className="text-lg font-semibold tracking-tight text-foreground">
-            {sectionTitle}
+            Documents
           </h2>
         </div>
         <div className="text-xs text-muted-foreground">
@@ -208,7 +198,7 @@ export function ShippingNoteDocumentsPanel({
       {/* Document List */}
       {documents.length === 0 ? (
         <div className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          {emptyMessage}
+          No documents uploaded.
         </div>
       ) : (
         <div className="overflow-x-auto rounded-md border border-border bg-card">
@@ -291,18 +281,17 @@ export function ShippingNoteDocumentsPanel({
             aria-label="Upload document form"
             className="flex flex-col gap-4 rounded-md border border-border bg-muted/20 p-4"
           >
-            <div className="text-sm font-medium text-foreground">{uploadLabel}</div>
+            <div className="text-sm font-medium text-foreground">Upload document</div>
             <div className="grid gap-3 sm:grid-cols-3">
-              {fixedDocumentType ? null : (
               <div>
                 <label
-                  htmlFor="general-document-type-select"
+                  htmlFor="documents-document-type-select"
                   className="block text-xs font-medium text-muted-foreground mb-1"
                 >
                   Document Category
                 </label>
                 <select
-                  id="general-document-type-select"
+                  id="documents-document-type-select"
                   value={documentType}
                   onChange={(e) =>
                     setDocumentType(e.target.value as ShippingNoteDocumentType)
@@ -310,16 +299,15 @@ export function ShippingNoteDocumentsPanel({
                   disabled={isUploading}
                   className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 >
-                  {GENERAL_SHIPPING_NOTE_DOCUMENT_TYPES.map((type) => (
+                  {SHIPPING_NOTE_DOCUMENT_TYPES.map((type) => (
                     <option key={type} value={type}>
                       {SHIPPING_NOTE_DOCUMENT_TYPE_LABELS[type]}
                     </option>
                   ))}
                 </select>
               </div>
-              )}
 
-              <div className={fixedDocumentType ? "sm:col-span-3" : "sm:col-span-2"}>
+              <div className="sm:col-span-2">
                 <label
                   htmlFor={`${sectionIdPrefix}-document-file-input`}
                   className="block text-xs font-medium text-muted-foreground mb-1"
@@ -344,7 +332,7 @@ export function ShippingNoteDocumentsPanel({
                 className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               >
                 <Upload className="h-3.5 w-3.5" />
-                {isUploading ? "Uploading..." : uploadLabel}
+                {isUploading ? "Uploading..." : "Upload document"}
               </button>
             </div>
           </form>

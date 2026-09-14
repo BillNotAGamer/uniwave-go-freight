@@ -61,7 +61,7 @@ vi.mock("@/features/shipping-notes/documents/queries", () => ({
 }));
 
 import ShippingNoteDetailPage from "./page";
-import { CustomsDeclarationsPanel } from "@/features/shipping-notes/customs-declarations/components/customs-declarations-panel";
+import { ShippingNoteDocumentsPanel } from "@/features/shipping-notes/documents/components/shipping-note-documents-panel";
 import { ShippingNoteDraftForm } from "@/features/shipping-notes/components/shipping-note-draft-form";
 import { ShippingNoteSubmitForm } from "@/features/shipping-notes/components/shipping-note-submit-form";
 import { ShippingNoteHardDeleteControls } from "@/features/shipping-notes/components/shipping-note-hard-delete-controls";
@@ -134,7 +134,7 @@ function makeNote(
 }
 
 type TargetElement = React.ReactElement<{
-  declarations?: unknown[];
+  documents?: unknown[];
   canManage?: boolean;
   children?: unknown;
 }>;
@@ -175,6 +175,21 @@ function collectText(node: unknown): string {
   return collectText((node.props as { children?: unknown }).children);
 }
 
+function countComponentsInTree(node: unknown, component: unknown): number {
+  if (!node || typeof node !== "object") return 0;
+  if (React.isValidElement(node)) {
+    const props = node.props as { children?: unknown };
+    return Number(node.type === component) + countComponentsInTree(props.children, component);
+  }
+  if (Array.isArray(node)) {
+    return node.reduce(
+      (count, child) => count + countComponentsInTree(child, component),
+      0,
+    );
+  }
+  return 0;
+}
+
 function findDefinitionValue(node: unknown, label: string): string | null {
   if (Array.isArray(node)) {
     for (const child of node) {
@@ -201,108 +216,6 @@ function findDefinitionValue(node: unknown, label: string): string | null {
 
   return findDefinitionValue(children, label);
 }
-
-describe("ShippingNoteDetailPage Customs Declarations RBAC", () => {
-  const dummyDeclarations = [
-    {
-      id: "dec-1",
-      shippingNoteId: "note-1",
-      declarationNo: "DEC/2026/001",
-      createdAt: now,
-      updatedAt: now,
-    },
-  ];
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.getSellingChargesAndSummaryForNoteForUser.mockResolvedValue({
-      charges: [],
-      summary: { totalAmountVnd: "0.00" },
-    });
-    mocks.listBuyingChargesForNoteForUser.mockResolvedValue([]);
-    mocks.listChargeTaxDetailsForNoteForUser.mockResolvedValue([]);
-    mocks.listTaxRulesForUser.mockResolvedValue([]);
-    mocks.listShippingNoteExportHistoryForUser.mockResolvedValue([]);
-    mocks.getFinancialSummaryForNoteForUser.mockResolvedValue({
-      totalSellingVnd: "0.00",
-      totalBuyingVnd: "0.00",
-      grossProfitVnd: "0.00",
-    });
-    mocks.getCancellationMetadataForNoteForUser.mockResolvedValue(null);
-    mocks.listCustomsDeclarationsForNoteForUser.mockResolvedValue(dummyDeclarations);
-    mocks.listShippingNoteDocumentsForUser.mockResolvedValue([]);
-  });
-
-  it("Sale: never queries declarations, receives no declaration data, and renders no customs panel", async () => {
-    const saleUser = makeUser("sale");
-    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
-    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
-
-    const jsx = await ShippingNoteDetailPage({
-      params: Promise.resolve({ id: "note-1" }),
-    });
-
-    // Server query was NEVER called for Sale
-    expect(mocks.listCustomsDeclarationsForNoteForUser).not.toHaveBeenCalled();
-
-    // CustomsDeclarationsPanel is NOT in the rendered component tree
-    const panel = findComponentInTree(jsx, CustomsDeclarationsPanel);
-    expect(panel).toBeNull();
-  });
-
-  it("Accountant: queries declarations and renders panel with canManage=true at submitted status", async () => {
-    const accountantUser = makeUser("accountant");
-    mocks.requireAuthenticatedUser.mockResolvedValue({ user: accountantUser });
-    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
-
-    const jsx = await ShippingNoteDetailPage({
-      params: Promise.resolve({ id: "note-1" }),
-    });
-
-    // Server query WAS called
-    expect(mocks.listCustomsDeclarationsForNoteForUser).toHaveBeenCalledWith("note-1", accountantUser);
-
-    // CustomsDeclarationsPanel IS in the rendered component tree with canManage=true
-    const panel = findComponentInTree(jsx, CustomsDeclarationsPanel);
-    expect(panel).not.toBeNull();
-    expect(panel?.props.declarations).toEqual(dummyDeclarations);
-    expect(panel?.props.canManage).toBe(true);
-  });
-
-  it("Accountant: queries declarations and renders panel with canManage=false at checked status", async () => {
-    const accountantUser = makeUser("accountant");
-    mocks.requireAuthenticatedUser.mockResolvedValue({ user: accountantUser });
-    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("checked"));
-
-    const jsx = await ShippingNoteDetailPage({
-      params: Promise.resolve({ id: "note-1" }),
-    });
-
-    expect(mocks.listCustomsDeclarationsForNoteForUser).toHaveBeenCalledWith("note-1", accountantUser);
-
-    const panel = findComponentInTree(jsx, CustomsDeclarationsPanel);
-    expect(panel).not.toBeNull();
-    expect(panel?.props.declarations).toEqual(dummyDeclarations);
-    expect(panel?.props.canManage).toBe(false);
-  });
-
-  it("Admin: queries declarations and renders panel with canManage=true at submitted status", async () => {
-    const adminUser = makeUser("admin");
-    mocks.requireAuthenticatedUser.mockResolvedValue({ user: adminUser });
-    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
-
-    const jsx = await ShippingNoteDetailPage({
-      params: Promise.resolve({ id: "note-1" }),
-    });
-
-    expect(mocks.listCustomsDeclarationsForNoteForUser).toHaveBeenCalledWith("note-1", adminUser);
-
-    const panel = findComponentInTree(jsx, CustomsDeclarationsPanel);
-    expect(panel).not.toBeNull();
-    expect(panel?.props.declarations).toEqual(dummyDeclarations);
-    expect(panel?.props.canManage).toBe(true);
-  });
-});
 
 describe("ShippingNoteDetailPage Draft edit presentation", () => {
   beforeEach(() => {
@@ -421,6 +334,85 @@ describe("ShippingNoteDetailPage Draft edit presentation", () => {
 
     expect(findComponentInTree(jsx, ShippingNoteDraftForm)).not.toBeNull();
     expect(findComponentInTree(jsx, ShippingNoteSubmitForm)).not.toBeNull();
+  });
+});
+
+describe("ShippingNoteDetailPage unified documents", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getSellingChargesAndSummaryForNoteForUser.mockResolvedValue({
+      charges: [],
+      summary: { totalAmountVnd: "0.00" },
+    });
+    mocks.listBuyingChargesForNoteForUser.mockResolvedValue([]);
+    mocks.listChargeTaxDetailsForNoteForUser.mockResolvedValue([]);
+    mocks.listTaxRulesForUser.mockResolvedValue([]);
+    mocks.listShippingNoteExportHistoryForUser.mockResolvedValue([]);
+    mocks.listCustomsDeclarationsForNoteForUser.mockResolvedValue([]);
+    mocks.getFinancialSummaryForNoteForUser.mockResolvedValue({
+      totalSellingVnd: "0.00",
+      totalBuyingVnd: "0.00",
+      grossProfitVnd: "0.00",
+    });
+    mocks.getCancellationMetadataForNoteForUser.mockResolvedValue(null);
+  });
+
+  it("loads all categories once and renders one Documents panel", async () => {
+    const adminUser = makeUser("admin");
+    const documents = [
+      {
+        id: "invoice-doc-1",
+        shippingNoteId: "note-1",
+        documentType: "invoice" as const,
+        originalFileName: "invoice.pdf",
+        storageProvider: "r2" as const,
+        mimeType: "application/pdf",
+        sizeBytes: 1024,
+        uploadedById: adminUser.id,
+        createdAt: now,
+      },
+      {
+        id: "customs-doc-1",
+        shippingNoteId: "note-1",
+        documentType: "customs_declaration" as const,
+        originalFileName: "declaration.pdf",
+        storageProvider: "r2" as const,
+        mimeType: "application/pdf",
+        sizeBytes: 2048,
+        uploadedById: adminUser.id,
+        createdAt: now,
+      },
+    ];
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: adminUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
+    mocks.listShippingNoteDocumentsForUser.mockResolvedValue(documents);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(mocks.listShippingNoteDocumentsForUser).toHaveBeenCalledTimes(1);
+    expect(mocks.listShippingNoteDocumentsForUser).toHaveBeenCalledWith("note-1", adminUser);
+    expect(countComponentsInTree(jsx, ShippingNoteDocumentsPanel)).toBe(1);
+
+    const panel = findComponentInTree(jsx, ShippingNoteDocumentsPanel);
+    expect(panel?.props.documents).toEqual(documents);
+  });
+
+  it("does not query or render the retired Customs Declaration Number UI", async () => {
+    const accountantUser = makeUser("accountant");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: accountantUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
+    mocks.listShippingNoteDocumentsForUser.mockResolvedValue([]);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+    const text = collectText(jsx);
+
+    expect(mocks.listCustomsDeclarationsForNoteForUser).not.toHaveBeenCalled();
+    expect(text).not.toContain("T\u1edd khai h\u1ea3i quan");
+    expect(text).not.toContain("Th\u00eam s\u1ed1 t\u1edd khai h\u1ea3i quan");
   });
 });
 

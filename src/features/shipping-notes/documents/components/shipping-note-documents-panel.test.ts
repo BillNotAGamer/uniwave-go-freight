@@ -81,6 +81,12 @@ describe("ShippingNoteDocumentsPanel UI", () => {
       'accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"',
     );
     expect(html).toContain("Allowed formats: PDF, JPG, PNG, WEBP");
+    expect(html).toContain("Document Category");
+    expect(html).toContain("Pre-alert HBL");
+    expect(html).toContain("Pre-alert MBL");
+    expect(html).toContain("Contract");
+    expect(html).toContain("Invoice");
+    expect(html).toContain("Customs declaration");
   });
 
   it("renders storage unavailable message when storage is not configured", () => {
@@ -122,33 +128,22 @@ describe("ShippingNoteDocumentsPanel UI", () => {
     expect(html).not.toContain('aria-label="Delete locked.pdf"');
   });
 
-  it("renders a dedicated customs section with a fixed canonical type", () => {
-    const html = renderToStaticMarkup(
-      createElement(ShippingNoteDocumentsPanel, {
-        shippingNoteId: "note-1",
-        documents: [],
-        canMutate: true,
-        storageAvailable: true,
-        fixedDocumentType: "customs_declaration",
-        sectionEyebrow: "Customs Declarations",
-        sectionTitle: "Tờ khai hải quan",
-        uploadLabel: "Upload customs declaration",
-        emptyMessage: "No customs declarations uploaded.",
-      }),
-    );
-
-    expect(html).toContain("Customs Declarations");
-    expect(html).toContain("Upload customs declaration");
-    expect(html).toContain("No customs declarations uploaded.");
-    expect(html).not.toContain("Document Category");
-    expect(html).not.toContain("customs_declaration");
-  });
-
-  it("renders customs metadata and a private download action without a storage key", () => {
+  it("renders general and customs documents in one category-aware list", () => {
     const html = renderToStaticMarkup(
       createElement(ShippingNoteDocumentsPanel, {
         shippingNoteId: "note-1",
         documents: [{
+          id: "invoice-doc-1",
+          shippingNoteId: "note-1",
+          documentType: "invoice",
+          originalFileName: "invoice.pdf",
+          storageProvider: "r2",
+          mimeType: "application/pdf",
+          sizeBytes: 1024,
+          uploadedById: "user-1",
+          uploadedByName: "Billing Operator",
+          createdAt: new Date("2026-09-13T00:00:00.000Z"),
+        }, {
           id: "customs-doc-1",
           shippingNoteId: "note-1",
           documentType: "customs_declaration",
@@ -162,11 +157,12 @@ describe("ShippingNoteDocumentsPanel UI", () => {
         }],
         canMutate: true,
         storageAvailable: true,
-        fixedDocumentType: "customs_declaration",
-        sectionTitle: "Tờ khai hải quan",
       }),
     );
 
+    expect(html).toContain("2 documents");
+    expect(html).toContain("invoice.pdf");
+    expect(html).toContain("Invoice");
     expect(html).toContain("declaration.png");
     expect(html).toContain("Customs declaration");
     expect(html).toContain("Customs Operator");
@@ -174,5 +170,6 @@ describe("ShippingNoteDocumentsPanel UI", () => {
       'href="/api/shipping-notes/note-1/documents/customs-doc-1/download"',
     );
     expect(html).not.toContain("storageKey");
+    expect(html).not.toContain("Upload customs declaration");
   });
 });

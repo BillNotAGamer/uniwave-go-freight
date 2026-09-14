@@ -1,15 +1,9 @@
-export const GENERAL_SHIPPING_NOTE_DOCUMENT_TYPES = [
+export const SHIPPING_NOTE_DOCUMENT_TYPES = [
   "pre_alert_hbl",
   "pre_alert_mbl",
   "contract",
   "invoice",
-] as const;
-
-export const CUSTOMS_DECLARATION_DOCUMENT_TYPE = "customs_declaration";
-
-export const SHIPPING_NOTE_DOCUMENT_TYPES = [
-  ...GENERAL_SHIPPING_NOTE_DOCUMENT_TYPES,
-  CUSTOMS_DECLARATION_DOCUMENT_TYPE,
+  "customs_declaration",
 ] as const;
 
 export type ShippingNoteDocumentType =
