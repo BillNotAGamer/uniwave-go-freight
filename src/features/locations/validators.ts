@@ -31,6 +31,10 @@ const locationFieldsSchema = z.object({
   applicabilities: applicabilitySchema,
 });
 
+export const quickCreateRoutingLocationInputSchema = locationFieldsSchema
+  .omit({ applicabilities: true })
+  .extend({ applicability: z.enum(ROUTING_LOCATION_APPLICABILITIES) });
+
 export const createRoutingLocationInputSchema = locationFieldsSchema;
 
 export const updateRoutingLocationInputSchema = locationFieldsSchema.extend({
@@ -64,4 +68,5 @@ export const searchRoutingLocationsInputSchema = z.object({
 });
 
 export type CreateRoutingLocationInput = z.input<typeof createRoutingLocationInputSchema>;
+export type QuickCreateRoutingLocationInput = z.input<typeof quickCreateRoutingLocationInputSchema>;
 export type UpdateRoutingLocationInput = z.input<typeof updateRoutingLocationInputSchema>;

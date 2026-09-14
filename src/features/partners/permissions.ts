@@ -24,6 +24,11 @@ export function canMutatePartners(user: DbUser | null | undefined): boolean {
   return activeUser.role === "admin";
 }
 
+export function canQuickCreatePartners(user: DbUser | null | undefined): boolean {
+  const activeUser = rejectInactiveOrSoftDeletedUsers(user);
+  return Boolean(activeUser && (activeUser.role === "admin" || activeUser.role === "sale"));
+}
+
 export function assertCanReadPartners(
   user: DbUser | null | undefined,
 ): asserts user is DbUser {
@@ -37,5 +42,13 @@ export function assertCanMutatePartners(
 ): asserts user is DbUser {
   if (!canMutatePartners(user)) {
     throw new AuthorizationError("You do not have permission to modify partners.");
+  }
+}
+
+export function assertCanQuickCreatePartners(
+  user: DbUser | null | undefined,
+): asserts user is DbUser {
+  if (!canQuickCreatePartners(user)) {
+    throw new AuthorizationError("You do not have permission to quick-create partners.");
   }
 }

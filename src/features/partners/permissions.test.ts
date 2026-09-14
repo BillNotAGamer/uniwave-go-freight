@@ -7,8 +7,10 @@ import { AuthorizationError } from "@/lib/permissions/require-permission";
 
 import {
   assertCanMutatePartners,
+  assertCanQuickCreatePartners,
   assertCanReadPartners,
   canMutatePartners,
+  canQuickCreatePartners,
   canReadPartners,
 } from "./permissions";
 
@@ -54,6 +56,15 @@ describe("Partner Master Permissions Policy", () => {
     expect(canMutatePartners(sale)).toBe(false);
     expect(() => assertCanReadPartners(sale)).not.toThrow();
     expect(() => assertCanMutatePartners(sale)).toThrow(AuthorizationError);
+    expect(canQuickCreatePartners(sale)).toBe(true);
+    expect(() => assertCanQuickCreatePartners(sale)).not.toThrow();
+  });
+
+  it("allows Admin and Sale quick-create but rejects Accountant", () => {
+    expect(canQuickCreatePartners(makeUser({ role: "admin" }))).toBe(true);
+    expect(canQuickCreatePartners(makeUser({ role: "sale" }))).toBe(true);
+    expect(canQuickCreatePartners(makeUser({ role: "accountant" }))).toBe(false);
+    expect(() => assertCanQuickCreatePartners(makeUser({ role: "accountant" }))).toThrow(AuthorizationError);
   });
 
   it("denies both read and mutate when user is inactive", () => {
@@ -61,6 +72,7 @@ describe("Partner Master Permissions Policy", () => {
 
     expect(canReadPartners(inactiveAdmin)).toBe(false);
     expect(canMutatePartners(inactiveAdmin)).toBe(false);
+    expect(canQuickCreatePartners(inactiveAdmin)).toBe(false);
     expect(() => assertCanReadPartners(inactiveAdmin)).toThrow(AuthorizationError);
     expect(() => assertCanMutatePartners(inactiveAdmin)).toThrow(AuthorizationError);
   });
@@ -73,6 +85,7 @@ describe("Partner Master Permissions Policy", () => {
 
     expect(canReadPartners(deletedAdmin)).toBe(false);
     expect(canMutatePartners(deletedAdmin)).toBe(false);
+    expect(canQuickCreatePartners(deletedAdmin)).toBe(false);
     expect(() => assertCanReadPartners(deletedAdmin)).toThrow(AuthorizationError);
     expect(() => assertCanMutatePartners(deletedAdmin)).toThrow(AuthorizationError);
   });

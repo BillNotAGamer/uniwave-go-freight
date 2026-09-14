@@ -13,6 +13,7 @@ import { createRoutingLocationAdminAction, deactivateRoutingLocationAdminAction,
 
 const initial = { ok: true };
 const admin = { id: "admin-1", role: "admin" };
+const sale = { id: "sale-1", role: "sale" };
 function form(values: Record<string, string | string[]>): FormData { const data = new FormData(); for (const [key, value] of Object.entries(values)) for (const item of Array.isArray(value) ? value : [value]) data.append(key, item); return data; }
 
 describe("Location Admin server actions", () => {
@@ -46,5 +47,35 @@ describe("Location Admin server actions", () => {
     expect(mocks.updateRoutingLocation).toHaveBeenCalledWith("location-1", expect.objectContaining({ applicabilities: ["domestic_origin", "domestic_destination"] }), admin);
     expect(mocks.deactivateRoutingLocation).toHaveBeenCalledWith("location-1", admin);
     expect(mocks.restoreRoutingLocation).toHaveBeenCalledWith("location-1", admin);
+  });
+
+  it("keeps Sale blocked from Admin update, deactivate, and restore actions", async () => {
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: sale });
+    mocks.updateRoutingLocation.mockRejectedValue(new Error("You do not have permission to modify routing locations."));
+    mocks.deactivateRoutingLocation.mockRejectedValue(new Error("You do not have permission to modify routing locations."));
+    mocks.restoreRoutingLocation.mockRejectedValue(new Error("You do not have permission to modify routing locations."));
+
+    await expect(updateRoutingLocationAdminAction(initial, form({
+      id: "location-1",
+      code: "XY-02",
+      name: "Blocked Update",
+      type: "inland",
+      applicabilities: ["custom_origin"],
+    }))).resolves.toEqual({ ok: false, error: "Location could not be updated." });
+    await expect(deactivateRoutingLocationAdminAction(initial, form({
+      id: "location-1",
+      confirmation: "confirmed",
+    }))).resolves.toEqual({ ok: false, error: "Location could not be deactivated." });
+    await expect(restoreRoutingLocationAdminAction(initial, form({
+      id: "location-1",
+    }))).resolves.toEqual({ ok: false, error: "Location could not be reactivated." });
+
+    expect(mocks.updateRoutingLocation).toHaveBeenCalledWith(
+      "location-1",
+      expect.objectContaining({ code: "XY-02" }),
+      sale,
+    );
+    expect(mocks.deactivateRoutingLocation).toHaveBeenCalledWith("location-1", sale);
+    expect(mocks.restoreRoutingLocation).toHaveBeenCalledWith("location-1", sale);
   });
 });

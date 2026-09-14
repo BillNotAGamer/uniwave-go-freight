@@ -14,6 +14,7 @@ import {
   getShippingNoteLocationApplicability,
   LocationSelector,
 } from "./location-selector";
+import { PartnerSelector } from "./partner-selector";
 
 type ShippingNoteDraftFieldValues = Partial<ShippingNoteDetail>;
 
@@ -94,8 +95,8 @@ export function ShippingNoteDraftFields({ values, includeJobsheetNo = true }: Sh
         <div className="sm:col-span-2"><LocationSelector applicability={getShippingNoteLocationApplicability("air", "finalDestination")} initialValue={values?.finalDestination} label="Final Destination" name="finalDestination" required /></div>
       </> : null}
       {shipmentFamily === "domestic" ? <>
-        <LocationSelector applicability={getShippingNoteLocationApplicability("domestic", "domesticOrigin")} initialValue={values?.domesticOrigin} label="From" name="domesticOrigin" required />
-        <LocationSelector applicability={getShippingNoteLocationApplicability("domestic", "domesticDestination")} initialValue={values?.domesticDestination} label="To" name="domesticDestination" required />
+        <TextField defaultValue={values?.domesticOrigin} label="From" name="domesticOrigin" required />
+        <TextField defaultValue={values?.domesticDestination} label="To" name="domesticDestination" required />
       </> : null}
       {shipmentFamily === "custom" ? <>
         <div className="sm:col-span-2"><TextField defaultValue={values?.customModeName} label="Mode" name="customModeName" required /></div>
@@ -126,10 +127,10 @@ export function ShippingNoteDraftFields({ values, includeJobsheetNo = true }: Sh
     </Section>
 
     <Section title="Parties">
-      <TextField defaultValue={values?.shipperText} label="Shipper" name="shipperText" />
-      <TextField defaultValue={values?.consigneeText} label="Consignee" name="consigneeText" />
-      <TextField defaultValue={values?.customerText} label="Customer" name="customerText" />
-      <TextField defaultValue={values?.agentText} label="Agent" name="agentText" />
+      <PartnerSelector initialPartnerId={values?.shipperPartnerId} initialText={values?.shipperText} label="Shipper" partnerFieldName="shipperPartnerId" textFieldName="shipperText" />
+      <PartnerSelector initialPartnerId={values?.consigneePartnerId} initialText={values?.consigneeText} label="Consignee" partnerFieldName="consigneePartnerId" textFieldName="consigneeText" />
+      <PartnerSelector initialPartnerId={values?.customerPartnerId} initialText={values?.customerText} label="Customer" partnerFieldName="customerPartnerId" textFieldName="customerText" />
+      <PartnerSelector initialPartnerId={values?.agentPartnerId} initialText={values?.agentText} label="Agent" partnerFieldName="agentPartnerId" textFieldName="agentText" />
     </Section>
 
     <Section title="Shipment Details">

@@ -11,10 +11,21 @@ export function canMutateLocations(user: DbUser | null | undefined): boolean {
   return rejectInactiveOrSoftDeletedUsers(user)?.role === "admin";
 }
 
+export function canQuickCreateLocations(user: DbUser | null | undefined): boolean {
+  const activeUser = rejectInactiveOrSoftDeletedUsers(user);
+  return Boolean(activeUser && (activeUser.role === "admin" || activeUser.role === "sale"));
+}
+
 export function assertCanReadLocations(user: DbUser | null | undefined): asserts user is DbUser {
   if (!canReadLocations(user)) throw new AuthorizationError("You do not have permission to view Locations.");
 }
 
 export function assertCanMutateLocations(user: DbUser | null | undefined): asserts user is DbUser {
   if (!canMutateLocations(user)) throw new AuthorizationError("You do not have permission to modify Locations.");
+}
+
+export function assertCanQuickCreateLocations(user: DbUser | null | undefined): asserts user is DbUser {
+  if (!canQuickCreateLocations(user)) {
+    throw new AuthorizationError("You do not have permission to quick-create Locations.");
+  }
 }

@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./location-selector", () => ({
   getShippingNoteLocationApplicability: (_mode: string, fieldName: string) => fieldName,
-  LocationSelector: ({ label }: { label: string }) => label,
+  LocationSelector: ({ label, name }: { label: string; name: string }) => `LOCATION_SELECTOR:${name}:${label}`,
+}));
+vi.mock("./partner-selector", () => ({
+  PartnerSelector: ({ label }: { label: string }) => label,
 }));
 
 import { ShippingNoteDraftFields } from "./shipping-note-draft-fields";
@@ -75,6 +78,11 @@ describe("Shipping Note Draft field presentation", () => {
     expect(html).toContain("To");
     expect(html).not.toContain("shipmentDirection");
     expect(html).not.toContain("Final Destination");
+    expect(html).toContain('name="domesticOrigin"');
+    expect(html).toContain('name="domesticDestination"');
+    expect(html).not.toContain("LOCATION_SELECTOR:domesticOrigin");
+    expect(html).not.toContain("LOCATION_SELECTOR:domesticDestination");
+    expect(html).not.toContain("+ Add more");
   });
 
   it("renders Custom Mode, From, and To without direction or transport fields", () => {

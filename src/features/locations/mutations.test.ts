@@ -7,7 +7,7 @@ vi.mock("@/lib/audit/log", () => ({ logAuditEvent: mocks.logAuditEvent }));
 
 import type { User } from "@/lib/db/schema";
 import { AuthorizationError } from "@/lib/permissions/require-permission";
-import { RoutingLocationConflictError, createRoutingLocation, deactivateRoutingLocation, restoreRoutingLocation, updateRoutingLocation } from "./mutations";
+import { RoutingLocationConflictError, createRoutingLocation, deactivateRoutingLocation, quickCreateRoutingLocation, restoreRoutingLocation, updateRoutingLocation } from "./mutations";
 import type { CreateRoutingLocationInput } from "./validators";
 
 const now = new Date("2026-01-01T00:00:00Z");
@@ -54,6 +54,33 @@ describe("Routing Location mutations", () => {
     const result = await createRoutingLocation(input, user("admin"));
     expect(result).toMatchObject({ code: "XY-01", countryCode: "ZZ", applicabilities: ["air_aol"] });
     expect(mocks.logAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ action: "routing_location.create", actorUserId: "admin-1" }));
+  });
+
+  it("allows Sale quick-create with exactly the launching applicability and rejects Accountant", async () => {
+    await expect(quickCreateRoutingLocation({
+      code: "denied",
+      name: "Denied",
+      type: "other",
+      applicability: "air_aol",
+    }, user("accountant"))).rejects.toBeInstanceOf(AuthorizationError);
+
+    const insert = vi.fn()
+      .mockReturnValueOnce({ values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([row]) })) })
+      .mockReturnValueOnce({ values: vi.fn().mockResolvedValue(undefined) });
+    transaction({ insert, select: selectRows([{ applicability: "sea_pol" }]) });
+
+    await expect(quickCreateRoutingLocation({
+      code: " xy-01 ",
+      name: " Synthetic Airport ",
+      type: "airport",
+      countryCode: "zz",
+      applicability: "sea_pol",
+    }, user("sale"))).resolves.toMatchObject({ applicabilities: ["sea_pol"] });
+    expect(insert).toHaveBeenCalledTimes(2);
+    expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: "routing_location.create", actorUserId: "sale-1" }),
+    );
   });
 
   it("updates fields and synchronizes memberships transactionally", async () => {

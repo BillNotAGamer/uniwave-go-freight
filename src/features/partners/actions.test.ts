@@ -85,6 +85,33 @@ describe("Partner Admin server actions", () => {
     expect(result).toEqual({ ok: false, error: "Partner could not be created." });
   });
 
+  it("keeps Sale blocked from Admin edit, deactivate, and reactivate actions", async () => {
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: sale });
+    mocks.updatePartner.mockRejectedValue(new Error("You do not have permission to modify partners."));
+    mocks.softDeletePartner.mockRejectedValue(new Error("You do not have permission to modify partners."));
+    mocks.restorePartner.mockRejectedValue(new Error("You do not have permission to modify partners."));
+
+    await expect(updatePartnerAdminAction(initial, form({
+      id: "partner-1",
+      companyName: "Blocked Update",
+    }))).resolves.toEqual({ ok: false, error: "Partner details could not be updated." });
+    await expect(deactivatePartnerAdminAction(initial, form({
+      id: "partner-1",
+      confirmation: "confirmed",
+    }))).resolves.toEqual({ ok: false, error: "Partner could not be deactivated." });
+    await expect(reactivatePartnerAdminAction(initial, form({
+      id: "partner-1",
+    }))).resolves.toEqual({ ok: false, error: "Partner could not be reactivated." });
+
+    expect(mocks.updatePartner).toHaveBeenCalledWith(
+      "partner-1",
+      expect.objectContaining({ companyName: "Blocked Update" }),
+      sale,
+    );
+    expect(mocks.softDeletePartner).toHaveBeenCalledWith("partner-1", sale);
+    expect(mocks.restorePartner).toHaveBeenCalledWith("partner-1", sale);
+  });
+
   it("wires edit, category, contact, deactivation, and restoration to canonical mutations", async () => {
     mocks.updatePartner.mockResolvedValue({});
     mocks.setPartnerCategories.mockResolvedValue([]);

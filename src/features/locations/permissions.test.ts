@@ -5,7 +5,7 @@ vi.mock("server-only", () => ({}));
 import type { User } from "@/lib/db/schema";
 import { AuthorizationError } from "@/lib/permissions/require-permission";
 
-import { assertCanMutateLocations, assertCanReadLocations, canMutateLocations, canReadLocations } from "./permissions";
+import { assertCanMutateLocations, assertCanQuickCreateLocations, assertCanReadLocations, canMutateLocations, canQuickCreateLocations, canReadLocations } from "./permissions";
 
 function user(role: User["role"], overrides: Partial<User> = {}): User {
   const now = new Date();
@@ -24,5 +24,14 @@ describe("Routing Location permissions", () => {
     expect(() => assertCanReadLocations(user("admin", { isActive: false }))).toThrow(AuthorizationError);
     expect(() => assertCanReadLocations(user("admin", { deletedAt: new Date() }))).toThrow(AuthorizationError);
     expect(() => assertCanMutateLocations(user("sale"))).toThrow(AuthorizationError);
+  });
+
+  it("allows Admin and Sale quick-create but rejects Accountant and inactive users", () => {
+    expect(canQuickCreateLocations(user("admin"))).toBe(true);
+    expect(canQuickCreateLocations(user("sale"))).toBe(true);
+    expect(canQuickCreateLocations(user("accountant"))).toBe(false);
+    expect(canQuickCreateLocations(user("sale", { isActive: false }))).toBe(false);
+    expect(canQuickCreateLocations(user("sale", { deletedAt: new Date() }))).toBe(false);
+    expect(() => assertCanQuickCreateLocations(user("accountant"))).toThrow(AuthorizationError);
   });
 });

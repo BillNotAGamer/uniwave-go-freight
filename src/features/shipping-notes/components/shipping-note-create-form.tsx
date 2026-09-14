@@ -44,11 +44,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function TextField({ name, label }: { name: string; label: string }) {
+function TextField({ name, label, required = false }: { name: string; label: string; required?: boolean }) {
   return (
     <label className="text-sm font-medium text-foreground" htmlFor={name}>
       {label}
-      <input className={controlClassName} id={name} name={name} type="text" />
+      <input className={controlClassName} id={name} name={name} required={required} type="text" />
     </label>
   );
 }
@@ -163,7 +163,9 @@ export function ShippingNoteCreateForm({ action }: { action: CreateFormAction })
       </Section>
 
       {modeFields ? <Section title="Routing">
-        {modeFields.routing.map((field) => (
+        {modeFields.routing.map((field) => shipmentType === "domestic" ? (
+          <TextField key={field.name} label={field.label} name={field.name} required />
+        ) : (
           <LocationSelector
             applicability={getShippingNoteLocationApplicability(shipmentType!, field.name)}
             key={field.name}

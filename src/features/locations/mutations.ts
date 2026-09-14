@@ -11,13 +11,18 @@ import {
   type User as DbUser,
 } from "@/lib/db/schema";
 
-import { assertCanMutateLocations } from "./permissions";
+import {
+  assertCanMutateLocations,
+  assertCanQuickCreateLocations,
+} from "./permissions";
 import type { RoutingLocationDetail } from "./types";
 import {
   createRoutingLocationInputSchema,
+  quickCreateRoutingLocationInputSchema,
   routingLocationIdInputSchema,
   updateRoutingLocationInputSchema,
   type CreateRoutingLocationInput,
+  type QuickCreateRoutingLocationInput,
   type UpdateRoutingLocationInput,
 } from "./validators";
 
@@ -71,11 +76,10 @@ async function replaceApplicabilities(
   }
 }
 
-export async function createRoutingLocation(
+async function createRoutingLocationRecord(
   input: CreateRoutingLocationInput,
   actor: DbUser,
 ): Promise<RoutingLocationDetail> {
-  assertCanMutateLocations(actor);
   const parsed = createRoutingLocationInputSchema.parse(input);
 
   try {
@@ -117,6 +121,30 @@ export async function createRoutingLocation(
   } catch (error) {
     return mapLocationWriteError(error);
   }
+}
+
+export async function createRoutingLocation(
+  input: CreateRoutingLocationInput,
+  actor: DbUser,
+): Promise<RoutingLocationDetail> {
+  assertCanMutateLocations(actor);
+  return createRoutingLocationRecord(input, actor);
+}
+
+export async function quickCreateRoutingLocation(
+  input: QuickCreateRoutingLocationInput,
+  actor: DbUser,
+): Promise<RoutingLocationDetail> {
+  assertCanQuickCreateLocations(actor);
+  const parsed = quickCreateRoutingLocationInputSchema.parse(input);
+  return createRoutingLocationRecord({
+    code: parsed.code,
+    name: parsed.name,
+    type: parsed.type,
+    countryCode: parsed.countryCode,
+    subdivision: parsed.subdivision,
+    applicabilities: [parsed.applicability],
+  }, actor);
 }
 
 export async function updateRoutingLocation(

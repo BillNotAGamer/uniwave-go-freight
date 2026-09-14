@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
@@ -11,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   hardDeleteShippingNote: vi.fn(),
   createShippingNoteDraft: vi.fn(),
   updateShippingNoteDraft: vi.fn(),
+  quickCreatePartner: vi.fn(),
+  quickCreateRoutingLocation: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/session", () => ({
@@ -22,6 +25,13 @@ vi.mock("@/features/partners/queries", () => ({
 }));
 vi.mock("@/features/locations/queries", () => ({
   searchRoutingLocations: mocks.searchRoutingLocations,
+}));
+vi.mock("@/features/partners/mutations", () => ({
+  quickCreatePartner: mocks.quickCreatePartner,
+}));
+vi.mock("@/features/locations/mutations", () => ({
+  RoutingLocationConflictError: class RoutingLocationConflictError extends Error {},
+  quickCreateRoutingLocation: mocks.quickCreateRoutingLocation,
 }));
 vi.mock("@/features/service-catalog/queries", () => ({
   SERVICE_CATALOG_LOOKUP_LIMIT: 12,
@@ -54,11 +64,15 @@ vi.mock("./hard-delete", () => ({
 
 import {
   createShippingNoteDraftAction,
+  quickCreateShippingNoteLocationAction,
+  quickCreateShippingNotePartnerAction,
   searchShippingNotePartnersAction,
   searchShippingNoteLocationsAction,
   searchShippingNoteServiceCatalogAction,
   updateShippingNoteDraftAction,
 } from "./actions";
+import { AuthorizationError } from "@/lib/permissions/require-permission";
+import { RoutingLocationConflictError } from "@/features/locations/mutations";
 
 describe("Shipping Note commodity/HS code actions", () => {
   const actor = { id: "sale-1", role: "sale" as const };
@@ -219,5 +233,136 @@ describe("Shipping Note Location lookup action", () => {
       searchShippingNoteLocationsAction("Synthetic", "airport" as never),
     ).resolves.toEqual([]);
     expect(mocks.searchRoutingLocations).not.toHaveBeenCalled();
+  });
+});
+
+describe("Shipping Note Master Data quick-create actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.quickCreatePartner.mockResolvedValue({
+      id: "partner-new",
+      companyName: "New Partner",
+      vendorCode: "NP",
+      categories: [],
+    });
+    mocks.quickCreateRoutingLocation.mockResolvedValue({
+      code: "NEW",
+      name: "New Location",
+      type: "other",
+      countryCode: "VN",
+    });
+  });
+
+  it.each(["admin", "sale"] as const)("allows %s to quick-create a Partner", async (role) => {
+    const actor = { id: `${role}-1`, role };
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: actor });
+
+    await expect(quickCreateShippingNotePartnerAction({
+      companyName: " New Partner ",
+      vendorCode: " NP ",
+      taxId: " MST-1 ",
+      address: " Address ",
+    })).resolves.toEqual({
+      ok: true,
+      partner: {
+        id: "partner-new",
+        companyName: "New Partner",
+        vendorCode: "NP",
+        categoryNames: [],
+      },
+    });
+    expect(mocks.quickCreatePartner).toHaveBeenCalledWith({
+      companyName: "New Partner",
+      vendorCode: "NP",
+      taxId: "MST-1",
+      address: "Address",
+    }, actor);
+  });
+
+  it.each([
+    ["admin", "sea_pol"],
+    ["sale", "air_aol"],
+  ] as const)("allows %s to quick-create a Location with exact %s applicability", async (role, applicability) => {
+    const actor = { id: `${role}-1`, role };
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: actor });
+
+    await expect(quickCreateShippingNoteLocationAction({
+      code: " new ",
+      name: " New Location ",
+      type: "other",
+      countryCode: " vn ",
+      applicability,
+    })).resolves.toEqual({
+      ok: true,
+      location: { code: "NEW", name: "New Location", type: "other", countryCode: "VN" },
+    });
+    expect(mocks.quickCreateRoutingLocation).toHaveBeenCalledWith({
+      code: "NEW",
+      name: "New Location",
+      type: "other",
+      countryCode: "VN",
+      applicability,
+    }, actor);
+  });
+
+  it("rejects Accountant quick-create attempts at the domain boundary", async () => {
+    const actor = { id: "accountant-1", role: "accountant" as const };
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: actor });
+    mocks.quickCreatePartner.mockRejectedValue(new AuthorizationError());
+    mocks.quickCreateRoutingLocation.mockRejectedValue(new AuthorizationError());
+
+    await expect(quickCreateShippingNotePartnerAction({ companyName: "Denied" })).resolves.toEqual({
+      ok: false,
+      error: "You do not have permission to quick-create Partners.",
+    });
+    await expect(quickCreateShippingNoteLocationAction({
+      code: "DENIED",
+      name: "Denied",
+      type: "other",
+      applicability: "air_aol",
+    })).resolves.toEqual({
+      ok: false,
+      error: "You do not have permission to quick-create Locations.",
+    });
+  });
+
+  it("returns canonical validation feedback before invoking quick-create mutations", async () => {
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: { id: "sale-1", role: "sale" } });
+
+    await expect(quickCreateShippingNotePartnerAction({ companyName: "   " })).resolves.toEqual({
+      ok: false,
+      error: "Company name is required.",
+    });
+    await expect(quickCreateShippingNoteLocationAction({
+      code: "",
+      name: "",
+      type: "other",
+      applicability: "sea_pol",
+    })).resolves.toEqual({
+      ok: false,
+      error: "Location code is required.",
+    });
+
+    expect(mocks.quickCreatePartner).not.toHaveBeenCalled();
+    expect(mocks.quickCreateRoutingLocation).not.toHaveBeenCalled();
+  });
+
+  it("returns a safe Location identity conflict without changing applicability or type", async () => {
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: { id: "sale-1", role: "sale" } });
+    mocks.quickCreateRoutingLocation.mockRejectedValue(new RoutingLocationConflictError());
+
+    await expect(quickCreateShippingNoteLocationAction({
+      code: "SGN",
+      name: "Synthetic",
+      type: "other",
+      applicability: "air_aol",
+    })).resolves.toEqual({
+      ok: false,
+      error: "A Location with this type and code already exists.",
+    });
+    expect(mocks.quickCreateRoutingLocation).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "other", applicability: "air_aol" }),
+      expect.anything(),
+    );
   });
 });

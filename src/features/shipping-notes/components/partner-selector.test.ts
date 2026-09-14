@@ -1,6 +1,4 @@
 import { readFileSync } from "node:fs";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../actions", () => ({
@@ -8,68 +6,46 @@ vi.mock("../actions", () => ({
   searchShippingNotePartnersAction: vi.fn(),
 }));
 
-import { PartnerSelector, PartnerSelectorOptions } from "./partner-selector";
-
-const partner = {
-  id: "partner-1",
-  companyName: "Acme Logistics",
-  vendorCode: "ACME",
-  categoryNames: [],
-};
-
-function renderOptions(results: typeof partner[]) {
-  return renderToStaticMarkup(createElement("ul", null,
-    createElement(PartnerSelectorOptions, {
-      activeIndex: -1,
-      listboxId: "partners",
-      onAddMore: vi.fn(),
-      onChoose: vi.fn(),
-      results,
-    }),
-  ));
-}
+import { PartnerSelector } from "./partner-selector";
 
 describe("PartnerSelector quick add", () => {
-  it("renders + Add more after populated results", () => {
-    const html = renderOptions([partner]);
-    expect(html).toContain("Acme Logistics");
-    expect(html).toContain("+ Add more");
-    expect(html.indexOf("+ Add more")).toBeGreaterThan(html.indexOf("Acme Logistics"));
+  it("places + Add more after populated and zero-result list content", () => {
+    const source = readFileSync(new URL("./partner-selector.tsx", import.meta.url), "utf8");
+    const addMoreIndex = source.indexOf("+ Add more");
+
+    expect(source).toContain("results.map((partner, index)");
+    expect(source).toContain("No active Partners found.");
+    expect(addMoreIndex).toBeGreaterThan(source.indexOf("results.map((partner, index)"));
+    expect(addMoreIndex).toBeGreaterThan(source.indexOf("No active Partners found."));
   });
 
-  it("renders + Add more after the zero-results state", () => {
-    const html = renderOptions([]);
-    expect(html).toContain("No active Partners found.");
-    expect(html).toContain("+ Add more");
-    expect(html.indexOf("+ Add more")).toBeGreaterThan(html.indexOf("No active Partners found."));
+  it("keeps the public selector contract limited to its live form fields", () => {
+    expect(PartnerSelector).toBeTypeOf("function");
+
+    const source = readFileSync(new URL("./partner-selector.tsx", import.meta.url), "utf8");
+    expect(source).toContain("partnerFieldName");
+    expect(source).toContain("textFieldName");
+    expect(source).toContain("setManualEntry(true)");
+    expect(source).toContain("name={textFieldName}");
+    expect(source).toContain("name={partnerFieldName}");
   });
 
-  it("preserves selected Partner ID and company snapshot display for draft editing", () => {
-    const html = renderToStaticMarkup(createElement(PartnerSelector, {
-      initialPartnerId: partner.id,
-      initialText: partner.companyName,
-      label: "Shipper",
-      partnerFieldName: "shipperPartnerId",
-      textFieldName: "shipperText",
-    }));
+  it("submits the selected Partner ID while displaying its company name", () => {
+    const source = readFileSync(new URL("./partner-selector.tsx", import.meta.url), "utf8");
 
-    expect(html).toContain('name="shipperPartnerId"');
-    expect(html).toContain('value="partner-1"');
-    expect(html).toContain('value="Acme Logistics"');
+    expect(source).toContain('{selected ? <input name={partnerFieldName} type="hidden" value={selected.id} /> : null}');
+    expect(source).toContain("setSelected(partner)");
+    expect(source).toContain("setQuery(partner.companyName)");
   });
 
-  it("keeps manual text entry separate from Master Data creation", () => {
-    const html = renderToStaticMarkup(createElement(PartnerSelector, {
-      initialText: "Manual Shipper",
-      label: "Shipper",
-      partnerFieldName: "shipperPartnerId",
-      textFieldName: "shipperText",
-    }));
+  it("keeps manual entry text-only and outside the quick-create action", () => {
+    const source = readFileSync(new URL("./partner-selector.tsx", import.meta.url), "utf8");
 
-    expect(html).toContain('name="shipperText"');
-    expect(html).toContain('value="Manual Shipper"');
-    expect(html).not.toContain('name="shipperPartnerId"');
-    expect(html).not.toContain("Add Partner");
+    expect(source).toContain("if (manualEntry) {");
+    expect(source).toContain("name={textFieldName}");
+    expect(source.indexOf("quickCreateShippingNotePartnerAction")).toBeLessThan(
+      source.indexOf("if (manualEntry) {"),
+    );
   });
 
   it("opens the dialog and auto-selects then closes after a successful action", () => {

@@ -14,7 +14,10 @@ import {
 } from "@/lib/db/schema";
 
 import type { PartnerCategoryCode } from "./constants";
-import { assertCanMutatePartners } from "./permissions";
+import {
+  assertCanMutatePartners,
+  assertCanQuickCreatePartners,
+} from "./permissions";
 import type {
   BusinessPartnerDetail,
   PartnerCategoryDetail,
@@ -23,6 +26,7 @@ import type {
 import {
   createPartnerContactInputSchema,
   createPartnerInputSchema,
+  quickCreatePartnerInputSchema,
   restorePartnerInputSchema,
   setPartnerCategoriesInputSchema,
   softDeletePartnerContactInputSchema,
@@ -31,14 +35,14 @@ import {
   updatePartnerInputSchema,
   type CreatePartnerInput,
   type PartnerContactInput,
+  type QuickCreatePartnerInput,
   type UpdatePartnerInput,
 } from "./validators";
 
-export async function createPartner(
+async function createPartnerRecord(
   input: CreatePartnerInput,
   actor: DbUser,
 ): Promise<BusinessPartnerDetail> {
-  assertCanMutatePartners(actor);
   const parsedInput = createPartnerInputSchema.parse(input);
 
   return db.transaction(async (tx) => {
@@ -129,6 +133,28 @@ export async function createPartner(
 
     return detail;
   });
+}
+
+export async function createPartner(
+  input: CreatePartnerInput,
+  actor: DbUser,
+): Promise<BusinessPartnerDetail> {
+  assertCanMutatePartners(actor);
+  return createPartnerRecord(input, actor);
+}
+
+export async function quickCreatePartner(
+  input: QuickCreatePartnerInput,
+  actor: DbUser,
+): Promise<BusinessPartnerDetail> {
+  assertCanQuickCreatePartners(actor);
+  const parsedInput = quickCreatePartnerInputSchema.parse(input);
+  return createPartnerRecord({
+    ...parsedInput,
+    isActive: true,
+    categoryCodes: [],
+    contacts: [],
+  }, actor);
 }
 
 export async function updatePartner(

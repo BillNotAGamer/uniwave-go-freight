@@ -34,18 +34,6 @@ export function ShippingNoteDraftForm({
   return (
     <form className="grid gap-4" action={formAction}>
       {hiddenId ? <input type="hidden" name="id" value={hiddenId} /> : null}
-      {values?.shipperPartnerId ? (
-        <input type="hidden" name="shipperPartnerId" value={values.shipperPartnerId} />
-      ) : null}
-      {values?.consigneePartnerId ? (
-        <input type="hidden" name="consigneePartnerId" value={values.consigneePartnerId} />
-      ) : null}
-      {values?.customerPartnerId ? (
-        <input type="hidden" name="customerPartnerId" value={values.customerPartnerId} />
-      ) : null}
-      {values?.agentPartnerId ? (
-        <input type="hidden" name="agentPartnerId" value={values.agentPartnerId} />
-      ) : null}
       <ShippingNoteDraftFields values={values} includeJobsheetNo={includeJobsheetNo} />
 
       {state.ok ? null : (

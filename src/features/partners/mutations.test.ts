@@ -23,6 +23,7 @@ import { AuthorizationError } from "@/lib/permissions/require-permission";
 import {
   addPartnerContact,
   createPartner,
+  quickCreatePartner,
   restorePartner,
   setPartnerCategories,
   softDeletePartner,
@@ -72,6 +73,39 @@ describe("Partner Master Mutations", () => {
       ).rejects.toBeInstanceOf(AuthorizationError);
 
       expect(mocks.transaction).not.toHaveBeenCalled();
+    });
+
+    it("allows Sale quick-create but rejects Accountant quick-create", async () => {
+      await expect(
+        quickCreatePartner({ companyName: "Denied" }, makeUser("accountant")),
+      ).rejects.toBeInstanceOf(AuthorizationError);
+
+      const created = {
+        id: "quick-partner",
+        companyName: "Quick Partner",
+        vendorCode: null,
+        address: null,
+        taxId: null,
+        isActive: true,
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+        updatedAt: new Date("2026-01-01T00:00:00Z"),
+        deletedAt: null,
+      };
+      const values = vi.fn(() => ({ returning: vi.fn().mockResolvedValue([created]) }));
+      const txMock = { insert: vi.fn(() => ({ values })) };
+      mockTransactionWith(txMock);
+
+      await expect(
+        quickCreatePartner({ companyName: " Quick Partner " }, makeUser("sale")),
+      ).resolves.toMatchObject({ id: "quick-partner", contacts: [], categories: [] });
+      expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+        txMock,
+        expect.objectContaining({
+          action: "partner.create",
+          actorUserId: "user-sale-id",
+          entityId: "quick-partner",
+        }),
+      );
     });
 
     it("denies Sale and Accountant from updating or soft-deleting partners", async () => {

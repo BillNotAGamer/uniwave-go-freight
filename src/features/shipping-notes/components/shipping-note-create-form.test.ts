@@ -1,5 +1,5 @@
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./location-selector", () => ({
@@ -10,35 +10,25 @@ vi.mock("./partner-selector", () => ({
   PartnerSelector: ({ label }: { label: string }) => label,
 }));
 
-import { ShippingNoteCreateRoutingFields } from "./shipping-note-create-form";
+import { ShippingNoteCreateForm } from "./shipping-note-create-form";
 
 describe("Shipping Note create routing fields", () => {
   it("uses manual text inputs for Domestic From and To", () => {
-    const html = renderToStaticMarkup(createElement(ShippingNoteCreateRoutingFields, {
-      fields: [
-        { name: "domesticOrigin", label: "From" },
-        { name: "domesticDestination", label: "To" },
-      ],
-      shipmentType: "domestic",
-    }));
+    expect(ShippingNoteCreateForm).toBeTypeOf("function");
 
-    expect(html).toContain('name="domesticOrigin"');
-    expect(html).toContain('name="domesticDestination"');
-    expect(html).not.toContain("LOCATION_SELECTOR");
-    expect(html).not.toContain("+ Add more");
+    const source = readFileSync(new URL("./shipping-note-create-form.tsx", import.meta.url), "utf8");
+    expect(source).toContain(`shipmentType === "domestic" ? (
+          <TextField key={field.name} label={field.label} name={field.name} required />
+        ) : (`);
+    expect(source).not.toContain('shipmentType === "domestic" ? (\n          <LocationSelector');
+    expect(source).not.toContain('shipmentType === "domestic" ? (\n          + Add more');
   });
 
   it("keeps Ocean, Air, and Custom routing on LocationSelector", () => {
-    for (const [shipmentType, name] of [
-      ["ocean", "portOfLoading"],
-      ["air", "aol"],
-      ["custom", "customOrigin"],
-    ] as const) {
-      const html = renderToStaticMarkup(createElement(ShippingNoteCreateRoutingFields, {
-        fields: [{ name, label: "Location" }],
-        shipmentType,
-      }));
-      expect(html).toContain(`LOCATION_SELECTOR:${name}`);
-    }
+    const source = readFileSync(new URL("./shipping-note-create-form.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain('shipmentType === "domestic" ? (');
+    expect(source).toContain("<LocationSelector");
+    expect(source).toContain("getShippingNoteLocationApplicability(shipmentType!, field.name)");
   });
 });

@@ -4,9 +4,23 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { requireAuthenticatedUser } from "@/lib/auth/session";
+import { AuthorizationError } from "@/lib/permissions/require-permission";
+import {
+  RoutingLocationConflictError,
+  quickCreateRoutingLocation,
+} from "@/features/locations/mutations";
 import { searchRoutingLocations } from "@/features/locations/queries";
 import type { RoutingLocationApplicability } from "@/features/locations/constants";
+import {
+  quickCreateRoutingLocationInputSchema,
+  type QuickCreateRoutingLocationInput,
+} from "@/features/locations/validators";
+import { quickCreatePartner } from "@/features/partners/mutations";
 import { searchPartners } from "@/features/partners/queries";
+import {
+  quickCreatePartnerInputSchema,
+  type QuickCreatePartnerInput,
+} from "@/features/partners/validators";
 import {
   searchServiceCatalogItems,
   SERVICE_CATALOG_LOOKUP_LIMIT,
@@ -77,6 +91,14 @@ export type ShippingNoteLocationLookupResult = {
   type: string;
   countryCode: string | null;
 };
+
+export type QuickCreateShippingNotePartnerResult =
+  | { ok: true; partner: ShippingNotePartnerLookupResult }
+  | { ok: false; error: string };
+
+export type QuickCreateShippingNoteLocationResult =
+  | { ok: true; location: ShippingNoteLocationLookupResult }
+  | { ok: false; error: string };
 
 /**
  * Safe, authenticated Partner lookup for Shipping Note party selection.
@@ -153,6 +175,73 @@ export async function searchShippingNoteLocationsAction(
     type: location.type,
     countryCode: location.countryCode,
   }));
+}
+
+export async function quickCreateShippingNotePartnerAction(
+  input: QuickCreatePartnerInput,
+): Promise<QuickCreateShippingNotePartnerResult> {
+  const { user } = await requireAuthenticatedUser();
+  const parsed = quickCreatePartnerInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid Partner details.",
+    };
+  }
+
+  try {
+    const partner = await quickCreatePartner(parsed.data, user);
+    revalidatePath("/admin/master-data/partners");
+    return {
+      ok: true,
+      partner: {
+        id: partner.id,
+        companyName: partner.companyName,
+        vendorCode: partner.vendorCode,
+        categoryNames: partner.categories.map((category) => category.name),
+      },
+    };
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return { ok: false, error: "You do not have permission to quick-create Partners." };
+    }
+    return { ok: false, error: "Partner could not be created." };
+  }
+}
+
+export async function quickCreateShippingNoteLocationAction(
+  input: QuickCreateRoutingLocationInput,
+): Promise<QuickCreateShippingNoteLocationResult> {
+  const { user } = await requireAuthenticatedUser();
+  const parsed = quickCreateRoutingLocationInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid Location details.",
+    };
+  }
+
+  try {
+    const location = await quickCreateRoutingLocation(parsed.data, user);
+    revalidatePath("/admin/master-data/locations");
+    return {
+      ok: true,
+      location: {
+        code: location.code,
+        name: location.name,
+        type: location.type,
+        countryCode: location.countryCode,
+      },
+    };
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      return { ok: false, error: "You do not have permission to quick-create Locations." };
+    }
+    if (error instanceof RoutingLocationConflictError) {
+      return { ok: false, error: "A Location with this type and code already exists." };
+    }
+    return { ok: false, error: "Location could not be created." };
+  }
 }
 
 function parseBooleanishError(error: unknown): string {
