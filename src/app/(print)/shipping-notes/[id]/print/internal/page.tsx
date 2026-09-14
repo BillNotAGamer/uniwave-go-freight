@@ -6,6 +6,7 @@ import { AuthorizationError } from "@/lib/permissions/require-permission";
 import { InternalPrintActions } from "@/components/shipping-notes/internal-print-actions";
 import { INTERNAL_XLSX_PROFIT_CELL } from "@/features/shipping-notes/export/constants";
 import { getInternalShippingNoteExportDataForUser } from "@/features/shipping-notes/export/queries";
+import { formatMawbHawb } from "@/features/shipping-notes/presentation";
 import {
   formatTaxRuleSnapshotForExport,
   formatTaxTreatmentForExport,
@@ -86,7 +87,7 @@ function formatVolume(note: InternalShippingNoteExportDto["note"]): string {
 function buildHeaderItems(note: InternalShippingNoteExportDto["note"]): InfoItem[] {
   return [
     { label: "Jobsheet No", value: note.jobsheetNo },
-    { label: "MAWB / HAWB", value: formatOptional(note.mawbHawbNo) },
+    { label: "MAWB / HAWB", value: formatMawbHawb(note) },
     { label: "Shipping Mode", value: note.shippingMode },
     { label: "Shipper", value: formatOptional(note.shipperText) },
     { label: "Consignee", value: formatOptional(note.consigneeText) },

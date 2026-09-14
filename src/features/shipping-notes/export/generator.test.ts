@@ -86,6 +86,8 @@ function buildExportData(): InternalShippingNoteExportDto {
     note: {
       id: "note-1",
       jobsheetNo: "ABC/001 SEA",
+      mawbNo: null,
+      hawbNo: null,
       mawbHawbNo: "MAWB-1",
       shippingMode: "sea_export",
       shipperText: "Shipper",

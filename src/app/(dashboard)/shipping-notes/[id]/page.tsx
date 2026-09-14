@@ -66,6 +66,7 @@ import { listShippingNoteDocumentsForUser } from "@/features/shipping-notes/docu
 import { getStorageAvailability } from "@/features/shipping-notes/documents/service";
 import { CUSTOMS_DECLARATION_DOCUMENT_TYPE } from "@/features/shipping-notes/documents/constants";
 import { getShippingModePresentation } from "@/features/shipping-notes/mode-rules";
+import { formatMawbHawb } from "@/features/shipping-notes/presentation";
 
 function formatDateTime(value: Date | null | undefined): string {
   return value ? new Date(value).toLocaleString() : "-";
@@ -301,7 +302,7 @@ export default async function ShippingNoteDetailPage({
               </> : null}
               <div>
                 <dt className="font-medium text-foreground">MAWB / HAWB</dt>
-                <dd>{note.mawbHawbNo ?? "-"}</dd>
+                <dd>{formatMawbHawb(note)}</dd>
               </div>
               <div>
                 <dt className="font-medium text-foreground">Commidity/HS code</dt>

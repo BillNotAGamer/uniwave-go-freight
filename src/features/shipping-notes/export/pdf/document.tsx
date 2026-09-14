@@ -17,6 +17,7 @@ import type {
   InternalShippingNoteExportDto,
 } from "../types";
 import { getShippingModePresentation } from "../../mode-rules";
+import { formatMawbHawb } from "../../presentation";
 
 type InternalShippingNotePdfDocumentProps = {
   exportData: InternalShippingNoteExportDto;
@@ -219,7 +220,7 @@ function formatVolume(note: InternalShippingNoteExportDto["note"]): string {
 function buildHeaderItems(note: InternalShippingNoteExportDto["note"]): InfoItem[] {
   return [
     { label: "Jobsheet No", value: note.jobsheetNo },
-    { label: "MAWB / HAWB", value: formatOptional(note.mawbHawbNo) },
+    { label: "MAWB / HAWB", value: formatMawbHawb(note) },
     { label: "Shipping Mode", value: getShippingModePresentation(note.shippingMode).label },
     ...(note.shippingMode === "custom" ? [
       { label: "Custom Mode", value: formatOptional(note.customModeName) },

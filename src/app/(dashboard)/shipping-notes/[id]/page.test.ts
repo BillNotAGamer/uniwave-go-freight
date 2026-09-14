@@ -175,6 +175,33 @@ function collectText(node: unknown): string {
   return collectText((node.props as { children?: unknown }).children);
 }
 
+function findDefinitionValue(node: unknown, label: string): string | null {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const value = findDefinitionValue(child, label);
+      if (value !== null) return value;
+    }
+    return null;
+  }
+
+  if (!React.isValidElement(node)) return null;
+
+  const children = (node.props as { children?: unknown }).children;
+  const directChildren = Array.isArray(children) ? children : [children];
+  const definitionLabel = directChildren.find(
+    (child) => React.isValidElement(child) && child.type === "dt",
+  );
+  const definitionValue = directChildren.find(
+    (child) => React.isValidElement(child) && child.type === "dd",
+  );
+
+  if (definitionLabel && definitionValue && collectText(definitionLabel) === label) {
+    return collectText(definitionValue);
+  }
+
+  return findDefinitionValue(children, label);
+}
+
 describe("ShippingNoteDetailPage Customs Declarations RBAC", () => {
   const dummyDeclarations = [
     {
@@ -300,6 +327,39 @@ describe("ShippingNoteDetailPage Draft edit presentation", () => {
     expect(text).toContain("Edit Shipment");
     expect(text).toContain("Update shipment details while this shipment is still in Draft.");
     expect(text).not.toContain("Draft-only edit path");
+  });
+
+  it("renders modern Air MAWB and HAWB instead of the empty legacy field", async () => {
+    const saleUser = makeUser("sale");
+    const note = makeNote("draft");
+    note.shippingMode = "air_export";
+    note.mawbNo = "MAWB-123";
+    note.hawbNo = "HAWB-456";
+    note.mawbHawbNo = null;
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findDefinitionValue(jsx, "MAWB / HAWB")).toBe("MAWB-123 / HAWB-456");
+  });
+
+  it("retains the legacy combined MAWB/HAWB fallback for historical notes", async () => {
+    const saleUser = makeUser("sale");
+    const note = makeNote("draft");
+    note.mawbNo = null;
+    note.hawbNo = null;
+    note.mawbHawbNo = "LEGACY-AWB";
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findDefinitionValue(jsx, "MAWB / HAWB")).toBe("LEGACY-AWB");
   });
 
   it("shows the commodity/HS code in the Shipping information", async () => {

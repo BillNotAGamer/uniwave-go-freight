@@ -35,6 +35,8 @@ export type InternalShippingNoteExportDto = {
   note: {
     id: string;
     jobsheetNo: string;
+    mawbNo: string | null;
+    hawbNo: string | null;
     mawbHawbNo: string | null;
     shippingMode: ShippingMode;
     customModeName?: string | null;

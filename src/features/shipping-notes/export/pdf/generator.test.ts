@@ -104,7 +104,9 @@ function buildExportData(status: "checked" | "approved" | "locked" = "locked"): 
     note: {
       id: "note-1",
       jobsheetNo: "PDF-VN-001",
-      mawbHawbNo: "MAWB-1",
+      mawbNo: "MAWB-123",
+      hawbNo: "HAWB-456",
+      mawbHawbNo: null,
       shippingMode: "sea_export",
       shipperText: "Công ty Gửi Hàng",
       consigneeText: "Người nhận hàng",
@@ -156,6 +158,7 @@ describe("internal PDF generator", () => {
     const text = normalizeText(parsed.text);
 
     expect(text).toContain("PDF-VN-001");
+    expect(text).toContain("MAWB-123 / HAWB-456");
     expect(text).toContain("locked");
     expect(text).toContain("Cước vận chuyển taxable");
     expect(text).toContain("Vendor taxable cost");

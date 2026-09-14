@@ -13,6 +13,8 @@ function exportDto(jobsheetNo: string): InternalShippingNoteExportDto {
     note: {
       id: "note-1",
       jobsheetNo,
+      mawbNo: null,
+      hawbNo: null,
       mawbHawbNo: null,
       shippingMode: "sea_export",
       shipperText: null,

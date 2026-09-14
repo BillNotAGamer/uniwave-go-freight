@@ -13,6 +13,31 @@ import {
 } from "./read-model";
 import type { InternalShippingNoteExportDto } from "./types";
 
+export const internalShippingNoteExportNoteSelect = {
+  id: shippingNotes.id,
+  jobsheetNo: shippingNotes.jobsheetNo,
+  mawbNo: shippingNotes.mawbNo,
+  hawbNo: shippingNotes.hawbNo,
+  mawbHawbNo: shippingNotes.mawbHawbNo,
+  shippingMode: shippingNotes.shippingMode,
+  customModeName: shippingNotes.customModeName,
+  customOrigin: shippingNotes.customOrigin,
+  customDestination: shippingNotes.customDestination,
+  shipperText: shippingNotes.shipperText,
+  consigneeText: shippingNotes.consigneeText,
+  customerText: shippingNotes.customerText,
+  agentText: shippingNotes.agentText,
+  aol: shippingNotes.aol,
+  aod: shippingNotes.aod,
+  finalDestination: shippingNotes.finalDestination,
+  etd: shippingNotes.etd,
+  eta: shippingNotes.eta,
+  volumeValue: shippingNotes.volumeValue,
+  volumeUnit: shippingNotes.volumeUnit,
+  exchangeRate: shippingNotes.exchangeRate,
+  status: shippingNotes.status,
+} as const;
+
 /**
  * Server-only read model for the internal XLSX export.
  * Safely fetches the note and active charges in a single joined snapshot.
@@ -29,28 +54,7 @@ export async function getInternalShippingNoteExportDataForUser(
   // 2. Execute a single joined query to guarantee snapshot consistency
   const rows = await db
     .select({
-      note: {
-        id: shippingNotes.id,
-        jobsheetNo: shippingNotes.jobsheetNo,
-        mawbHawbNo: shippingNotes.mawbHawbNo,
-        shippingMode: shippingNotes.shippingMode,
-        customModeName: shippingNotes.customModeName,
-        customOrigin: shippingNotes.customOrigin,
-        customDestination: shippingNotes.customDestination,
-        shipperText: shippingNotes.shipperText,
-        consigneeText: shippingNotes.consigneeText,
-        customerText: shippingNotes.customerText,
-        agentText: shippingNotes.agentText,
-        aol: shippingNotes.aol,
-        aod: shippingNotes.aod,
-        finalDestination: shippingNotes.finalDestination,
-        etd: shippingNotes.etd,
-        eta: shippingNotes.eta,
-        volumeValue: shippingNotes.volumeValue,
-        volumeUnit: shippingNotes.volumeUnit,
-        exchangeRate: shippingNotes.exchangeRate,
-        status: shippingNotes.status,
-      },
+      note: internalShippingNoteExportNoteSelect,
       charge: {
         id: shippingNoteCharges.id,
         section: shippingNoteCharges.section,
