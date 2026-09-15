@@ -26,7 +26,7 @@ const controlClassName =
 
 function formatCatalogVat(vatRate: string | null | undefined): string {
   if (vatRate === null || vatRate === undefined || vatRate === "") {
-    return "Chưa xác định";
+    return "Unspecified";
   }
   const numeric = Number(vatRate);
   return Number.isNaN(numeric) ? vatRate : `${numeric}%`;
@@ -83,7 +83,7 @@ export function ChargeCatalogSelector({
           if (currentReq === requestId.current) {
             setResults([]);
             setOpen(false);
-            setError("Không thể tải danh mục dịch vụ. Bạn có thể chuyển sang nhập thủ công.");
+            setError("Unable to load service catalog. You can switch to manual entry.");
           }
         }
       });
@@ -159,14 +159,14 @@ export function ChargeCatalogSelector({
             className="block text-sm font-medium text-slate-700 dark:text-slate-200"
             htmlFor={inputId}
           >
-            Tên chi phí (Thủ công)
+            Charge Name (Manual)
           </label>
           <button
             className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             type="button"
             onClick={handleSwitchToCatalog}
           >
-            Chọn từ danh mục
+            Select from catalog
           </button>
         </div>
         <input
@@ -176,7 +176,7 @@ export function ChargeCatalogSelector({
           type="text"
           value={manualChargeName}
           onChange={(e) => setManualChargeName(e.target.value)}
-          placeholder="Nhập tên chi phí tự do..."
+          placeholder="Enter custom charge name..."
           required
         />
       </div>
@@ -202,14 +202,14 @@ export function ChargeCatalogSelector({
           className="block text-sm font-medium text-slate-700 dark:text-slate-200"
           htmlFor={inputId}
         >
-          Danh mục dịch vụ
+          Service Catalog
         </label>
         <button
           className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           type="button"
           onClick={handleSwitchToManual}
         >
-          Nhập thủ công
+          Enter manually
         </button>
       </div>
 
@@ -221,8 +221,8 @@ export function ChargeCatalogSelector({
                 [{selected.code}] {selected.name}
               </span>
               <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <span>Đơn vị: {selected.primaryUnit ?? "-"}</span>
-                <span>VAT danh mục: {formatCatalogVat(selected.vatRate)}</span>
+                <span>Unit: {selected.primaryUnit ?? "-"}</span>
+                <span>Catalog VAT: {formatCatalogVat(selected.vatRate)}</span>
               </div>
             </div>
             <button
@@ -230,7 +230,7 @@ export function ChargeCatalogSelector({
               type="button"
               onClick={handleClearSelection}
             >
-              Thay đổi
+              Change
             </button>
           </div>
         </div>
@@ -255,7 +255,7 @@ export function ChargeCatalogSelector({
             }}
             onFocus={() => results.length > 0 && setOpen(true)}
             onKeyDown={handleKeyDown}
-            placeholder="Tìm theo mã hoặc tên dịch vụ..."
+            placeholder="Search by code or service name..."
             role="combobox"
             type="text"
             value={query}
@@ -263,7 +263,7 @@ export function ChargeCatalogSelector({
           />
           {isPending ? (
             <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-              Đang tìm…
+              Searching…
             </span>
           ) : null}
 
@@ -275,7 +275,7 @@ export function ChargeCatalogSelector({
             >
               {results.length === 0 ? (
                 <li className="px-3 py-2 text-sm text-muted-foreground">
-                  Không tìm thấy dịch vụ phù hợp.
+                  No matching services found.
                 </li>
               ) : (
                 results.map((item, index) => (
@@ -303,7 +303,7 @@ export function ChargeCatalogSelector({
                       </div>
                       {item.primaryUnit ? (
                         <span className="block text-xs text-muted-foreground">
-                          Đơn vị: {item.primaryUnit}
+                          Unit: {item.primaryUnit}
                         </span>
                       ) : null}
                     </button>

@@ -14,6 +14,13 @@ import {
 } from "./location-selector";
 
 describe("LocationSelector", () => {
+  it("uses English manual-entry copy", () => {
+    const source = readFileSync(new URL("./location-selector.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain("Enter manually");
+    expect(source).not.toContain("Nhập thủ công");
+  });
+
   it("maps every routing field to its explicit applicability without type inference", () => {
     expect(getShippingNoteLocationApplicability("ocean", "portOfLoading")).toBe("sea_pol");
     expect(getShippingNoteLocationApplicability("ocean", "portOfDischarge")).toBe("sea_pod");

@@ -81,7 +81,7 @@ function AssignTaxRulePanel({
   if (rules.length === 0) {
     return (
       <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-muted-foreground dark:border-slate-800 dark:bg-slate-900/50">
-        Chưa có Tax Rule khả dụng
+        No applicable Tax Rules available
       </div>
     );
   }
@@ -212,7 +212,7 @@ function OverrideVatPanel({ charge }: { charge: ChargeTaxDetail }) {
             onChange={(e) => setSelectedVal(e.target.value)}
             required
           >
-            <option value="none">Không override</option>
+            <option value="none">No override</option>
             <option value="0">0%</option>
             <option value="5">5%</option>
             <option value="8">8%</option>
@@ -227,7 +227,7 @@ function OverrideVatPanel({ charge }: { charge: ChargeTaxDetail }) {
               className="mt-1 min-h-20 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-amber-500 dark:focus:ring-amber-500/20"
               name="reason"
               defaultValue={charge.overrideReason ?? ""}
-              placeholder="Nhập lý do override..."
+              placeholder="Enter override reason..."
               required
             />
           </label>
@@ -324,7 +324,7 @@ export function AccountingTaxChargeTable({
                       </div>
                     ) : null}
                     <div className="mt-0.5 text-xs text-muted-foreground font-normal">
-                      VAT danh mục: {charge.catalogVatRateSnapshot ? `${Number(charge.catalogVatRateSnapshot)}%` : "Chưa xác định"}
+                      Catalog VAT: {charge.catalogVatRateSnapshot ? `${Number(charge.catalogVatRateSnapshot)}%` : "Unspecified"}
                     </div>
                   </td>
                   <td className="border-b border-border/60 px-3 py-2">

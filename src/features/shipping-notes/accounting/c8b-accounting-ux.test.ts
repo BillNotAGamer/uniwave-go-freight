@@ -137,12 +137,12 @@ describe("Phase C8B Accounting Integration Invariants", () => {
       };
 
       const formatCatalogVatDisplay = (snapshot: string | null | undefined) =>
-        snapshot ? `VAT danh mục: ${Number(snapshot)}%` : "VAT danh mục: Chưa xác định";
+        snapshot ? `Catalog VAT: ${Number(snapshot)}%` : "Catalog VAT: Unspecified";
 
       const formatAccountingVatDisplay = (effective: string | null | undefined, applied: string) =>
         effective ? `${Number(effective)}%` : `${Number(applied)}%`;
 
-      expect(formatCatalogVatDisplay(chargeDetail.catalogVatRateSnapshot)).toBe("VAT danh mục: 8%");
+      expect(formatCatalogVatDisplay(chargeDetail.catalogVatRateSnapshot)).toBe("Catalog VAT: 8%");
       expect(
         formatAccountingVatDisplay(
           chargeDetail.effectiveAccountingVatRate,
@@ -157,7 +157,7 @@ describe("Phase C8B Accounting Integration Invariants", () => {
       })).toBe("10.00");
     });
 
-    it("renders Catalog VAT NULL as 'Chưa xác định' and NEVER as '0%'", () => {
+    it("renders Catalog VAT NULL as 'Unspecified' and NEVER as '0%'", () => {
       const chargeWithNullCatalogVat: Partial<ChargeTaxDetail> = {
         catalogVatRateSnapshot: null,
         effectiveAccountingVatRate: "8.00",
@@ -165,10 +165,10 @@ describe("Phase C8B Accounting Integration Invariants", () => {
       };
 
       const formatCatalogVatDisplay = (snapshot: string | null | undefined) =>
-        snapshot ? `VAT danh mục: ${Number(snapshot)}%` : "VAT danh mục: Chưa xác định";
+        snapshot ? `Catalog VAT: ${Number(snapshot)}%` : "Catalog VAT: Unspecified";
 
       const rendered = formatCatalogVatDisplay(chargeWithNullCatalogVat.catalogVatRateSnapshot);
-      expect(rendered).toBe("VAT danh mục: Chưa xác định");
+      expect(rendered).toBe("Catalog VAT: Unspecified");
       expect(rendered).not.toContain("0%");
       expect(rendered).not.toContain("0.00%");
     });
@@ -184,9 +184,9 @@ describe("Phase C8B Accounting Integration Invariants", () => {
       expect(sellingRules).toHaveLength(0);
       expect(buyingRules).toHaveLength(0);
 
-      // Invariant: Zero Tax Rules produces empty state text "Chưa có Tax Rule khả dụng", no crash
-      const emptyStateMessage = sellingRules.length === 0 ? "Chưa có Tax Rule khả dụng" : null;
-      expect(emptyStateMessage).toBe("Chưa có Tax Rule khả dụng");
+      // Invariant: Zero Tax Rules produces the English empty state without crashing.
+      const emptyStateMessage = sellingRules.length === 0 ? "No applicable Tax Rules available" : null;
+      expect(emptyStateMessage).toBe("No applicable Tax Rules available");
 
       // Invariant: Catalog VAT is NOT promoted to a Tax Rule
       const catalogVat = "8.00";

@@ -279,7 +279,7 @@ export function LocationSelector({
             onClick={beginManualEntry}
             type="button"
           >
-            Nhập thủ công
+            Enter manually
           </button>
         ) : null}
       </div>

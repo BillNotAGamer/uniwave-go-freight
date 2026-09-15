@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../actions", () => ({
@@ -9,6 +11,25 @@ vi.mock("../actions", () => ({
 import { PartnerSelector } from "./partner-selector";
 
 describe("PartnerSelector quick add", () => {
+  it("renders English selector and manual-entry copy", () => {
+    const selectorMarkup = renderToStaticMarkup(createElement(PartnerSelector, {
+      label: "Shipper",
+      partnerFieldName: "shipperPartnerId",
+      textFieldName: "shipperText",
+    }));
+    const manualMarkup = renderToStaticMarkup(createElement(PartnerSelector, {
+      initialText: "Manual Shipper",
+      label: "Shipper",
+      partnerFieldName: "shipperPartnerId",
+      textFieldName: "shipperText",
+    }));
+
+    expect(selectorMarkup).toContain("Enter manually");
+    expect(selectorMarkup).toContain("Search by name, code or tax ID");
+    expect(manualMarkup).toContain("Select Partner");
+    expect(manualMarkup).toContain("Enter partner name");
+  });
+
   it("places + Add more after populated and zero-result list content", () => {
     const source = readFileSync(new URL("./partner-selector.tsx", import.meta.url), "utf8");
     const addMoreIndex = source.indexOf("+ Add more");

@@ -228,7 +228,7 @@ export function PartnerSelector({
             }}
             type="button"
           >
-            Chọn Partner
+            Select Partner
           </button>
         </div>
         <input
@@ -236,7 +236,7 @@ export function PartnerSelector({
           id={inputId}
           name={textFieldName}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Nhập tên đối tác"
+          placeholder="Enter partner name"
           type="text"
           value={query}
         />
@@ -259,7 +259,7 @@ export function PartnerSelector({
           }}
           type="button"
         >
-          Nhập thủ công
+          Enter manually
         </button>
       </div>
       <div className="relative mt-1">
@@ -281,7 +281,7 @@ export function PartnerSelector({
           }}
           onFocus={() => results.length > 0 && setOpen(true)}
           onKeyDown={handleKeyDown}
-          placeholder="Tìm theo tên, mã hoặc MST"
+          placeholder="Search by name, code or tax ID"
           role="combobox"
           type="text"
           value={query}
