@@ -38,20 +38,20 @@ export function AppSidebarView({
         className={cn(
           "flex shrink-0 items-center border-b border-border",
           collapsed
-            ? "h-16 justify-between gap-1 px-2"
+            ? "h-16 justify-center px-2"
             : "h-16 justify-between gap-2 px-4",
         )}
       >
-        <span
-          className={cn(
-            "font-bold text-foreground",
-            collapsed ? "text-base" : "text-lg",
-          )}
-          title={collapsed ? "Uniwave Go" : undefined}
-        >
-          <span aria-hidden={collapsed}>{collapsed ? "U" : "Uniwave Go"}</span>
-          {collapsed ? <span className="sr-only">Uniwave Go</span> : null}
-        </span>
+        {collapsed ? (
+          <span className="sr-only">Uniwave Go Freight</span>
+        ) : (
+          <span
+            className="truncate text-lg font-bold text-foreground"
+            title="Uniwave Go Freight"
+          >
+            Uniwave Go Freight
+          </span>
+        )}
         <button
           aria-controls="desktop-sidebar-navigation"
           aria-expanded={!collapsed}

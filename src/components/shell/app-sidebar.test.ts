@@ -56,7 +56,7 @@ describe("AppSidebar desktop presentation", () => {
     expect(markup).toContain("w-64");
     expect(markup).toContain('aria-label="Collapse sidebar"');
     expect(markup).toContain('aria-expanded="true"');
-    expect(markup).toContain("Uniwave Go");
+    expect(markup).toContain("Uniwave Go Freight");
   });
 
   it("uses a non-submitting button to request collapse or expansion", () => {
@@ -84,6 +84,8 @@ describe("AppSidebar desktop presentation", () => {
     expect(markup).toContain('aria-label="Shipping Notes"');
     expect(markup).toContain('aria-current="page"');
     expect(markup).toContain('title="Shipping Notes"');
+    expect(markup).not.toContain(">U<");
+    expect(markup).toContain('class="sr-only">Uniwave Go Freight</span>');
   });
 
   it("keeps the desktop rail sticky with independent navigation overflow", () => {
