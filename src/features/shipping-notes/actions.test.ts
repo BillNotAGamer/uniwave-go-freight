@@ -196,7 +196,7 @@ describe("Shipping Note Location lookup action", () => {
     vi.clearAllMocks();
   });
 
-  it.each(["admin", "sale", "accountant"] as const)("allows %s through the canonical read query", async (role) => {
+  it.each(["admin", "sale", "ops", "accountant"] as const)("allows %s through the canonical read query", async (role) => {
     const actor = { id: `${role}-1`, role };
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: actor });
     mocks.searchRoutingLocations.mockResolvedValue([{
@@ -253,7 +253,7 @@ describe("Shipping Note Master Data quick-create actions", () => {
     });
   });
 
-  it.each(["admin", "sale"] as const)("allows %s to quick-create a Partner", async (role) => {
+  it.each(["admin", "sale", "ops"] as const)("allows %s to quick-create a Partner", async (role) => {
     const actor = { id: `${role}-1`, role };
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: actor });
 
@@ -282,6 +282,7 @@ describe("Shipping Note Master Data quick-create actions", () => {
   it.each([
     ["admin", "sea_pol"],
     ["sale", "air_aol"],
+    ["ops", "custom_origin"],
   ] as const)("allows %s to quick-create a Location with exact %s applicability", async (role, applicability) => {
     const actor = { id: `${role}-1`, role };
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: actor });

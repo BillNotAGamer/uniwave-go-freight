@@ -10,6 +10,8 @@ describe("dashboard navigation links", () => {
       .not.toContain("/admin/master-data/partners");
     expect(getNavLinks("sale").map((link) => link.href))
       .not.toContain("/admin/master-data/partners");
+    expect(getNavLinks("ops").map((link) => link.href))
+      .not.toContain("/admin/master-data/partners");
   });
 
   it("shows Admin Users only to roles with user-management capability", () => {
@@ -19,6 +21,8 @@ describe("dashboard navigation links", () => {
       .not.toContain("/admin/users");
     expect(getNavLinks("sale").map((link) => link.href))
       .not.toContain("/admin/users");
+    expect(getNavLinks("ops").map((link) => link.href))
+      .not.toContain("/admin/users");
   });
 
   it("shows Audit only to roles with audit-log read capability", () => {
@@ -27,6 +31,8 @@ describe("dashboard navigation links", () => {
     expect(getNavLinks("accountant").map((link) => link.href))
       .not.toContain("/admin/audit");
     expect(getNavLinks("sale").map((link) => link.href))
+      .not.toContain("/admin/audit");
+    expect(getNavLinks("ops").map((link) => link.href))
       .not.toContain("/admin/audit");
   });
 });

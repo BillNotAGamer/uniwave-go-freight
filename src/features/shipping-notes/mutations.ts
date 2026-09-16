@@ -8,7 +8,7 @@ import {
   AuthorizationError,
   requireAnyPermission,
 } from "@/lib/permissions/require-permission";
-import { PERMISSIONS } from "@/lib/permissions/permissions";
+import { PERMISSIONS, type Permission } from "@/lib/permissions/permissions";
 import {
   businessPartners,
   serviceCatalogItems,
@@ -60,7 +60,7 @@ import {
   canCancelShippingNoteStatus,
   canLockShippingNoteStatus,
   LOCK_SOURCE_STATUSES,
-  canMutateBuyingChargeAtStatus,
+  canMutateBuyingChargeForActor,
   canMutateSellingChargeForDraft,
   canReopenShippingNoteForCorrectionStatus,
   canSubmitShippingNoteDraft,
@@ -124,7 +124,7 @@ async function resolvePartyPersistence(
 
 function requireShippingNoteAccess(
   user: DbUser,
-  permission: (typeof PERMISSIONS)[keyof typeof PERMISSIONS],
+  permission: Permission | readonly Permission[],
 ): void {
   requireAnyPermission(user.role, permission);
 }
@@ -360,7 +360,7 @@ function ensureNormalCancellationAccess(
   }
 
   if (note.status === "draft") {
-    if (user.role === "sale" && note.createdById === user.id) {
+    if ((user.role === "sale" || user.role === "ops") && note.createdById === user.id) {
       return note;
     }
 
@@ -1244,12 +1244,13 @@ function ensureChargeMutationAccess(note: ShippingNoteDetail | null, user: DbUse
 
 function ensureBuyingChargeMutationAccess(
   note: ShippingNoteDetail | null,
+  user: DbUser,
 ): ShippingNoteDetail {
   if (!note) {
     throw new AuthorizationError();
   }
 
-  if (!canMutateBuyingChargeAtStatus(note.status)) {
+  if (!canMutateBuyingChargeForActor(note.status, user)) {
     throw new AuthorizationError();
   }
 
@@ -1508,10 +1509,14 @@ export async function createBuyingChargeForNote(
   input: CreateBuyingChargeInput,
   user: DbUser,
 ): Promise<BuyingChargeDetail> {
-  requireShippingNoteAccess(user, PERMISSIONS.BUYING_CHARGES_MANAGE);
+  requireShippingNoteAccess(user, [
+    PERMISSIONS.BUYING_CHARGES_MANAGE,
+    PERMISSIONS.BUYING_CHARGES_OPS_INPUT,
+  ]);
 
   const note = ensureBuyingChargeMutationAccess(
     await getShippingNoteForUser(noteId, user),
+    user,
   );
 
   const amounts = calculateChargeAmounts({
@@ -1574,7 +1579,10 @@ export async function updateBuyingCharge(
   input: UpdateBuyingChargeInput,
   user: DbUser,
 ): Promise<BuyingChargeDetail> {
-  requireShippingNoteAccess(user, PERMISSIONS.BUYING_CHARGES_MANAGE);
+  requireShippingNoteAccess(user, [
+    PERMISSIONS.BUYING_CHARGES_MANAGE,
+    PERMISSIONS.BUYING_CHARGES_OPS_INPUT,
+  ]);
 
   const [existingCharge] = await db
     .select({
@@ -1616,6 +1624,7 @@ export async function updateBuyingCharge(
 
   ensureBuyingChargeMutationAccess(
     await getShippingNoteForUser(existingCharge.shippingNoteId, user),
+    user,
   );
 
   const amounts = calculateChargeAmounts({
@@ -1683,7 +1692,10 @@ export async function softDeleteBuyingCharge(
   chargeId: string,
   user: DbUser,
 ): Promise<string> {
-  requireShippingNoteAccess(user, PERMISSIONS.BUYING_CHARGES_MANAGE);
+  requireShippingNoteAccess(user, [
+    PERMISSIONS.BUYING_CHARGES_MANAGE,
+    PERMISSIONS.BUYING_CHARGES_OPS_INPUT,
+  ]);
 
   const [existingCharge] = await db
     .select({
@@ -1709,6 +1721,7 @@ export async function softDeleteBuyingCharge(
 
   ensureBuyingChargeMutationAccess(
     await getShippingNoteForUser(existingCharge.shippingNoteId, user),
+    user,
   );
 
   try {

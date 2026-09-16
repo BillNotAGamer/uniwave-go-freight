@@ -43,7 +43,7 @@ function configureRows(rows: unknown[]) {
 describe("Service Catalog charge lookup", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it.each(["sale", "accountant", "admin"] as const)(
+  it.each(["sale", "ops", "accountant", "admin"] as const)(
     "allows active %s users to search code/name with a bounded result",
     async (role) => {
       const item = {

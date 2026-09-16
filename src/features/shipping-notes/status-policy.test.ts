@@ -9,6 +9,7 @@ import {
   canAccessDraftMutationSubject,
   canLockShippingNoteStatus,
   canMutateBuyingChargeAtStatus,
+  canMutateBuyingChargeForActor,
   canMutateSellingChargeForDraft,
   canReopenShippingNoteForCorrectionStatus,
   canSubmitShippingNoteDraft,
@@ -26,6 +27,8 @@ import {
 
 const saleOwner: ShippingNotePolicyActor = { id: "sale-1", role: "sale" };
 const saleOther: ShippingNotePolicyActor = { id: "sale-2", role: "sale" };
+const opsOwner: ShippingNotePolicyActor = { id: "ops-1", role: "ops" };
+const opsOther: ShippingNotePolicyActor = { id: "ops-2", role: "ops" };
 const accountant: ShippingNotePolicyActor = {
   id: "accountant-1",
   role: "accountant",
@@ -50,6 +53,8 @@ describe("shipping note status policy", () => {
 
   it("denies draft mutation for other sale owner and non-draft statuses", () => {
     expect(canAccessDraftMutationSubject(note("draft"), saleOther)).toBe(false);
+    expect(canAccessDraftMutationSubject(note("draft", "sale-1"), opsOther)).toBe(false);
+    expect(canAccessDraftMutationSubject(note("draft", "ops-1"), opsOwner)).toBe(true);
     expect(canAccessDraftMutationSubject(note("submitted"), saleOwner)).toBe(false);
     expect(canAccessDraftMutationSubject(note("checked"), admin)).toBe(false);
   });
@@ -83,6 +88,14 @@ describe("shipping note status policy", () => {
         status === "submitted" || status === "accounting_reviewing",
       );
     }
+  });
+
+  it("limits OPS Buying Charge input to submitted notes only", () => {
+    for (const status of SHIPPING_NOTE_STATUSES) {
+      expect(canMutateBuyingChargeForActor(status, opsOther)).toBe(status === "submitted");
+    }
+    expect(canMutateBuyingChargeForActor("accounting_reviewing", accountant)).toBe(true);
+    expect(canMutateBuyingChargeForActor("submitted", admin)).toBe(true);
   });
 
   it("characterizes the currently implemented accounting transitions", () => {

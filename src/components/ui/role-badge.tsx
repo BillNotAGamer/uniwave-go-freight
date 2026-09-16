@@ -13,6 +13,7 @@ export function RoleBadge({ role, className, ...props }: RoleBadgeProps) {
         role === "admin" && "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 dark:border dark:border-red-900/60",
         role === "accountant" && "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 dark:border dark:border-blue-900/60",
         role === "sale" && "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 dark:border dark:border-slate-700",
+        role === "ops" && "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 dark:border dark:border-amber-900/60",
         className,
       )}
       {...props}

@@ -136,8 +136,8 @@ export async function searchShippingNoteDocumentsForUser(
     isNull(shippingNotes.deletedAt),
   ];
 
-  // Actor scoping: Sale can only see documents for their own shipping notes
-  if (user.role === "sale") {
+  // Operational actors can only see documents for their own shipping notes.
+  if (user.role === "sale" || user.role === "ops") {
     conditions.push(eq(shippingNotes.createdById, user.id));
   } else if (user.role !== "admin" && user.role !== "accountant") {
     return [];

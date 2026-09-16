@@ -138,6 +138,7 @@ type TargetElement = React.ReactElement<{
   defaultExchangeRate?: string | null;
   documents?: unknown[];
   canManage?: boolean;
+  canManageBuyingCharges?: boolean;
   children?: unknown;
 }>;
 
@@ -366,6 +367,60 @@ describe("ShippingNoteDetailPage Buying Charge defaults", () => {
 
     const buyingChargeForm = findComponentInTree(jsx, BuyingChargeForm);
     expect(buyingChargeForm?.props.defaultExchangeRate).toBe("25450.000000");
+  });
+});
+
+describe("ShippingNoteDetailPage OPS Buying Charge controls", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getSellingChargesAndSummaryForNoteForUser.mockResolvedValue({
+      charges: [],
+      summary: { totalAmountVnd: "0.00" },
+    });
+    mocks.listBuyingChargesForNoteForUser.mockResolvedValue([]);
+    mocks.listChargeTaxDetailsForNoteForUser.mockResolvedValue([]);
+    mocks.listTaxRulesForUser.mockResolvedValue([]);
+    mocks.listShippingNoteExportHistoryForUser.mockResolvedValue([]);
+    mocks.listShippingNoteDocumentsForUser.mockResolvedValue([]);
+  });
+
+  it("shows OPS the existing Buying Charge form only while submitted", async () => {
+    const opsUser = makeUser("ops");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: opsUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findComponentInTree(jsx, BuyingChargeForm)?.props.canManageBuyingCharges)
+      .toBe(true);
+    expect(collectText(jsx)).not.toContain("Buying Charge Tax Classification");
+  });
+
+  it("removes OPS Buying Charge mutation controls once Accounting Review starts", async () => {
+    const opsUser = makeUser("ops");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: opsUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("accounting_reviewing"));
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findComponentInTree(jsx, BuyingChargeForm)?.props.canManageBuyingCharges)
+      .toBe(false);
+  });
+
+  it("does not give Sale the OPS Buying Charge interface", async () => {
+    const saleUser = makeUser("sale");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findComponentInTree(jsx, BuyingChargeForm)).toBeNull();
   });
 });
 

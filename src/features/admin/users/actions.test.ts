@@ -175,7 +175,7 @@ describe("admin user server actions", () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it.each(["sale", "accountant"] as const)(
+  it.each(["sale", "ops", "accountant"] as const)(
     "accepts normal create-user role %s at the server action boundary",
     async (role) => {
       const { createAdminUserAction } = await import("./actions");

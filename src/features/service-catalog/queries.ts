@@ -33,6 +33,7 @@ function requireCatalogLookupAccess(user: DbUser): void {
   requireAnyPermission(user.role, [
     PERMISSIONS.SHIPPING_NOTES_EDIT_OWN,
     PERMISSIONS.BUYING_CHARGES_MANAGE,
+    PERMISSIONS.BUYING_CHARGES_OPS_INPUT,
   ]);
 }
 

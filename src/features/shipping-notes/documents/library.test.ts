@@ -67,6 +67,7 @@ describe("Document Library and Pre-alert UI options", () => {
   it("enforces locked and cancelled immutability rules", () => {
     const admin = makeMockUser({ role: "admin" });
     const sale = makeMockUser({ role: "sale", id: "sale-1" });
+    const ops = makeMockUser({ role: "ops", id: "ops-1" });
 
     // Locked notes are read-only for admin and owning sale, but never mutable
     expect(
@@ -109,6 +110,18 @@ describe("Document Library and Pre-alert UI options", () => {
         sale,
       ),
     ).toBe(true);
+    expect(
+      canReadShippingNoteDocuments(
+        { status: "submitted", createdById: "ops-1" },
+        ops,
+      ),
+    ).toBe(true);
+    expect(
+      canMutateShippingNoteDocuments(
+        { status: "submitted", createdById: "sale-1" },
+        ops,
+      ),
+    ).toBe(false);
     expect(
       canMutateShippingNoteDocuments(
         { status: "checked", createdById: "sale-1" },

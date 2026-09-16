@@ -4,7 +4,7 @@ import { AuthorizationError } from "@/lib/permissions/require-permission";
 
 export function canReadLocations(user: DbUser | null | undefined): boolean {
   const activeUser = rejectInactiveOrSoftDeletedUsers(user);
-  return Boolean(activeUser && ["admin", "accountant", "sale"].includes(activeUser.role));
+  return Boolean(activeUser && ["admin", "accountant", "sale", "ops"].includes(activeUser.role));
 }
 
 export function canMutateLocations(user: DbUser | null | undefined): boolean {
@@ -13,7 +13,10 @@ export function canMutateLocations(user: DbUser | null | undefined): boolean {
 
 export function canQuickCreateLocations(user: DbUser | null | undefined): boolean {
   const activeUser = rejectInactiveOrSoftDeletedUsers(user);
-  return Boolean(activeUser && (activeUser.role === "admin" || activeUser.role === "sale"));
+  return Boolean(
+    activeUser &&
+      (activeUser.role === "admin" || activeUser.role === "sale" || activeUser.role === "ops"),
+  );
 }
 
 export function assertCanReadLocations(user: DbUser | null | undefined): asserts user is DbUser {

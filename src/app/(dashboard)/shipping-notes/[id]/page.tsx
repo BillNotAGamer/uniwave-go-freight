@@ -46,6 +46,7 @@ import {
 import {
   canCancelFinalizedShippingNoteStatus,
   canCancelShippingNoteStatus,
+  canMutateBuyingChargeForActor,
   canSubmitShippingNoteDraft,
   canReopenShippingNoteForCorrectionStatus,
   isInternalXlsxExportEligibleStatus,
@@ -113,8 +114,10 @@ export default async function ShippingNoteDetailPage({
     PERMISSIONS.SHIPPING_NOTES_EXPORT_INTERNAL,
   );
   const canManageBuyingCharges =
-    hasPermission(user.role, PERMISSIONS.BUYING_CHARGES_MANAGE) &&
-    (note.status === "submitted" || note.status === "accounting_reviewing");
+    (hasPermission(user.role, PERMISSIONS.BUYING_CHARGES_MANAGE) ||
+      hasPermission(user.role, PERMISSIONS.BUYING_CHARGES_OPS_INPUT))
+      ? canMutateBuyingChargeForActor(note.status, user)
+      : false;
 
   const canStartAccountingReview = hasPermission(
     user.role,
@@ -153,7 +156,7 @@ export default async function ShippingNoteDetailPage({
   );
   const canCancelOwnDraft =
     note.status === "draft" &&
-    user.role === "sale" &&
+    (user.role === "sale" || user.role === "ops") &&
     note.createdById === user.id &&
     hasNormalCancelPermission;
   const canCancelDraftAsAdmin =
@@ -417,7 +420,7 @@ export default async function ShippingNoteDetailPage({
               </p>
               <h2 className="text-lg font-semibold tracking-tight text-foreground">Buying Charges</h2>
               <p className="text-sm text-muted-foreground">
-                Accountant and admin users can review buying charge lines here.
+                Buying charge lines are available to authorized operational and accounting users.
               </p>
               {financialSummary ? (
                 <p className="text-sm text-muted-foreground">
@@ -426,8 +429,7 @@ export default async function ShippingNoteDetailPage({
               ) : null}
               {!canManageBuyingCharges ? (
                 <p className="text-sm text-muted-foreground">
-                  Buying charge changes are available only when the shipping note
-                  status is submitted or accounting reviewing.
+                  Buying charge changes are unavailable at this shipping note status.
                 </p>
               ) : null}
             </div>

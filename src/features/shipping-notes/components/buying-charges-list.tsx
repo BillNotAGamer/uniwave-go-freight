@@ -2,6 +2,8 @@
 
 import { useActionState, useState } from "react";
 
+import { summarizeBuyingCharges } from "@/lib/calculations/shipping-note";
+
 import {
   softDeleteBuyingChargeAction,
   updateBuyingChargeAction,
@@ -216,9 +218,15 @@ export function BuyingChargesList({
     return <p className="text-sm text-slate-500 dark:text-slate-400">No buying charges yet.</p>;
   }
 
+  const summary = summarizeBuyingCharges(charges);
+
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-foreground">
+        Buying subtotal: {formatNumber(summary.totalVnd)} VND
+      </p>
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
         <thead>
           <tr className="text-xs uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
             <th className="border-b border-slate-200 dark:border-slate-800 px-3 py-2">Charge</th>
@@ -306,7 +314,8 @@ export function BuyingChargesList({
             );
           })}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }

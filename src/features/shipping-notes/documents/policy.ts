@@ -26,7 +26,7 @@ export function canReadShippingNoteDocuments(
   if (actor.role === "admin" || actor.role === "accountant") {
     return true;
   }
-  if (actor.role === "sale") {
+  if (actor.role === "sale" || actor.role === "ops") {
     return Boolean(note.createdById && note.createdById === actor.id);
   }
   return false;
@@ -42,7 +42,7 @@ export function canMutateShippingNoteDocuments(
   if (actor.role === "admin" || actor.role === "accountant") {
     return true;
   }
-  if (actor.role === "sale") {
+  if (actor.role === "sale" || actor.role === "ops") {
     return Boolean(note.createdById && note.createdById === actor.id);
   }
   return false;

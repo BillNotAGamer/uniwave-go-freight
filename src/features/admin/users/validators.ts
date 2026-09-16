@@ -19,7 +19,7 @@ export const ADMIN_USER_TEMP_PASSWORD_MIN_LENGTH =
   BETTER_AUTH_PASSWORD_MIN_LENGTH;
 export const ADMIN_USER_TEMP_PASSWORD_MAX_LENGTH =
   BETTER_AUTH_PASSWORD_MAX_LENGTH;
-export const ADMIN_USER_CREATABLE_ROLES = ["sale", "accountant"] as const;
+export const ADMIN_USER_CREATABLE_ROLES = ["sale", "ops", "accountant"] as const;
 
 function optionalTrimmedString(maxLength: number) {
   return z.preprocess((value) => {

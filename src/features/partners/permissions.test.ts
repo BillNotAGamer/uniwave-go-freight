@@ -60,9 +60,12 @@ describe("Partner Master Permissions Policy", () => {
     expect(() => assertCanQuickCreatePartners(sale)).not.toThrow();
   });
 
-  it("allows Admin and Sale quick-create but rejects Accountant", () => {
+  it("allows Admin, Sale, and OPS quick-create but rejects Accountant", () => {
     expect(canQuickCreatePartners(makeUser({ role: "admin" }))).toBe(true);
     expect(canQuickCreatePartners(makeUser({ role: "sale" }))).toBe(true);
+    expect(canQuickCreatePartners(makeUser({ role: "ops" }))).toBe(true);
+    expect(canReadPartners(makeUser({ role: "ops" }))).toBe(true);
+    expect(canMutatePartners(makeUser({ role: "ops" }))).toBe(false);
     expect(canQuickCreatePartners(makeUser({ role: "accountant" }))).toBe(false);
     expect(() => assertCanQuickCreatePartners(makeUser({ role: "accountant" }))).toThrow(AuthorizationError);
   });

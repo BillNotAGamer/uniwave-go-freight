@@ -5,8 +5,9 @@ import { isRole, ROLES, type Role } from "./roles";
 
 describe("role and permission matrix", () => {
   it("keeps role identifiers constrained to the supported roles", () => {
-    expect(ROLES).toStrictEqual(["sale", "accountant", "admin"]);
+    expect(ROLES).toStrictEqual(["sale", "ops", "accountant", "admin"]);
     expect(isRole("sale")).toBe(true);
+    expect(isRole("ops")).toBe(true);
     expect(isRole("accountant")).toBe(true);
     expect(isRole("admin")).toBe(true);
     expect(isRole("manager")).toBe(false);
@@ -84,6 +85,25 @@ describe("role and permission matrix", () => {
     expect(hasPermission("accountant", PERMISSIONS.USERS_MANAGE)).toBe(false);
     expect(hasPermission("accountant", PERMISSIONS.ADMIN_DESTRUCTIVE_ACTIONS)).toBe(false);
     expect(hasPermission("accountant", PERMISSIONS.EXPORTS_UPLOAD)).toBe(false);
+  });
+
+  it("gives OPS Sale operational parity with only submitted Buying Charge input", () => {
+    expect(hasPermission("ops", PERMISSIONS.SHIPPING_NOTES_CREATE_OWN)).toBe(true);
+    expect(hasPermission("ops", PERMISSIONS.SHIPPING_NOTES_EDIT_OWN)).toBe(true);
+    expect(hasPermission("ops", PERMISSIONS.SHIPPING_NOTES_CANCEL)).toBe(true);
+    expect(hasPermission("ops", PERMISSIONS.BUYING_CHARGES_READ)).toBe(true);
+    expect(hasPermission("ops", PERMISSIONS.BUYING_CHARGES_OPS_INPUT)).toBe(true);
+    expect(hasPermission("ops", PERMISSIONS.BUYING_CHARGES_MANAGE)).toBe(false);
+    expect(hasPermission("ops", PERMISSIONS.SHIPPING_NOTES_ACCOUNTING_REVIEW)).toBe(false);
+    expect(hasPermission("ops", PERMISSIONS.SHIPPING_NOTES_MARK_CHECKED)).toBe(false);
+    expect(hasPermission("ops", PERMISSIONS.SHIPPING_NOTES_APPROVE)).toBe(false);
+    expect(hasPermission("ops", PERMISSIONS.FINANCIAL_SUMMARY_READ)).toBe(false);
+    expect(hasPermission("ops", PERMISSIONS.NET_PROFIT_READ)).toBe(false);
+    expect(hasPermission("ops", PERMISSIONS.TAX_RULES_READ)).toBe(false);
+    expect(hasPermission("ops", PERMISSIONS.CHARGE_TAX_ASSIGN)).toBe(false);
+    expect(hasPermission("ops", PERMISSIONS.CHARGE_TAX_OVERRIDE)).toBe(false);
+    expect(hasPermission("ops", PERMISSIONS.USERS_MANAGE)).toBe(false);
+    expect(hasPermission("ops", PERMISSIONS.AUDIT_LOGS_READ)).toBe(false);
   });
 
   it("grants admin every declared permission", () => {

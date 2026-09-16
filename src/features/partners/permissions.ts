@@ -11,7 +11,8 @@ export function canReadPartners(user: DbUser | null | undefined): boolean {
   return (
     activeUser.role === "admin" ||
     activeUser.role === "accountant" ||
-    activeUser.role === "sale"
+    activeUser.role === "sale" ||
+    activeUser.role === "ops"
   );
 }
 
@@ -26,7 +27,10 @@ export function canMutatePartners(user: DbUser | null | undefined): boolean {
 
 export function canQuickCreatePartners(user: DbUser | null | undefined): boolean {
   const activeUser = rejectInactiveOrSoftDeletedUsers(user);
-  return Boolean(activeUser && (activeUser.role === "admin" || activeUser.role === "sale"));
+  return Boolean(
+    activeUser &&
+      (activeUser.role === "admin" || activeUser.role === "sale" || activeUser.role === "ops"),
+  );
 }
 
 export function assertCanReadPartners(

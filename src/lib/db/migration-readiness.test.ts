@@ -11,7 +11,7 @@ function readMigration(name: string): string {
 }
 
 describe("static migration readiness", () => {
-  it("has migration files through 0014", () => {
+  it("has migration files through 0015", () => {
     expect(readdirSync(drizzleDir).filter((file) => file.endsWith(".sql"))).toEqual([
       "0000_new_nick_fury.sql",
       "0001_dazzling_saracen.sql",
@@ -28,10 +28,11 @@ describe("static migration readiness", () => {
       "0012_sweet_brood.sql",
       "0013_mighty_madame_web.sql",
       "0014_dark_sentinels.sql",
+      "0015_purple_owl.sql",
     ]);
   });
 
-  it("has journal entries through 0014 in order", () => {
+  it("has journal entries through 0015 in order", () => {
     const journal = JSON.parse(
       readFileSync(path.join(drizzleDir, "meta", "_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
@@ -52,6 +53,7 @@ describe("static migration readiness", () => {
       "12:0012_sweet_brood",
       "13:0013_mighty_madame_web",
       "14:0014_dark_sentinels",
+      "15:0015_purple_owl",
     ]);
   });
 
@@ -267,6 +269,14 @@ describe("static migration readiness", () => {
 
     expect(migration).toBe(
       'ALTER TABLE "shipping_notes" ADD COLUMN "commodity_hs_code" text;',
+    );
+  });
+
+  it("0015 additively adds the OPS user role", () => {
+    const migration = readMigration("0015_purple_owl.sql").trim();
+
+    expect(migration).toBe(
+      'ALTER TYPE "public"."user_role" ADD VALUE \'ops\' BEFORE \'accountant\';',
     );
   });
 });

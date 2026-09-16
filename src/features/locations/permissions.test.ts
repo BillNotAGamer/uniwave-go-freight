@@ -14,9 +14,10 @@ function user(role: User["role"], overrides: Partial<User> = {}): User {
 
 describe("Routing Location permissions", () => {
   it("allows all active operational roles to read and only Admin to mutate", () => {
-    for (const role of ["admin", "sale", "accountant"] as const) expect(canReadLocations(user(role))).toBe(true);
+    for (const role of ["admin", "sale", "ops", "accountant"] as const) expect(canReadLocations(user(role))).toBe(true);
     expect(canMutateLocations(user("admin"))).toBe(true);
     expect(canMutateLocations(user("sale"))).toBe(false);
+    expect(canMutateLocations(user("ops"))).toBe(false);
     expect(canMutateLocations(user("accountant"))).toBe(false);
   });
 
@@ -26,9 +27,10 @@ describe("Routing Location permissions", () => {
     expect(() => assertCanMutateLocations(user("sale"))).toThrow(AuthorizationError);
   });
 
-  it("allows Admin and Sale quick-create but rejects Accountant and inactive users", () => {
+  it("allows Admin, Sale, and OPS quick-create but rejects Accountant and inactive users", () => {
     expect(canQuickCreateLocations(user("admin"))).toBe(true);
     expect(canQuickCreateLocations(user("sale"))).toBe(true);
+    expect(canQuickCreateLocations(user("ops"))).toBe(true);
     expect(canQuickCreateLocations(user("accountant"))).toBe(false);
     expect(canQuickCreateLocations(user("sale", { isActive: false }))).toBe(false);
     expect(canQuickCreateLocations(user("sale", { deletedAt: new Date() }))).toBe(false);

@@ -31,6 +31,11 @@ const adminUser = {
   role: "admin",
 } as User;
 
+const opsUser = {
+  id: "ops-1",
+  role: "ops",
+} as User;
+
 describe("C4 Shipping Note historical read model", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -118,6 +123,12 @@ describe("C7 Shipping Note list query", () => {
 
     expect(query.sql).toContain('"shipping_notes"."jobsheet_no" ilike $1');
     expect(query.params).toEqual(["%ugf-26%"]);
+  });
+
+  it("keeps OPS eligible to locate submitted notes without granting draft mutation ownership", () => {
+    const query = new PgDialect().sqlToQuery(buildShippingNotesListWhere(opsUser));
+
+    expect(query.sql).not.toContain('"created_by_id"');
   });
 
   it("composes Jobsheet and ETD predicates before the database query", () => {

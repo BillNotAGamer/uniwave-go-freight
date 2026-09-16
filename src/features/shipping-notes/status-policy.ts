@@ -17,6 +17,10 @@ export const BUYING_CHARGE_MUTABLE_STATUSES = [
   "accounting_reviewing",
 ] as const satisfies readonly ShippingNoteStatus[];
 
+export const OPS_BUYING_CHARGE_MUTABLE_STATUSES = [
+  "submitted",
+] as const satisfies readonly ShippingNoteStatus[];
+
 export const CURRENT_ACCOUNTING_TRANSITIONS = [
   { from: "submitted", to: "accounting_reviewing" },
   { from: "accounting_reviewing", to: "checked" },
@@ -74,7 +78,7 @@ export function canAccessDraftMutationSubject(
   actor: ShippingNotePolicyActor,
 ): boolean {
   return note.status === "draft" && (
-    actor.role !== "sale" || note.createdById === actor.id
+    (actor.role !== "sale" && actor.role !== "ops") || note.createdById === actor.id
   );
 }
 
@@ -101,6 +105,23 @@ export function canMutateBuyingChargeAtStatus(
   return BUYING_CHARGE_MUTABLE_STATUSES.some(
     (mutableStatus) => mutableStatus === status,
   );
+}
+
+/**
+ * OPS may enter Paying Rates through Buying Charges only before Accounting
+ * Review begins. Accountant and Admin retain the existing status policy.
+ */
+export function canMutateBuyingChargeForActor(
+  status: ShippingNoteStatus,
+  actor: ShippingNotePolicyActor,
+): boolean {
+  if (actor.role === "ops") {
+    return OPS_BUYING_CHARGE_MUTABLE_STATUSES.some(
+      (mutableStatus) => mutableStatus === status,
+    );
+  }
+
+  return canMutateBuyingChargeAtStatus(status);
 }
 
 export function isExpectedAccountingTransitionSource(

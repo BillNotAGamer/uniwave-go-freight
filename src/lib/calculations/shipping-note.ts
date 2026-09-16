@@ -58,6 +58,16 @@ export function summarizeSellingCharges(
 }
 
 /**
+ * Pure calculation helper for the narrow operational Buying Charge subtotal.
+ * It intentionally exposes no selling or profit values.
+ */
+export function summarizeBuyingCharges(
+  charges: readonly SellingSummaryChargeRow[],
+): SellingChargeSummary {
+  return summarizeSellingCharges(charges);
+}
+
+/**
  * Pure calculation helper for accountant/admin financial summary totals.
  * Computes selling, buying, and gross profit using database-ready strings.
  */

@@ -25,6 +25,7 @@ describe("admin user management validators", () => {
 
   it("accepts only the application single-role values", () => {
     expect(adminUserRoleSchema.safeParse("sale").success).toBe(true);
+    expect(adminUserRoleSchema.safeParse("ops").success).toBe(true);
     expect(adminUserRoleSchema.safeParse("accountant").success).toBe(true);
     expect(adminUserRoleSchema.safeParse("admin").success).toBe(true);
     expect(adminUserRoleSchema.safeParse(["admin", "sale"]).success).toBe(false);
@@ -32,8 +33,9 @@ describe("admin user management validators", () => {
     expect(adminUserRoleSchema.safeParse("user").success).toBe(false);
   });
 
-  it("allows only Sale and Accountant in normal create-user input", () => {
+  it("allows Sale, OPS, and Accountant in normal create-user input", () => {
     expect(adminUserCreatableRoleSchema.safeParse("sale").success).toBe(true);
+    expect(adminUserCreatableRoleSchema.safeParse("ops").success).toBe(true);
     expect(adminUserCreatableRoleSchema.safeParse("accountant").success).toBe(true);
     expect(adminUserCreatableRoleSchema.safeParse("admin").success).toBe(false);
     expect(createAdminUserInputSchema.safeParse({
