@@ -128,7 +128,7 @@ export function ShippingNoteCreateForm({ action }: { action: CreateFormAction })
           Jobsheet No
           <input className={controlClassName} id="jobsheetNo" name="jobsheetNo" required type="text" />
         </label>
-        <TextField label="Commodity" name="commodity" />
+        <TextField label="Commidity" name="commodity" />
         <TextField label="HS Code" name="hsCode" />
         {shipmentType === "domestic" || shipmentType === "custom" ? <input name="shippingMode" type="hidden" value={mode} /> : (
         <label className="text-sm font-medium text-foreground" htmlFor="shippingMode">

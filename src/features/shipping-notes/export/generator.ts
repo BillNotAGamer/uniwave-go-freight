@@ -459,7 +459,7 @@ function writeHeader(
   );
 
   // Commodity and HS Code (distinct canonical concepts)
-  setHeaderLabel(worksheet, INTERNAL_XLSX_HEADER_CELLS.commodityLabel, "COMMODITY");
+  setHeaderLabel(worksheet, INTERNAL_XLSX_HEADER_CELLS.commodityLabel, "COMMIDITY");
   setCellValue(
     worksheet,
     INTERNAL_XLSX_HEADER_CELLS.commodity,

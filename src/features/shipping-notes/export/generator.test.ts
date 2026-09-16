@@ -260,7 +260,7 @@ describe("internal XLSX generator tax-complete v2", () => {
     expect(worksheet?.getCell("D46").value).toBeNull();
   });
 
-  it("exports Commodity and HS Code separately in rows 8 and preserves leading zeros", async () => {
+  it("exports Commidity and HS Code separately in rows 8 and preserves leading zeros", async () => {
     const { generateInternalShippingNoteXlsx } = await import("./generator");
     const exportData = buildExportData();
 
@@ -277,7 +277,7 @@ describe("internal XLSX generator tax-complete v2", () => {
     await workbook.xlsx.load(generated.buffer);
     const worksheet = workbook.getWorksheet("AK");
 
-    expect(worksheet?.getCell("A8").value).toBe("COMMODITY");
+    expect(worksheet?.getCell("A8").value).toBe("COMMIDITY");
     expect(worksheet?.getCell("C8").value).toBe("Frozen Seafood");
     expect(worksheet?.getCell("D8").value).toBe("HS CODE");
     expect(worksheet?.getCell("E8").value).toBe("01012100");
@@ -298,7 +298,7 @@ describe("internal XLSX generator tax-complete v2", () => {
     await workbook.xlsx.load(generated.buffer);
     const worksheet = workbook.getWorksheet("AK");
 
-    expect(worksheet?.getCell("A8").value).toBe("COMMODITY");
+    expect(worksheet?.getCell("A8").value).toBe("COMMIDITY");
     expect(worksheet?.getCell("C8").value).toBe("Steel coils / HS 7210.49");
     expect(worksheet?.getCell("D8").value).toBe("HS CODE");
     expect(worksheet?.getCell("E8").value).toBe("");

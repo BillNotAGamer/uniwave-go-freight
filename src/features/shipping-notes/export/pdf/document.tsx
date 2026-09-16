@@ -250,7 +250,7 @@ function buildHeaderItems(note: InternalShippingNoteExportDto["note"]): InfoItem
     ...modeFields
       .filter((field) => field.value?.trim())
       .map((field) => ({ label: field.label, value: formatOptional(field.value) })),
-    { label: "Commodity", value: formatOptional(getExportCommodityValue(note)) },
+    { label: "Commidity", value: formatOptional(getExportCommodityValue(note)) },
     { label: "HS Code", value: formatOptional(getExportHsCodeValue(note)) },
     { label: "ETD", value: formatDate(note.etd) },
     { label: "ETA", value: formatDate(note.eta) },

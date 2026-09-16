@@ -58,10 +58,10 @@ describe("Shipping Note Draft field presentation", () => {
     expect(html).not.toContain(">air_export<");
   });
 
-  it("renders independent Commodity and HS Code fields without combined input", () => {
+  it("renders independent Commidity and HS Code fields without combined input", () => {
     const html = render("air_export");
 
-    expect(html).toContain("Commodity");
+    expect(html).toContain("Commidity");
     expect(html).toContain('name="commodity"');
     expect(html).toContain('value="Electronics"');
     expect(html).toContain("HS Code");

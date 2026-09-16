@@ -11,7 +11,7 @@ vi.mock("@/lib/env", () => ({
 }));
 vi.mock("@/lib/db/client", () => ({ db: {} }));
 
-import type { User } from "@/lib/db/schema";
+import { shippingNotes, type User } from "@/lib/db/schema";
 import type { ShippingNoteDetailWithCreator } from "@/features/shipping-notes/types";
 
 const mocks = vi.hoisted(() => ({
@@ -66,6 +66,18 @@ import { ShippingNoteDraftForm } from "@/features/shipping-notes/components/ship
 import { ShippingNoteSubmitForm } from "@/features/shipping-notes/components/shipping-note-submit-form";
 import { ShippingNoteHardDeleteControls } from "@/features/shipping-notes/components/shipping-note-hard-delete-controls";
 import { BuyingChargeForm } from "@/features/shipping-notes/components/buying-charge-form";
+
+// Exercise the real Drizzle mapping without trusting its generic unknown return type.
+function readTimestamp(
+  column: { mapFromDriverValue(value: string): unknown },
+  value: string,
+): Date {
+  const mapped = column.mapFromDriverValue(value);
+  if (!(mapped instanceof Date)) {
+    throw new Error("Expected a Date from the timestamp column");
+  }
+  return mapped;
+}
 
 const now = new Date("2026-09-01T00:00:00.000Z");
 
@@ -230,6 +242,60 @@ function findDefinitionValue(node: unknown, label: string): string | null {
   return findDefinitionValue(children, label);
 }
 
+function findDefinitionElement(
+  node: unknown,
+  label: string,
+): { dt: React.ReactElement<{ children?: unknown }>; dd: React.ReactElement<{ className?: string; children?: unknown }> } | null {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const value = findDefinitionElement(child, label);
+      if (value !== null) return value;
+    }
+    return null;
+  }
+
+  if (!React.isValidElement(node)) return null;
+
+  const children = (node.props as { children?: unknown }).children;
+  const directChildren = Array.isArray(children) ? children : [children];
+  const definitionLabel = directChildren.find(
+    (child) => React.isValidElement(child) && child.type === "dt",
+  );
+  const definitionValue = directChildren.find(
+    (child) => React.isValidElement(child) && child.type === "dd",
+  );
+
+  if (definitionLabel && definitionValue && collectText(definitionLabel) === label) {
+    return {
+      dt: definitionLabel as React.ReactElement<{ children?: unknown }>,
+      dd: definitionValue as React.ReactElement<{ className?: string; children?: unknown }>,
+    };
+  }
+
+  return findDefinitionElement(children, label);
+}
+
+function findCardSection(
+  node: unknown,
+): React.ReactElement<{ className?: string; children?: unknown }> | null {
+  if (!node || typeof node !== "object") return null;
+  if (React.isValidElement(node)) {
+    const props = node.props as { className?: string; children?: unknown };
+    if (node.type === "section" && props.className?.includes("sm:grid-cols-2")) {
+      return node as React.ReactElement<{ className?: string; children?: unknown }>;
+    }
+    if (props?.children) {
+      return findCardSection(props.children);
+    }
+  } else if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findCardSection(child);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 describe("ShippingNoteDetailPage Draft edit presentation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -288,7 +354,7 @@ describe("ShippingNoteDetailPage Draft edit presentation", () => {
     expect(findDefinitionValue(jsx, "MAWB / HAWB")).toBe("LEGACY-AWB");
   });
 
-  it("shows separate Commodity and HS Code with legacy fallback", async () => {
+  it("shows separate Commidity and HS Code with legacy fallback", async () => {
     const saleUser = makeUser("sale");
     const noteWithSplit = makeNote("draft");
     noteWithSplit.commodity = "Precision Bearings";
@@ -299,7 +365,7 @@ describe("ShippingNoteDetailPage Draft edit presentation", () => {
     const jsxSplit = await ShippingNoteDetailPage({
       params: Promise.resolve({ id: "note-1" }),
     });
-    expect(findDefinitionValue(jsxSplit, "Commodity")).toBe("Precision Bearings");
+    expect(findDefinitionValue(jsxSplit, "Commidity")).toBe("Precision Bearings");
     expect(findDefinitionValue(jsxSplit, "HS Code")).toBe("8482.10.00");
 
     // Legacy fallback test
@@ -312,7 +378,7 @@ describe("ShippingNoteDetailPage Draft edit presentation", () => {
     const jsxLegacy = await ShippingNoteDetailPage({
       params: Promise.resolve({ id: "note-1" }),
     });
-    expect(findDefinitionValue(jsxLegacy, "Commodity")).toBe("Electronics / 8517");
+    expect(findDefinitionValue(jsxLegacy, "Commidity")).toBe("Electronics / 8517");
     expect(findDefinitionValue(jsxLegacy, "HS Code")).toBe("-");
   });
 
@@ -684,5 +750,254 @@ describe("ShippingNoteDetailPage creator attribution", () => {
     expect(text).toContain("Created by");
     expect(text).toContain("fallback@example.test");
     expect(text).not.toContain("sale-1");
+  });
+});
+
+describe("ShippingNoteDetailPage presentation and null field preservation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getSellingChargesAndSummaryForNoteForUser.mockResolvedValue({
+      charges: [],
+      summary: { totalAmountVnd: "0.00" },
+    });
+    mocks.listBuyingChargesForNoteForUser.mockResolvedValue([]);
+    mocks.listChargeTaxDetailsForNoteForUser.mockResolvedValue([]);
+    mocks.listTaxRulesForUser.mockResolvedValue([]);
+    mocks.listShippingNoteExportHistoryForUser.mockResolvedValue([]);
+    mocks.listCustomsDeclarationsForNoteForUser.mockResolvedValue([]);
+    mocks.getFinancialSummaryForNoteForUser.mockResolvedValue(null);
+    mocks.getCancellationMetadataForNoteForUser.mockResolvedValue(null);
+    mocks.listShippingNoteDocumentsForUser.mockResolvedValue([]);
+  });
+
+  it("1 & 2: keeps Commidity and HS Code visible as '-' when null or empty", async () => {
+    const saleUser = makeUser("sale");
+    const note = makeNote("draft");
+    note.commodity = null;
+    note.commodityHsCode = null;
+    note.hsCode = null;
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findDefinitionValue(jsx, "Commidity")).toBe("-");
+    expect(findDefinitionValue(jsx, "HS Code")).toBe("-");
+  });
+
+  it("3: keeps Air null Chargeable Weight, Gross Weight, and MAWB/HAWB visible as '-'", async () => {
+    const saleUser = makeUser("sale");
+    const note = makeNote("draft");
+    note.shippingMode = "air_export";
+    note.chargeableWeight = null;
+    note.grossWeight = null;
+    note.mawbNo = null;
+    note.hawbNo = null;
+    note.mawbHawbNo = null;
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findDefinitionValue(jsx, "Chargeable Weight")).toBe("-");
+    expect(findDefinitionValue(jsx, "Gross Weight")).toBe("-");
+    expect(findDefinitionValue(jsx, "MAWB / HAWB")).toBe("-");
+  });
+
+  it("4: keeps Sea null Container, Seal, Carrier, and Gross Weight visible as '-'", async () => {
+    const saleUser = makeUser("sale");
+    const note = makeNote("draft");
+    note.shippingMode = "sea_export";
+    note.containerNo = null;
+    note.sealNo = null;
+    note.carrierName = null;
+    note.grossWeight = null;
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findDefinitionValue(jsx, "Container No.")).toBe("-");
+    expect(findDefinitionValue(jsx, "Seal No.")).toBe("-");
+    expect(findDefinitionValue(jsx, "Carrier Name")).toBe("-");
+    expect(findDefinitionValue(jsx, "Gross Weight")).toBe("-");
+  });
+
+  it("5: keeps Domestic null License Plate, Driver Information, and Payload visible as '-'", async () => {
+    const saleUser = makeUser("sale");
+    const note = makeNote("draft");
+    note.shippingMode = "domestic_truck";
+    note.licensePlate = null;
+    note.driverInformation = null;
+    note.vehiclePayloadCapacity = null;
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findDefinitionValue(jsx, "License Plate")).toBe("-");
+    expect(findDefinitionValue(jsx, "Driver Information")).toBe("-");
+    expect(findDefinitionValue(jsx, "Vehicle Payload Capacity")).toBe("-");
+  });
+
+  it("6: renders populated values correctly across mode-specific fields", async () => {
+    const saleUser = makeUser("sale");
+    const note = makeNote("draft");
+    note.shippingMode = "sea_import";
+    note.commodity = "Industrial Valves";
+    note.hsCode = "8481.80.90";
+    note.containerNo = "TGHU9876543";
+    note.sealNo = "SEAL-1122";
+    note.carrierName = "Maersk Line";
+    note.grossWeight = "18000 KGS";
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findDefinitionValue(jsx, "Commidity")).toBe("Industrial Valves");
+    expect(findDefinitionValue(jsx, "HS Code")).toBe("8481.80.90");
+    expect(findDefinitionValue(jsx, "Container No.")).toBe("TGHU9876543");
+    expect(findDefinitionValue(jsx, "Seal No.")).toBe("SEAL-1122");
+    expect(findDefinitionValue(jsx, "Carrier Name")).toBe("Maersk Line");
+    expect(findDefinitionValue(jsx, "Gross Weight")).toBe("18000 KGS");
+  });
+
+  it("7: preserves multiline Driver Information with whitespace-pre-wrap and break-words", async () => {
+    const saleUser = makeUser("sale");
+    const note = makeNote("draft");
+    note.shippingMode = "domestic_truck";
+    note.driverInformation = "Driver: Tran Van B\nPhone: 0987654321\nTruck: 29C-999.99";
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    const elem = findDefinitionElement(jsx, "Driver Information");
+    expect(elem).not.toBeNull();
+    expect(elem?.dd.props.className).toContain("whitespace-pre-wrap");
+    expect(elem?.dd.props.className).toContain("break-words");
+    expect(collectText(elem?.dd)).toContain("Driver: Tran Van B\nPhone: 0987654321\nTruck: 29C-999.99");
+  });
+
+  it("8: formats ETD / ETA following the compact 24-hour display convention", async () => {
+    const saleUser = makeUser("sale");
+    const note = makeNote("draft");
+    note.shippingMode = "air_export";
+    note.etd = readTimestamp(shippingNotes.etd, "2026-09-11 22:50:00.000");
+    note.eta = readTimestamp(shippingNotes.eta, "2026-09-20 00:20:00.000");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findDefinitionValue(jsx, "ETD")).toBe("11 Sep 2026, 22:50");
+    expect(findDefinitionValue(jsx, "ETA")).toBe("20 Sep 2026, 00:20");
+  });
+
+  it("8b: renders '-' for null ETD / ETA without hiding the fields", async () => {
+    const saleUser = makeUser("sale");
+    const note = makeNote("draft");
+    note.etd = null;
+    note.eta = null;
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findDefinitionValue(jsx, "ETD")).toBe("-");
+    expect(findDefinitionValue(jsx, "ETA")).toBe("-");
+  });
+
+  it.each(["air_export", "sea_export", "domestic_truck", "custom"] as const)(
+    "%s uses independent desktop stacks and the preferred single-column mobile order", async (mode) => {
+      const note = makeNote("submitted");
+      note.shippingMode = mode;
+      mocks.requireAuthenticatedUser.mockResolvedValue({ user: makeUser("sale") });
+      mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+      const jsx = await ShippingNoteDetailPage({ params: Promise.resolve({ id: note.id }) });
+      const section = findCardSection(jsx);
+      expect(section).not.toBeNull();
+      const outerClasses = section?.props.className?.split(" ");
+      expect(outerClasses).toEqual(expect.arrayContaining(["flex", "flex-col", "min-w-0", "gap-4", "sm:grid", "sm:grid-cols-2", "sm:items-start"]));
+      const stacks = React.Children.toArray(section?.props.children as React.ReactNode)
+        .filter(React.isValidElement) as React.ReactElement<{ className: string; children: React.ReactNode }>[];
+      expect(stacks).toHaveLength(2);
+      const cardsByStack = stacks.map((stack) => {
+        expect(stack.props.className.split(" ")).toEqual(expect.arrayContaining([
+          "contents", "sm:flex", "sm:flex-col", "sm:gap-4", "sm:min-w-0",
+        ]));
+        return React.Children.toArray(stack.props.children).filter(React.isValidElement) as React.ReactElement<{ className: string; children: React.ReactNode }>[];
+      });
+      const title = (card: React.ReactElement<{ children: React.ReactNode }>) =>
+        collectText(React.Children.toArray(card.props.children)[0]).trim();
+      const hasDocuments = mode === "air_export" || mode === "sea_export";
+      expect(cardsByStack[0].map(title)).toEqual(hasDocuments
+        ? ["Shipping", "Transport Documents", "Timeline"] : ["Shipping", "Timeline"]);
+      expect(cardsByStack[1].map(title)).toEqual(["Parties", "Schedule & Cargo"]);
+      // Timeline and Cargo belong to separate flex parents, so they cannot share a grid row.
+      const cards = cardsByStack.flat();
+      const mobileOrder = (card: typeof cards[number]) => Number(card.props.className.match(/(?:^| )order-(\d)/)?.[1]);
+      expect([...cards].sort((a, b) => mobileOrder(a) - mobileOrder(b)).map(title)).toEqual(hasDocuments
+        ? ["Shipping", "Parties", "Transport Documents", "Schedule & Cargo", "Timeline"]
+        : ["Shipping", "Parties", "Schedule & Cargo", "Timeline"]);
+      for (const card of cards) {
+        expect(card.props.className.split(" ")).toEqual(expect.arrayContaining(["min-w-0", "sm:order-none", "p-4"]));
+        expect(card.props.className).not.toMatch(/(?:^| )(?:[\w-]+:)?(?:h-|min-h-|max-h-|absolute|mt-|mb-)/);
+        const fields = findComponentInTree(card, "dl") as React.ReactElement<{ className: string }> | null;
+        expect(fields?.props.className.split(" ")).toEqual(expect.arrayContaining(["mt-3", "space-y-2"]));
+      }
+    },
+  );
+
+  it.each(["air_export", "sea_export", "domestic_truck"] as const)("%s keeps empty strings visible as '-'", async (mode) => {
+    const note = makeNote("submitted");
+    Object.assign(note, {
+      shippingMode: mode, commodity: "", hsCode: "", chargeableWeight: "", grossWeight: "",
+      containerNo: "", sealNo: "", carrierName: "", licensePlate: "", driverInformation: "", vehiclePayloadCapacity: "",
+    });
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: makeUser("sale") });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+    const jsx = await ShippingNoteDetailPage({ params: Promise.resolve({ id: note.id }) });
+    const labels = mode === "air_export" ? ["Chargeable Weight", "Gross Weight"]
+      : mode === "sea_export" ? ["Container No.", "Seal No.", "Carrier Name", "Gross Weight"]
+        : ["License Plate", "Driver Information", "Vehicle Payload Capacity"];
+    for (const label of ["Commidity", "HS Code", ...labels]) {
+      expect(findDefinitionValue(jsx, label)).toBe("-");
+    }
+  });
+
+  it("uses the same timestamp presentation for Timeline and Cancellation", async () => {
+    const note = makeNote("cancelled");
+    note.createdAt = readTimestamp(shippingNotes.createdAt, "2026-09-11 22:50:00.000");
+    note.submittedAt = readTimestamp(shippingNotes.submittedAt, "2026-09-20 00:20:00.000");
+    note.updatedAt = readTimestamp(shippingNotes.updatedAt, "2026-09-30 23:59:59.999");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: makeUser("admin") });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+    mocks.getCancellationMetadataForNoteForUser.mockResolvedValue({
+      cancelledAt: readTimestamp(shippingNotes.cancelledAt, "2026-10-01 00:00:00.000"),
+      cancelledById: "admin-1", cancelReason: "Duplicate",
+    });
+    const jsx = await ShippingNoteDetailPage({ params: Promise.resolve({ id: note.id }) });
+    expect(findDefinitionValue(jsx, "Created")).toBe("11 Sep 2026, 22:50");
+    expect(findDefinitionValue(jsx, "Submitted")).toBe("20 Sep 2026, 00:20");
+    expect(findDefinitionValue(jsx, "Updated")).toBe("30 Sep 2026, 23:59");
+    expect(findDefinitionValue(jsx, "Cancelled")).toBe("01 Oct 2026, 00:00");
   });
 });

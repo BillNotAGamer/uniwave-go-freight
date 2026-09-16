@@ -66,7 +66,7 @@ export function ShippingNoteDraftFields({ values, includeJobsheetNo = true }: Sh
   return <>
     <Section title="Shipment">
       {includeJobsheetNo ? <TextField defaultValue={values?.jobsheetNo} label="Jobsheet No" name="jobsheetNo" required /> : null}
-      <TextField defaultValue={values?.commodity} label="Commodity" name="commodity" />
+      <TextField defaultValue={values?.commodity} label="Commidity" name="commodity" />
       <TextField defaultValue={values?.hsCode} label="HS Code" name="hsCode" />
       <label className="text-sm font-medium text-foreground" htmlFor="shipmentType">
         Shipment Type

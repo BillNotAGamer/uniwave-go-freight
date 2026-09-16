@@ -60,11 +60,11 @@ import {
 import { listShippingNoteDocumentsForUser } from "@/features/shipping-notes/documents/queries";
 import { getStorageAvailability } from "@/features/shipping-notes/documents/service";
 import { getShippingModePresentation } from "@/features/shipping-notes/mode-rules";
-import { formatMawbHawb } from "@/features/shipping-notes/presentation";
-
-function formatDateTime(value: Date | null | undefined): string {
-  return value ? new Date(value).toLocaleString() : "-";
-}
+import {
+  formatDetailDateTime,
+  formatDetailValue,
+  formatMawbHawb,
+} from "@/features/shipping-notes/presentation";
 
 function formatCreator(createdBy: { name: string; email: string } | null): string {
   return createdBy?.name.trim() || createdBy?.email || "Unknown user";
@@ -264,240 +264,244 @@ export default async function ShippingNoteDetailPage({
       </PageHeader>
 
       <div className="flex w-full flex-col gap-6 rounded-lg border border-border bg-card p-6 shadow-sm">
-        <section className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-md border border-border bg-muted/40 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Shipping
-            </p>
-            <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
-              <div>
-                <dt className="font-medium text-foreground">Mode</dt>
-                <dd>{getShippingModePresentation(note.shippingMode).label}</dd>
-              </div>
-              {note.shippingMode === "custom" ? (
-                <>
-                  <div>
-                    <dt className="font-medium text-foreground">Custom Mode</dt>
-                    <dd>{note.customModeName ?? "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">From</dt>
-                    <dd>{note.customOrigin ?? "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">To</dt>
-                    <dd>{note.customDestination ?? "-"}</dd>
-                  </div>
-                </>
-              ) : null}
-              <div>
-                <dt className="font-medium text-foreground">Commodity</dt>
-                <dd>{note.commodity ?? note.commodityHsCode ?? "-"}</dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">HS Code</dt>
-                <dd>{note.hsCode ?? "-"}</dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">Exchange Rate</dt>
-                <dd>{note.exchangeRate}</dd>
-              </div>
-            </dl>
-          </div>
-
-          <div className="rounded-md border border-border bg-muted/40 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Parties
-            </p>
-            <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
-              <div>
-                <dt className="font-medium text-foreground">Shipper</dt>
-                <dd>{note.shipperText ?? "-"}</dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">Consignee</dt>
-                <dd>{note.consigneeText ?? "-"}</dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">Customer</dt>
-                <dd>{note.customerText ?? "-"}</dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">Agent</dt>
-                <dd>{note.agentText ?? "-"}</dd>
-              </div>
-            </dl>
-          </div>
-
-          {note.shippingMode === "sea_import" || note.shippingMode === "sea_export" ? (
-            <div className="rounded-md border border-border bg-muted/40 p-4">
+        <section className="flex min-w-0 flex-col gap-4 sm:grid sm:grid-cols-2 sm:items-start">
+          {/* Flatten stacks on mobile to preserve the interleaved card order without duplication. */}
+          <div className="contents sm:flex sm:min-w-0 sm:flex-col sm:gap-4">
+            <div className="order-1 min-w-0 sm:order-none rounded-md border border-border bg-muted/40 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Transport Documents
+                Shipping
               </p>
               <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
                 <div>
-                  <dt className="font-medium text-foreground">MBL</dt>
-                  <dd>{note.mblNo ?? "-"}</dd>
+                  <dt className="font-medium text-foreground">Mode</dt>
+                  <dd className="break-words">{getShippingModePresentation(note.shippingMode).label}</dd>
+                </div>
+                {note.shippingMode === "custom" ? (
+                  <>
+                    <div>
+                      <dt className="font-medium text-foreground">Custom Mode</dt>
+                      <dd className="break-words">{formatDetailValue(note.customModeName)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">From</dt>
+                      <dd className="break-words">{formatDetailValue(note.customOrigin)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">To</dt>
+                      <dd className="break-words">{formatDetailValue(note.customDestination)}</dd>
+                    </div>
+                  </>
+                ) : null}
+                <div>
+                  <dt className="font-medium text-foreground">Commidity</dt>
+                  <dd className="break-words">{formatDetailValue(note.commodity ?? note.commodityHsCode)}</dd>
                 </div>
                 <div>
-                  <dt className="font-medium text-foreground">HBL</dt>
-                  <dd>{note.hblNo ?? "-"}</dd>
+                  <dt className="font-medium text-foreground">HS Code</dt>
+                  <dd className="break-words">{formatDetailValue(note.hsCode)}</dd>
                 </div>
                 <div>
-                  <dt className="font-medium text-foreground">Container No.</dt>
-                  <dd>{note.containerNo ?? "-"}</dd>
-                </div>
-                <div>
-                  <dt className="font-medium text-foreground">Seal No.</dt>
-                  <dd>{note.sealNo ?? "-"}</dd>
-                </div>
-                <div>
-                  <dt className="font-medium text-foreground">Carrier Name</dt>
-                  <dd>{note.carrierName ?? "-"}</dd>
+                  <dt className="font-medium text-foreground">Exchange Rate</dt>
+                  <dd className="break-words">{formatDetailValue(note.exchangeRate)}</dd>
                 </div>
               </dl>
             </div>
-          ) : null}
 
-          {note.shippingMode === "air_import" || note.shippingMode === "air_export" || Boolean(note.mawbHawbNo) ? (
-            <div className="rounded-md border border-border bg-muted/40 p-4">
+            {note.shippingMode === "sea_import" || note.shippingMode === "sea_export" ? (
+              <div className="order-3 min-w-0 sm:order-none rounded-md border border-border bg-muted/40 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Transport Documents
+                </p>
+                <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
+                  <div>
+                    <dt className="font-medium text-foreground">MBL</dt>
+                    <dd className="break-words">{formatDetailValue(note.mblNo)}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">HBL</dt>
+                    <dd className="break-words">{formatDetailValue(note.hblNo)}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">Container No.</dt>
+                    <dd className="break-words">{formatDetailValue(note.containerNo)}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">Seal No.</dt>
+                    <dd className="break-words">{formatDetailValue(note.sealNo)}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">Carrier Name</dt>
+                    <dd className="break-words">{formatDetailValue(note.carrierName)}</dd>
+                  </div>
+                </dl>
+              </div>
+            ) : null}
+
+            {note.shippingMode === "air_import" || note.shippingMode === "air_export" || Boolean(note.mawbHawbNo) ? (
+              <div className="order-3 min-w-0 sm:order-none rounded-md border border-border bg-muted/40 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Transport Documents
+                </p>
+                <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
+                  <div>
+                    <dt className="font-medium text-foreground">MAWB / HAWB</dt>
+                    <dd className="break-words">{formatMawbHawb(note)}</dd>
+                  </div>
+                </dl>
+              </div>
+            ) : null}
+
+            <div className="order-5 min-w-0 sm:order-none rounded-md border border-border bg-muted/40 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Transport Documents
+                Timeline
               </p>
               <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
                 <div>
-                  <dt className="font-medium text-foreground">MAWB / HAWB</dt>
-                  <dd>{formatMawbHawb(note)}</dd>
+                  <dt className="font-medium text-foreground">Created</dt>
+                  <dd className="break-words">{formatDetailDateTime(note.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-foreground">Created by</dt>
+                  <dd className="break-words">{formatCreator(note.createdBy)}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-foreground">Submitted</dt>
+                  <dd className="break-words">{formatDetailDateTime(note.submittedAt)}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-foreground">Updated</dt>
+                  <dd className="break-words">{formatDetailDateTime(note.updatedAt)}</dd>
                 </div>
               </dl>
             </div>
-          ) : null}
-
-          <div className="rounded-md border border-border bg-muted/40 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Schedule & Cargo
-            </p>
-            <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
-              {note.shippingMode === "sea_import" || note.shippingMode === "sea_export" ? (
-                <>
-                  <div>
-                    <dt className="font-medium text-foreground">POL</dt>
-                    <dd>{note.portOfLoading ?? "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">POD</dt>
-                    <dd>{note.portOfDischarge ?? "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">Final Destination</dt>
-                    <dd>{note.finalDestination ?? "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">Vessel / Voyage</dt>
-                    <dd>
-                      {note.vesselName ?? "-"} / {note.voyageNo ?? "-"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">Gross Weight</dt>
-                    <dd>{note.grossWeight ?? "-"}</dd>
-                  </div>
-                </>
-              ) : null}
-
-              {note.shippingMode === "air_import" || note.shippingMode === "air_export" ? (
-                <>
-                  <div>
-                    <dt className="font-medium text-foreground">AOL</dt>
-                    <dd>{note.aol ?? "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">AOD</dt>
-                    <dd>{note.aod ?? "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">Final Destination</dt>
-                    <dd>{note.finalDestination ?? "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">Flight No.</dt>
-                    <dd>{note.flightNo ?? "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">Chargeable Weight</dt>
-                    <dd>{note.chargeableWeight ?? "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">Gross Weight</dt>
-                    <dd>{note.grossWeight ?? "-"}</dd>
-                  </div>
-                </>
-              ) : null}
-
-              {note.shippingMode === "domestic_truck" ? (
-                <>
-                  <div>
-                    <dt className="font-medium text-foreground">Origin</dt>
-                    <dd>{note.domesticOrigin ?? "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">Destination</dt>
-                    <dd>{note.domesticDestination ?? "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">License Plate</dt>
-                    <dd>{note.licensePlate ?? "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">Driver Information</dt>
-                    <dd className="whitespace-pre-wrap">{note.driverInformation ?? "-"}</dd>
-                  </div>
-                  <div>
-                    <dt className="font-medium text-foreground">Vehicle Payload Capacity</dt>
-                    <dd>{note.vehiclePayloadCapacity ?? "-"}</dd>
-                  </div>
-                </>
-              ) : null}
-
-              <div>
-                <dt className="font-medium text-foreground">ETD</dt>
-                <dd>{formatDateTime(note.etd)}</dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">ETA</dt>
-                <dd>{formatDateTime(note.eta)}</dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">Volume</dt>
-                <dd>
-                  {note.volumeValue ?? "-"} {note.volumeUnit ?? ""}
-                </dd>
-              </div>
-            </dl>
           </div>
+          <div className="contents sm:flex sm:min-w-0 sm:flex-col sm:gap-4">
+            <div className="order-2 min-w-0 sm:order-none rounded-md border border-border bg-muted/40 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Parties
+              </p>
+              <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
+                <div>
+                  <dt className="font-medium text-foreground">Shipper</dt>
+                  <dd className="break-words">{formatDetailValue(note.shipperText)}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-foreground">Consignee</dt>
+                  <dd className="break-words">{formatDetailValue(note.consigneeText)}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-foreground">Customer</dt>
+                  <dd className="break-words">{formatDetailValue(note.customerText)}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-foreground">Agent</dt>
+                  <dd className="break-words">{formatDetailValue(note.agentText)}</dd>
+                </div>
+              </dl>
+            </div>
 
-          <div className="rounded-md border border-border bg-muted/40 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Timeline
-            </p>
-            <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
-              <div>
-                <dt className="font-medium text-foreground">Created</dt>
-                <dd>{formatDateTime(note.createdAt)}</dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">Created by</dt>
-                <dd>{formatCreator(note.createdBy)}</dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">Submitted</dt>
-                <dd>{formatDateTime(note.submittedAt)}</dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">Updated</dt>
-                <dd>{formatDateTime(note.updatedAt)}</dd>
-              </div>
-            </dl>
+            <div className="order-4 min-w-0 sm:order-none rounded-md border border-border bg-muted/40 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Schedule & Cargo
+              </p>
+              <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
+                {note.shippingMode === "sea_import" || note.shippingMode === "sea_export" ? (
+                  <>
+                    <div>
+                      <dt className="font-medium text-foreground">POL</dt>
+                      <dd className="break-words">{formatDetailValue(note.portOfLoading)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">POD</dt>
+                      <dd className="break-words">{formatDetailValue(note.portOfDischarge)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">Final Destination</dt>
+                      <dd className="break-words">{formatDetailValue(note.finalDestination)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">Vessel / Voyage</dt>
+                      <dd className="break-words">
+                        {formatDetailValue(note.vesselName)} / {formatDetailValue(note.voyageNo)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">Gross Weight</dt>
+                      <dd className="break-words">{formatDetailValue(note.grossWeight)}</dd>
+                    </div>
+                  </>
+                ) : null}
+
+                {note.shippingMode === "air_import" || note.shippingMode === "air_export" ? (
+                  <>
+                    <div>
+                      <dt className="font-medium text-foreground">AOL</dt>
+                      <dd className="break-words">{formatDetailValue(note.aol)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">AOD</dt>
+                      <dd className="break-words">{formatDetailValue(note.aod)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">Final Destination</dt>
+                      <dd className="break-words">{formatDetailValue(note.finalDestination)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">Flight No.</dt>
+                      <dd className="break-words">{formatDetailValue(note.flightNo)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">Chargeable Weight</dt>
+                      <dd className="break-words">{formatDetailValue(note.chargeableWeight)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">Gross Weight</dt>
+                      <dd className="break-words">{formatDetailValue(note.grossWeight)}</dd>
+                    </div>
+                  </>
+                ) : null}
+
+                {note.shippingMode === "domestic_truck" ? (
+                  <>
+                    <div>
+                      <dt className="font-medium text-foreground">Origin</dt>
+                      <dd className="break-words">{formatDetailValue(note.domesticOrigin)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">Destination</dt>
+                      <dd className="break-words">{formatDetailValue(note.domesticDestination)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">License Plate</dt>
+                      <dd className="break-words">{formatDetailValue(note.licensePlate)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">Driver Information</dt>
+                      <dd className="whitespace-pre-wrap break-words">{formatDetailValue(note.driverInformation)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">Vehicle Payload Capacity</dt>
+                      <dd className="break-words">{formatDetailValue(note.vehiclePayloadCapacity)}</dd>
+                    </div>
+                  </>
+                ) : null}
+
+                <div>
+                  <dt className="font-medium text-foreground">ETD</dt>
+                  <dd className="break-words">{formatDetailDateTime(note.etd)}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-foreground">ETA</dt>
+                  <dd className="break-words">{formatDetailDateTime(note.eta)}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-foreground">Volume</dt>
+                  <dd className="break-words">
+                    {note.volumeValue ? `${note.volumeValue} ${note.volumeUnit ?? ""}`.trim() : "-"}
+                  </dd>
+                </div>
+              </dl>
+            </div>
           </div>
         </section>
 
@@ -638,15 +642,15 @@ export default async function ShippingNoteDetailPage({
             <dl className="grid gap-3 rounded-md border border-border bg-muted/40 p-4 text-sm text-muted-foreground sm:grid-cols-3">
               <div>
                 <dt className="font-medium text-foreground">Cancelled</dt>
-                <dd>{formatDateTime(cancellationMetadata.cancelledAt)}</dd>
+                <dd className="break-words">{formatDetailDateTime(cancellationMetadata.cancelledAt)}</dd>
               </div>
               <div>
                 <dt className="font-medium text-foreground">Cancelled By</dt>
-                <dd>{cancellationMetadata.cancelledById ?? "-"}</dd>
+                <dd className="break-words">{cancellationMetadata.cancelledById ?? "-"}</dd>
               </div>
               <div>
                 <dt className="font-medium text-foreground">Reason</dt>
-                <dd>{cancellationMetadata.cancelReason ?? "-"}</dd>
+                <dd className="break-words">{cancellationMetadata.cancelReason ?? "-"}</dd>
               </div>
             </dl>
           </section>

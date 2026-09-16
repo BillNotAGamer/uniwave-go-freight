@@ -196,7 +196,7 @@ describe("internal PDF generator", () => {
     expect(text).toContain("Buying VAT");
     expect(text).toContain("Gross profit excl. VAT");
     expect(text).toContain("Khách hàng Việt Nam");
-    expect(text).toContain("COMMODITY");
+    expect(text).toContain("COMMIDITY");
     expect(text).toContain("HS CODE");
     expect(text).toContain("Electronics / 8517");
     expect(text).not.toContain("COMMODITY / HS CODE");
@@ -238,7 +238,7 @@ describe("internal PDF generator", () => {
     expect(text).not.toContain("MAWB / HAWB");
   });
 
-  it("exports separate Commodity and HS Code in PDF and preserves leading zeros", async () => {
+  it("exports separate Commidity and HS Code in PDF and preserves leading zeros", async () => {
     const exportData = buildExportData();
     exportData.note.commodity = "Frozen Seafood";
     exportData.note.hsCode = "01012100";
@@ -251,7 +251,7 @@ describe("internal PDF generator", () => {
     const parsed = await pdfParse(generated.buffer);
     const text = normalizeText(parsed.text);
 
-    expect(text).toContain("COMMODITY");
+    expect(text).toContain("COMMIDITY");
     expect(text).toContain("Frozen Seafood");
     expect(text).toContain("HS CODE");
     expect(text).toContain("01012100");
