@@ -56,6 +56,10 @@ export const INTERNAL_XLSX_HEADER_CELLS = {
   jobsheetNo: "C6",
   billLabel: "A7",
   mawbHawbNo: "C7",
+  commodityLabel: "A8",
+  commodity: "C8",
+  hsCodeLabel: "D8",
+  hsCode: "E8",
   shipperText: "C9",
   consigneeText: "C10",
   originLabel: "A11",
@@ -67,6 +71,14 @@ export const INTERNAL_XLSX_HEADER_CELLS = {
   volume: "C15",
   exchangeRate: "E15",
   agentText: "C16",
+  modeRow6Label: "D6",
+  modeRow6Value: "E6",
+  modeRow7Label: "D7",
+  modeRow7Value: "E7",
+  modeRow14Label: "D14",
+  modeRow14Value: "E14",
+  modeRow16Label: "D16",
+  modeRow16Value: "E16",
 } as const;
 
 export const INTERNAL_XLSX_TAX_DETAIL_COLUMNS = {

@@ -48,7 +48,17 @@ export type InternalShippingNoteExportDto = {
     consigneeText: string | null;
     customerText: string | null;
     agentText: string | null;
+    commodity?: string | null;
+    hsCode?: string | null;
     commodityHsCode?: string | null;
+    containerNo?: string | null;
+    sealNo?: string | null;
+    carrierName?: string | null;
+    grossWeight?: string | null;
+    chargeableWeight?: string | null;
+    licensePlate?: string | null;
+    driverInformation?: string | null;
+    vehiclePayloadCapacity?: string | null;
     aol: string | null;
     aod: string | null;
     portOfLoading?: string | null;

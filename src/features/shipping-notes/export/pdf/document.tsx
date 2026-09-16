@@ -11,7 +11,12 @@ import {
   formatTaxRuleSnapshotForExport,
   formatTaxTreatmentForExport,
 } from "../read-model";
-import { buildExportRoutingPresentation } from "../presentation";
+import {
+  buildExportRoutingPresentation,
+  getExportCommodityValue,
+  getExportHsCodeValue,
+  getModeSpecificExportFields,
+} from "../presentation";
 import type {
   InternalExportBuyingCharge,
   InternalExportCharge,
@@ -219,6 +224,7 @@ function formatVolume(note: InternalShippingNoteExportDto["note"]): string {
 
 function buildHeaderItems(note: InternalShippingNoteExportDto["note"]): InfoItem[] {
   const routing = buildExportRoutingPresentation(note);
+  const modeFields = getModeSpecificExportFields(note);
 
   return [
     { label: "Jobsheet No", value: note.jobsheetNo },
@@ -241,7 +247,11 @@ function buildHeaderItems(note: InternalShippingNoteExportDto["note"]): InfoItem
     ...routing.transport
       .filter((field) => field.value?.trim())
       .map((field) => ({ label: field.label, value: formatOptional(field.value) })),
-    { label: "Commodity / HS Code", value: formatOptional(note.commodityHsCode) },
+    ...modeFields
+      .filter((field) => field.value?.trim())
+      .map((field) => ({ label: field.label, value: formatOptional(field.value) })),
+    { label: "Commodity", value: formatOptional(getExportCommodityValue(note)) },
+    { label: "HS Code", value: formatOptional(getExportHsCodeValue(note)) },
     { label: "ETD", value: formatDate(note.etd) },
     { label: "ETA", value: formatDate(note.eta) },
     { label: "Volume", value: formatVolume(note) },

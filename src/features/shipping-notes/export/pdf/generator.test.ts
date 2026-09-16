@@ -196,8 +196,10 @@ describe("internal PDF generator", () => {
     expect(text).toContain("Buying VAT");
     expect(text).toContain("Gross profit excl. VAT");
     expect(text).toContain("Khách hàng Việt Nam");
-    expect(text).toContain("COMMODITY / HS CODE");
+    expect(text).toContain("COMMODITY");
+    expect(text).toContain("HS CODE");
     expect(text).toContain("Electronics / 8517");
+    expect(text).not.toContain("COMMODITY / HS CODE");
   });
 
   it("supports multi-page charge output without fixed XLSX row capacity", async () => {
@@ -234,5 +236,133 @@ describe("internal PDF generator", () => {
     expect(text).toContain("VOYAGE");
     expect(text).toContain("638N");
     expect(text).not.toContain("MAWB / HAWB");
+  });
+
+  it("exports separate Commodity and HS Code in PDF and preserves leading zeros", async () => {
+    const exportData = buildExportData();
+    exportData.note.commodity = "Frozen Seafood";
+    exportData.note.hsCode = "01012100";
+    exportData.note.commodityHsCode = null;
+
+    const generated = await generateInternalShippingNotePdf(
+      exportData,
+      new Date("2026-08-21T12:00:00.000Z"),
+    );
+    const parsed = await pdfParse(generated.buffer);
+    const text = normalizeText(parsed.text);
+
+    expect(text).toContain("COMMODITY");
+    expect(text).toContain("Frozen Seafood");
+    expect(text).toContain("HS CODE");
+    expect(text).toContain("01012100");
+  });
+
+  it("renders Sea transport documents, cargo weight, and enforces mode isolation in PDF", async () => {
+    const oceanData = buildOceanExportData();
+    oceanData.note.containerNo = "MSCU1234567";
+    oceanData.note.sealNo = "SL987654";
+    oceanData.note.carrierName = "Maersk";
+    oceanData.note.grossWeight = "18,500 KGS";
+    // Extraneous fields that must NOT leak into Sea PDF
+    oceanData.note.chargeableWeight = "15000 KGS";
+    oceanData.note.licensePlate = "51C-999.99";
+    oceanData.note.driverInformation = "Le Van C";
+    oceanData.note.vehiclePayloadCapacity = "10 TONS";
+
+    const generated = await generateInternalShippingNotePdf(
+      oceanData,
+      new Date("2026-09-01T12:00:00.000Z"),
+    );
+    const parsed = await pdfParse(generated.buffer);
+    const text = normalizeText(parsed.text);
+
+    expect(text).toContain("CONTAINER NO.");
+    expect(text).toContain("MSCU1234567");
+    expect(text).toContain("SEAL NO.");
+    expect(text).toContain("SL987654");
+    expect(text).toContain("CARRIER NAME");
+    expect(text).toContain("Maersk");
+    expect(text).toContain("GROSS WEIGHT");
+    expect(text).toContain("18,500 KGS");
+
+    // Mode isolation
+    expect(text).not.toContain("CHARGEABLE WEIGHT");
+    expect(text).not.toContain("LICENSE PLATE");
+    expect(text).not.toContain("DRIVER INFORMATION");
+    expect(text).not.toContain("VEHICLE PAYLOAD CAPACITY");
+  });
+
+  it("renders Air weights and enforces mode isolation in PDF", async () => {
+    const airData = buildExportData();
+    airData.note.shippingMode = "air_export";
+    airData.note.chargeableWeight = "200 KGS";
+    airData.note.grossWeight = "180 KGS";
+    // Extraneous fields that must NOT leak into Air PDF
+    airData.note.containerNo = "MSCU1234567";
+    airData.note.sealNo = "SL987654";
+    airData.note.carrierName = "Maersk";
+    airData.note.licensePlate = "51C-123.45";
+
+    const generated = await generateInternalShippingNotePdf(
+      airData,
+      new Date("2026-08-21T12:00:00.000Z"),
+    );
+    const parsed = await pdfParse(generated.buffer);
+    const text = normalizeText(parsed.text);
+
+    expect(text).toContain("CHARGEABLE WEIGHT");
+    expect(text).toContain("200 KGS");
+    expect(text).toContain("GROSS WEIGHT");
+    expect(text).toContain("180 KGS");
+
+    // Mode isolation
+    expect(text).not.toContain("CONTAINER NO.");
+    expect(text).not.toContain("SEAL NO.");
+    expect(text).not.toContain("CARRIER NAME");
+    expect(text).not.toContain("LICENSE PLATE");
+    expect(text).not.toContain("DRIVER INFORMATION");
+    expect(text).not.toContain("VEHICLE PAYLOAD CAPACITY");
+  });
+
+  it("renders Domestic vehicle, multiline driver info, and enforces mode isolation in PDF", async () => {
+    const domesticData = buildExportData();
+    const driverInfo = "Nguyen Van A\nCCCD: 012345678901\nDOB: 1990-01-01";
+    domesticData.note.shippingMode = "domestic_truck";
+    domesticData.note.domesticOrigin = "Kho Song Than";
+    domesticData.note.domesticDestination = "Kho Tan Binh";
+    domesticData.note.licensePlate = "51C-123.45";
+    domesticData.note.vehiclePayloadCapacity = "5 TONS";
+    domesticData.note.driverInformation = driverInfo;
+    // Extraneous Sea/Air fields
+    domesticData.note.mblNo = "276301562";
+    domesticData.note.hblNo = "SLT-2609001";
+    domesticData.note.containerNo = "MSCU1234567";
+    domesticData.note.sealNo = "SL987654";
+    domesticData.note.chargeableWeight = "200 KGS";
+
+    const generated = await generateInternalShippingNotePdf(
+      domesticData,
+      new Date("2026-08-21T12:00:00.000Z"),
+    );
+    const parsed = await pdfParse(generated.buffer);
+    const text = normalizeText(parsed.text);
+
+    expect(text).toContain("FROM");
+    expect(text).toContain("Kho Song Than");
+    expect(text).toContain("TO");
+    expect(text).toContain("Kho Tan Binh");
+    expect(text).toContain("LICENSE PLATE");
+    expect(text).toContain("51C-123.45");
+    expect(text).toContain("VEHICLE PAYLOAD CAPACITY");
+    expect(text).toContain("5 TONS");
+    expect(text).toContain("DRIVER INFORMATION");
+    expect(text).toContain("Nguyen Van A CCCD: 012345678901 DOB: 1990-01-01");
+
+    // Mode isolation
+    expect(text).not.toContain("MBL / HBL");
+    expect(text).not.toContain("MAWB / HAWB");
+    expect(text).not.toContain("CONTAINER NO.");
+    expect(text).not.toContain("SEAL NO.");
+    expect(text).not.toContain("CHARGEABLE WEIGHT");
   });
 });

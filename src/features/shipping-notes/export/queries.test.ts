@@ -38,6 +38,36 @@ describe("internal export note projection", () => {
     expect(internalShippingNoteExportNoteSelect.commodityHsCode).toBe(
       shippingNotes.commodityHsCode,
     );
+    expect(internalShippingNoteExportNoteSelect.commodity).toBe(
+      shippingNotes.commodity,
+    );
+    expect(internalShippingNoteExportNoteSelect.hsCode).toBe(
+      shippingNotes.hsCode,
+    );
+    expect(internalShippingNoteExportNoteSelect.containerNo).toBe(
+      shippingNotes.containerNo,
+    );
+    expect(internalShippingNoteExportNoteSelect.sealNo).toBe(
+      shippingNotes.sealNo,
+    );
+    expect(internalShippingNoteExportNoteSelect.carrierName).toBe(
+      shippingNotes.carrierName,
+    );
+    expect(internalShippingNoteExportNoteSelect.grossWeight).toBe(
+      shippingNotes.grossWeight,
+    );
+    expect(internalShippingNoteExportNoteSelect.chargeableWeight).toBe(
+      shippingNotes.chargeableWeight,
+    );
+    expect(internalShippingNoteExportNoteSelect.licensePlate).toBe(
+      shippingNotes.licensePlate,
+    );
+    expect(internalShippingNoteExportNoteSelect.driverInformation).toBe(
+      shippingNotes.driverInformation,
+    );
+    expect(internalShippingNoteExportNoteSelect.vehiclePayloadCapacity).toBe(
+      shippingNotes.vehiclePayloadCapacity,
+    );
     expect(internalShippingNoteExportNoteSelect.flightNo).toBe(shippingNotes.flightNo);
   });
 });

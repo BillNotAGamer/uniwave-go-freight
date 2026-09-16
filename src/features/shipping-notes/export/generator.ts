@@ -33,7 +33,12 @@ import {
   formatTaxRuleSnapshotForExport,
   formatTaxTreatmentForExport,
 } from "./read-model";
-import { buildExportRoutingPresentation } from "./presentation";
+import {
+  buildExportRoutingPresentation,
+  getExportCommodityValue,
+  getExportHsCodeValue,
+} from "./presentation";
+import { getShippingModePresentation } from "../mode-rules";
 import type {
   InternalExportBuyingCharge,
   InternalExportCharge,
@@ -408,8 +413,12 @@ function formatDestinationWithFinalDestination(
   const destinationValue = formatHeaderValue(destination);
   const finalDestinationValue = formatHeaderValue(finalDestination);
 
-  if (!destinationValue || destinationValue === finalDestinationValue) {
-    return destinationValue || finalDestinationValue;
+  if (!destinationValue) {
+    return finalDestinationValue;
+  }
+
+  if (!finalDestinationValue || destinationValue === finalDestinationValue) {
+    return destinationValue;
   }
 
   return `${destinationValue} / ${finalDestinationValue}`;
@@ -419,6 +428,16 @@ function formatVolume(exportData: InternalShippingNoteExportDto): string {
   return [exportData.note.volumeValue, exportData.note.volumeUnit]
     .filter((part): part is string => Boolean(part))
     .join(" ");
+}
+
+function setHeaderLabel(
+  worksheet: ExcelJS.Worksheet,
+  cellAddress: string,
+  label: string,
+): void {
+  const cell = worksheet.getCell(cellAddress);
+  cell.value = label;
+  cell.font = { bold: true, family: 2, size: 11, name: "Arial" };
 }
 
 function writeHeader(
@@ -438,6 +457,21 @@ function writeHeader(
     INTERNAL_XLSX_HEADER_CELLS.mawbHawbNo,
     formatHeaderValue(routing.bill?.value),
   );
+
+  // Commodity and HS Code (distinct canonical concepts)
+  setHeaderLabel(worksheet, INTERNAL_XLSX_HEADER_CELLS.commodityLabel, "COMMODITY");
+  setCellValue(
+    worksheet,
+    INTERNAL_XLSX_HEADER_CELLS.commodity,
+    getExportCommodityValue(exportData.note) ?? "",
+  );
+  setHeaderLabel(worksheet, INTERNAL_XLSX_HEADER_CELLS.hsCodeLabel, "HS CODE");
+  setCellValue(
+    worksheet,
+    INTERNAL_XLSX_HEADER_CELLS.hsCode,
+    getExportHsCodeValue(exportData.note) ?? "",
+  );
+
   setCellValue(
     worksheet,
     INTERNAL_XLSX_HEADER_CELLS.shipperText,
@@ -482,6 +516,102 @@ function writeHeader(
     INTERNAL_XLSX_HEADER_CELLS.agentText,
     exportData.note.agentText ?? "",
   );
+
+  // Mode-specific operational metadata with strict mode isolation
+  const family = getShippingModePresentation(exportData.note.shippingMode).family;
+
+  if (family === "sea") {
+    if (exportData.note.containerNo?.trim()) {
+      setHeaderLabel(worksheet, INTERNAL_XLSX_HEADER_CELLS.modeRow6Label, "CONTAINER NO.");
+      setCellValue(
+        worksheet,
+        INTERNAL_XLSX_HEADER_CELLS.modeRow6Value,
+        exportData.note.containerNo.trim(),
+      );
+    }
+    if (exportData.note.sealNo?.trim()) {
+      setHeaderLabel(worksheet, INTERNAL_XLSX_HEADER_CELLS.modeRow7Label, "SEAL NO.");
+      setCellValue(
+        worksheet,
+        INTERNAL_XLSX_HEADER_CELLS.modeRow7Value,
+        exportData.note.sealNo.trim(),
+      );
+    }
+    if (exportData.note.grossWeight?.trim()) {
+      worksheet.unMergeCells("C14:D14");
+      setCellValue(worksheet, INTERNAL_XLSX_HEADER_CELLS.eta, exportData.note.eta);
+      setHeaderLabel(worksheet, INTERNAL_XLSX_HEADER_CELLS.modeRow14Label, "GROSS WEIGHT");
+      setCellValue(
+        worksheet,
+        INTERNAL_XLSX_HEADER_CELLS.modeRow14Value,
+        exportData.note.grossWeight.trim(),
+      );
+    }
+    if (exportData.note.carrierName?.trim()) {
+      worksheet.unMergeCells("C16:D16");
+      setCellValue(
+        worksheet,
+        INTERNAL_XLSX_HEADER_CELLS.agentText,
+        exportData.note.agentText ?? "",
+      );
+      setHeaderLabel(worksheet, INTERNAL_XLSX_HEADER_CELLS.modeRow16Label, "CARRIER");
+      setCellValue(
+        worksheet,
+        INTERNAL_XLSX_HEADER_CELLS.modeRow16Value,
+        exportData.note.carrierName.trim(),
+      );
+    }
+  } else if (family === "air") {
+    if (exportData.note.chargeableWeight?.trim()) {
+      setHeaderLabel(worksheet, INTERNAL_XLSX_HEADER_CELLS.modeRow6Label, "CHARGEABLE WT");
+      setCellValue(
+        worksheet,
+        INTERNAL_XLSX_HEADER_CELLS.modeRow6Value,
+        exportData.note.chargeableWeight.trim(),
+      );
+    }
+    if (exportData.note.grossWeight?.trim()) {
+      setHeaderLabel(worksheet, INTERNAL_XLSX_HEADER_CELLS.modeRow7Label, "GROSS WEIGHT");
+      setCellValue(
+        worksheet,
+        INTERNAL_XLSX_HEADER_CELLS.modeRow7Value,
+        exportData.note.grossWeight.trim(),
+      );
+    }
+  } else if (family === "domestic") {
+    if (exportData.note.licensePlate?.trim()) {
+      setHeaderLabel(worksheet, INTERNAL_XLSX_HEADER_CELLS.modeRow6Label, "LICENSE PLATE");
+      setCellValue(
+        worksheet,
+        INTERNAL_XLSX_HEADER_CELLS.modeRow6Value,
+        exportData.note.licensePlate.trim(),
+      );
+    }
+    if (exportData.note.vehiclePayloadCapacity?.trim()) {
+      setHeaderLabel(worksheet, INTERNAL_XLSX_HEADER_CELLS.modeRow7Label, "PAYLOAD");
+      setCellValue(
+        worksheet,
+        INTERNAL_XLSX_HEADER_CELLS.modeRow7Value,
+        exportData.note.vehiclePayloadCapacity.trim(),
+      );
+    }
+    if (exportData.note.driverInformation?.trim()) {
+      worksheet.unMergeCells("C16:D16");
+      setCellValue(
+        worksheet,
+        INTERNAL_XLSX_HEADER_CELLS.agentText,
+        exportData.note.agentText ?? "",
+      );
+      setHeaderLabel(worksheet, INTERNAL_XLSX_HEADER_CELLS.modeRow16Label, "DRIVER INFO");
+      const driverCell = worksheet.getCell(INTERNAL_XLSX_HEADER_CELLS.modeRow16Value);
+      driverCell.value = exportData.note.driverInformation.trim();
+      driverCell.alignment = {
+        ...driverCell.alignment,
+        wrapText: true,
+        vertical: "top",
+      };
+    }
+  }
 }
 
 function clearStaleSignOffIdentities(worksheet: ExcelJS.Worksheet): void {
