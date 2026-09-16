@@ -183,4 +183,80 @@ describe("C6 Shipping Note mode rules", () => {
       expect(canonical.customDestination).toBeUndefined();
     }
   });
+
+  it("handles mode transitions and clears mode-inapplicable metadata fields", () => {
+    const allModeMetadata = {
+      // Sea
+      containerNo: "MSCU1234567",
+      sealNo: "SEAL-9988",
+      carrierName: "MSC",
+      grossWeight: "12500 KGS",
+      // Air
+      chargeableWeight: "1000 KGS",
+      // Domestic
+      licensePlate: "51C-123.45",
+      driverInformation: "Nguyen Van A\nPhone: 0901234567",
+      vehiclePayloadCapacity: "5 TONS",
+    };
+
+    // Transition 1: Sea -> Air (clears sea transport docs & domestic, keeps grossWeight & chargeableWeight)
+    const toAir = canonicalizeShippingNoteModeFields({
+      ...air,
+      ...allModeMetadata,
+      shippingMode: "air_export",
+    });
+    expect(toAir.grossWeight).toBe("12500 KGS");
+    expect(toAir.chargeableWeight).toBe("1000 KGS");
+    expect(toAir.containerNo).toBeUndefined();
+    expect(toAir.sealNo).toBeUndefined();
+    expect(toAir.carrierName).toBeUndefined();
+    expect(toAir.licensePlate).toBeUndefined();
+    expect(toAir.driverInformation).toBeUndefined();
+    expect(toAir.vehiclePayloadCapacity).toBeUndefined();
+
+    // Transition 2: Air -> Domestic (clears sea/air weights and docs, keeps domestic fields)
+    const toDomestic = canonicalizeShippingNoteModeFields({
+      ...domestic,
+      ...allModeMetadata,
+      shippingMode: "domestic_truck",
+    });
+    expect(toDomestic.licensePlate).toBe("51C-123.45");
+    expect(toDomestic.driverInformation).toBe("Nguyen Van A\nPhone: 0901234567");
+    expect(toDomestic.vehiclePayloadCapacity).toBe("5 TONS");
+    expect(toDomestic.grossWeight).toBeUndefined();
+    expect(toDomestic.chargeableWeight).toBeUndefined();
+    expect(toDomestic.containerNo).toBeUndefined();
+    expect(toDomestic.sealNo).toBeUndefined();
+    expect(toDomestic.carrierName).toBeUndefined();
+
+    // Transition 3: Domestic -> Sea (clears domestic & chargeableWeight, keeps sea docs & grossWeight)
+    const toSea = canonicalizeShippingNoteModeFields({
+      ...sea,
+      ...allModeMetadata,
+      shippingMode: "sea_import",
+    });
+    expect(toSea.containerNo).toBe("MSCU1234567");
+    expect(toSea.sealNo).toBe("SEAL-9988");
+    expect(toSea.carrierName).toBe("MSC");
+    expect(toSea.grossWeight).toBe("12500 KGS");
+    expect(toSea.chargeableWeight).toBeUndefined();
+    expect(toSea.licensePlate).toBeUndefined();
+    expect(toSea.driverInformation).toBeUndefined();
+    expect(toSea.vehiclePayloadCapacity).toBeUndefined();
+
+    // Custom: clears all Sea, Air, and Domestic fields
+    const toCustom = canonicalizeShippingNoteModeFields({
+      ...custom,
+      ...allModeMetadata,
+      shippingMode: "custom",
+    });
+    expect(toCustom.containerNo).toBeUndefined();
+    expect(toCustom.sealNo).toBeUndefined();
+    expect(toCustom.carrierName).toBeUndefined();
+    expect(toCustom.grossWeight).toBeUndefined();
+    expect(toCustom.chargeableWeight).toBeUndefined();
+    expect(toCustom.licensePlate).toBeUndefined();
+    expect(toCustom.driverInformation).toBeUndefined();
+    expect(toCustom.vehiclePayloadCapacity).toBeUndefined();
+  });
 });

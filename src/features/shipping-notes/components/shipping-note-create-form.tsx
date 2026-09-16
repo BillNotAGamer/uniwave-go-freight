@@ -128,7 +128,8 @@ export function ShippingNoteCreateForm({ action }: { action: CreateFormAction })
           Jobsheet No
           <input className={controlClassName} id="jobsheetNo" name="jobsheetNo" required type="text" />
         </label>
-        <TextField label="Commidity/HS code" name="commodityHsCode" />
+        <TextField label="Commodity" name="commodity" />
+        <TextField label="HS Code" name="hsCode" />
         {shipmentType === "domestic" || shipmentType === "custom" ? <input name="shippingMode" type="hidden" value={mode} /> : (
         <label className="text-sm font-medium text-foreground" htmlFor="shippingMode">
           Shipment direction
@@ -200,6 +201,26 @@ export function ShippingNoteCreateForm({ action }: { action: CreateFormAction })
             {VOLUME_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
           </select>
         </label>
+        {shipmentType === "ocean" ? (
+          <TextField label="Gross Weight" name="grossWeight" />
+        ) : null}
+        {shipmentType === "air" ? <>
+          <TextField label="Chargeable Weight" name="chargeableWeight" />
+          <TextField label="Gross Weight" name="grossWeight" />
+        </> : null}
+        {shipmentType === "domestic" ? <>
+          <TextField label="License Plate" name="licensePlate" />
+          <label className="text-sm font-medium text-foreground sm:col-span-2" htmlFor="driverInformation">
+            Driver Information
+            <textarea
+              className="mt-1 min-h-20 w-full rounded-md border border-input bg-card p-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              id="driverInformation"
+              name="driverInformation"
+              rows={3}
+            />
+          </label>
+          <TextField label="Vehicle Payload Capacity" name="vehiclePayloadCapacity" />
+        </> : null}
       </Section>
 
       <Section title="Financial">

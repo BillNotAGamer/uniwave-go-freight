@@ -66,7 +66,8 @@ export function ShippingNoteDraftFields({ values, includeJobsheetNo = true }: Sh
   return <>
     <Section title="Shipment">
       {includeJobsheetNo ? <TextField defaultValue={values?.jobsheetNo} label="Jobsheet No" name="jobsheetNo" required /> : null}
-      <TextField defaultValue={values?.commodityHsCode} label="Commidity/HS code" name="commodityHsCode" />
+      <TextField defaultValue={values?.commodity} label="Commodity" name="commodity" />
+      <TextField defaultValue={values?.hsCode} label="HS Code" name="hsCode" />
       <label className="text-sm font-medium text-foreground" htmlFor="shipmentType">
         Shipment Type
         <select className={controlClassName} id="shipmentType" onChange={(event) => updateShipmentFamily(event.target.value as EditShipmentFamily)} value={shipmentFamily}>
@@ -104,25 +105,49 @@ export function ShippingNoteDraftFields({ values, includeJobsheetNo = true }: Sh
       </> : null}
     </Section>
 
-    {shipmentFamily === "ocean" ? <Section title="Ocean Freight">
+    {shipmentFamily === "ocean" ? <Section title="Transport Documents">
       <TextField defaultValue={values?.mblNo} label="MBL" name="mblNo" required />
       <TextField defaultValue={values?.hblNo} label="HBL" name="hblNo" required />
       <TextField defaultValue={values?.vesselName} label="Vessel" name="vesselName" required />
       <TextField defaultValue={values?.voyageNo} label="Voyage" name="voyageNo" required />
+      <TextField defaultValue={values?.containerNo} label="Container No." name="containerNo" />
+      <TextField defaultValue={values?.sealNo} label="Seal No." name="sealNo" />
+      <TextField defaultValue={values?.carrierName} label="Carrier Name" name="carrierName" />
     </Section> : null}
-    {shipmentFamily === "air" ? <Section title="Air Freight">
+    {shipmentFamily === "air" ? <Section title="Transport Documents">
       <TextField defaultValue={values?.mawbNo} label="MAWB" name="mawbNo" required />
       <TextField defaultValue={values?.hawbNo} label="HAWB" name="hawbNo" required />
       <TextField defaultValue={values?.flightNo} label="Flight No" name="flightNo" required />
     </Section> : null}
 
-    <Section title="Schedule">
+    <Section title="Schedule & Cargo">
       <label className="text-sm font-medium text-foreground" htmlFor="etd">ETD
         <input className={controlClassName} defaultValue={formatDatetimeLocalValue(values?.etd)} id="etd" name="etd" required={hasDirection} type="datetime-local" />
       </label>
       <label className="text-sm font-medium text-foreground" htmlFor="eta">ETA
         <input className={controlClassName} defaultValue={formatDatetimeLocalValue(values?.eta)} id="eta" name="eta" required={hasDirection} type="datetime-local" />
       </label>
+      {shipmentFamily === "ocean" ? (
+        <TextField defaultValue={values?.grossWeight} label="Gross Weight" name="grossWeight" />
+      ) : null}
+      {shipmentFamily === "air" ? <>
+        <TextField defaultValue={values?.chargeableWeight} label="Chargeable Weight" name="chargeableWeight" />
+        <TextField defaultValue={values?.grossWeight} label="Gross Weight" name="grossWeight" />
+      </> : null}
+      {shipmentFamily === "domestic" ? <>
+        <TextField defaultValue={values?.licensePlate} label="License Plate" name="licensePlate" />
+        <label className="text-sm font-medium text-foreground sm:col-span-2" htmlFor="driverInformation">
+          Driver Information
+          <textarea
+            className="mt-1 min-h-20 w-full rounded-md border border-input bg-card p-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            defaultValue={values?.driverInformation ?? ""}
+            id="driverInformation"
+            name="driverInformation"
+            rows={3}
+          />
+        </label>
+        <TextField defaultValue={values?.vehiclePayloadCapacity} label="Vehicle Payload Capacity" name="vehiclePayloadCapacity" />
+      </> : null}
     </Section>
 
     <Section title="Parties">

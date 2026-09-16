@@ -208,6 +208,16 @@ export const shippingNotes = pgTable(
     id: idColumn(),
     jobsheetNo: text("jobsheet_no").notNull().unique(),
     commodityHsCode: text("commodity_hs_code"),
+    commodity: text("commodity"),
+    hsCode: text("hs_code"),
+    containerNo: text("container_no"),
+    sealNo: text("seal_no"),
+    carrierName: text("carrier_name"),
+    grossWeight: text("gross_weight"),
+    chargeableWeight: text("chargeable_weight"),
+    licensePlate: text("license_plate"),
+    driverInformation: text("driver_information"),
+    vehiclePayloadCapacity: text("vehicle_payload_capacity"),
     mawbHawbNo: text("mawb_hawb_no"),
     shippingMode: shippingModeEnum("shipping_mode")
       .notNull()

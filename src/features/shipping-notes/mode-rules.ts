@@ -26,7 +26,15 @@ export type ShippingNoteModeTextField =
   | "hblNo"
   | "flightNo"
   | "vesselName"
-  | "voyageNo";
+  | "voyageNo"
+  | "containerNo"
+  | "sealNo"
+  | "carrierName"
+  | "grossWeight"
+  | "chargeableWeight"
+  | "licensePlate"
+  | "driverInformation"
+  | "vehiclePayloadCapacity";
 
 export type ShippingNoteModeInput = {
   shippingMode: ShippingMode;
@@ -50,6 +58,14 @@ export type ShippingNoteModeInput = {
   flightNo?: string;
   vesselName?: string;
   voyageNo?: string;
+  containerNo?: string;
+  sealNo?: string;
+  carrierName?: string;
+  grossWeight?: string;
+  chargeableWeight?: string;
+  licensePlate?: string;
+  driverInformation?: string;
+  vehiclePayloadCapacity?: string;
   etd?: Date;
   eta?: Date;
 };
@@ -93,6 +109,11 @@ const DOMESTIC_RULES: ShippingNoteModeFieldRules = {
     "flightNo",
     "vesselName",
     "voyageNo",
+    "containerNo",
+    "sealNo",
+    "carrierName",
+    "grossWeight",
+    "chargeableWeight",
     "customModeName",
     "customOrigin",
     "customDestination",
@@ -126,12 +147,18 @@ const AIR_RULES: ShippingNoteModeFieldRules = {
   inactiveTextFields: [
     "domesticOrigin",
     "domesticDestination",
+    "licensePlate",
+    "driverInformation",
+    "vehiclePayloadCapacity",
     "portOfLoading",
     "portOfDischarge",
     "mblNo",
     "hblNo",
     "vesselName",
     "voyageNo",
+    "containerNo",
+    "sealNo",
+    "carrierName",
     "customModeName",
     "customOrigin",
     "customDestination",
@@ -150,6 +177,9 @@ const SEA_RULES: ShippingNoteModeFieldRules = {
     { name: "hblNo", label: "HBL" },
     { name: "vesselName", label: "Vessel" },
     { name: "voyageNo", label: "Voyage" },
+    { name: "containerNo", label: "Container No." },
+    { name: "sealNo", label: "Seal No." },
+    { name: "carrierName", label: "Carrier Name" },
   ],
   requiredTextFields: [
     { name: "portOfLoading", label: "POL" },
@@ -167,11 +197,15 @@ const SEA_RULES: ShippingNoteModeFieldRules = {
   inactiveTextFields: [
     "domesticOrigin",
     "domesticDestination",
+    "licensePlate",
+    "driverInformation",
+    "vehiclePayloadCapacity",
     "aol",
     "aod",
     "mawbNo",
     "hawbNo",
     "flightNo",
+    "chargeableWeight",
     "customModeName",
     "customOrigin",
     "customDestination",
@@ -190,6 +224,9 @@ const CUSTOM_RULES: ShippingNoteModeFieldRules = {
   inactiveTextFields: [
     "domesticOrigin",
     "domesticDestination",
+    "licensePlate",
+    "driverInformation",
+    "vehiclePayloadCapacity",
     "aol",
     "aod",
     "portOfLoading",
@@ -202,6 +239,11 @@ const CUSTOM_RULES: ShippingNoteModeFieldRules = {
     "flightNo",
     "vesselName",
     "voyageNo",
+    "containerNo",
+    "sealNo",
+    "carrierName",
+    "grossWeight",
+    "chargeableWeight",
   ],
 };
 

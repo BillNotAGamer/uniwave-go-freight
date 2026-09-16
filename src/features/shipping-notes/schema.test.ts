@@ -68,6 +68,28 @@ describe("C4 Shipping Note schema contract", () => {
     expect(shippingNotes.commodityHsCode.notNull).toBe(false);
   });
 
+  it("defines independent commodity, hs_code, and mode-specific metadata columns as nullable text", () => {
+    const newColumns = [
+      { column: shippingNotes.commodity, expectedName: "commodity" },
+      { column: shippingNotes.hsCode, expectedName: "hs_code" },
+      { column: shippingNotes.containerNo, expectedName: "container_no" },
+      { column: shippingNotes.sealNo, expectedName: "seal_no" },
+      { column: shippingNotes.carrierName, expectedName: "carrier_name" },
+      { column: shippingNotes.grossWeight, expectedName: "gross_weight" },
+      { column: shippingNotes.chargeableWeight, expectedName: "chargeable_weight" },
+      { column: shippingNotes.licensePlate, expectedName: "license_plate" },
+      { column: shippingNotes.driverInformation, expectedName: "driver_information" },
+      { column: shippingNotes.vehiclePayloadCapacity, expectedName: "vehicle_payload_capacity" },
+    ];
+
+    for (const { column, expectedName } of newColumns) {
+      expect(column).toBeDefined();
+      expect(column.name).toBe(expectedName);
+      expect(column.notNull).toBe(false);
+      expect(column.dataType).toBe("string");
+    }
+  });
+
   it("defines four nullable, non-unique Partner references with lookup indexes", () => {
     const config = getTableConfig(shippingNotes);
     const uniqueColumns = new Set(

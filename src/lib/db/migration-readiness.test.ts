@@ -11,7 +11,7 @@ function readMigration(name: string): string {
 }
 
 describe("static migration readiness", () => {
-  it("has migration files through 0016", () => {
+  it("has migration files through 0017", () => {
     expect(readdirSync(drizzleDir).filter((file) => file.endsWith(".sql"))).toEqual([
       "0000_new_nick_fury.sql",
       "0001_dazzling_saracen.sql",
@@ -30,10 +30,11 @@ describe("static migration readiness", () => {
       "0014_dark_sentinels.sql",
       "0015_purple_owl.sql",
       "0016_dry_wrecker.sql",
+      "0017_breezy_blackheart.sql",
     ]);
   });
 
-  it("has journal entries through 0016 in order", () => {
+  it("has journal entries through 0017 in order", () => {
     const journal = JSON.parse(
       readFileSync(path.join(drizzleDir, "meta", "_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
@@ -56,6 +57,7 @@ describe("static migration readiness", () => {
       "14:0014_dark_sentinels",
       "15:0015_purple_owl",
       "16:0016_dry_wrecker",
+      "17:0017_breezy_blackheart",
     ]);
   });
 
@@ -69,6 +71,26 @@ describe("static migration readiness", () => {
     delete before.enums["public.routing_location_applicability"];
     expect(after.tables).toEqual(before.tables);
     expect(after.enums).toEqual(before.enums);
+  });
+
+  it("0017 additively adds mode-specific and split commodity columns to shipping_notes", () => {
+    const migration = readMigration("0017_breezy_blackheart.sql");
+    expect(migration).not.toContain("DROP");
+    expect(migration).not.toContain("CASCADE");
+    for (const column of [
+      '"commodity"',
+      '"hs_code"',
+      '"container_no"',
+      '"seal_no"',
+      '"carrier_name"',
+      '"gross_weight"',
+      '"chargeable_weight"',
+      '"license_plate"',
+      '"driver_information"',
+      '"vehicle_payload_capacity"',
+    ]) {
+      expect(migration).toContain(`ALTER TABLE "shipping_notes" ADD COLUMN ${column} text;`);
+    }
   });
 
   it("0003 contains post-checked workflow metadata and foreign keys", () => {

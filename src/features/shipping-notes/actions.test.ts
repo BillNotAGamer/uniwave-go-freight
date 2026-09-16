@@ -100,20 +100,202 @@ describe("Shipping Note commodity/HS code actions", () => {
     );
   });
 
-  it("passes the exact trimmed commodity/HS code through draft update", async () => {
+  it("passes independent Commodity and HS Code through create preserving leading zeroes and punctuation", async () => {
+    const formData = new FormData();
+    formData.set("jobsheetNo", "COMM-001");
+    formData.set("shippingMode", "sea_export");
+    formData.set("portOfLoading", "VNSGN");
+    formData.set("portOfDischarge", "USLAX");
+    formData.set("finalDestination", "Los Angeles");
+    formData.set("mblNo", "MBL-001");
+    formData.set("hblNo", "HBL-001");
+    formData.set("vesselName", "Ocean King");
+    formData.set("voyageNo", "OK-01");
+    formData.set("etd", "2026-06-01T08:00:00.000Z");
+    formData.set("eta", "2026-06-20T14:00:00.000Z");
+    formData.set("commodity", "  Frozen Seafood (Salmon)  ");
+    formData.set("hsCode", "  0303.89  ");
+
+    await createShippingNoteDraftAction({ ok: true }, formData);
+
+    expect(mocks.createShippingNoteDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        commodity: "Frozen Seafood (Salmon)",
+        hsCode: "0303.89",
+      }),
+      actor,
+    );
+  });
+
+  it("passes independent Commodity and HS Code through update preserving leading zeroes", async () => {
     const formData = new FormData();
     formData.set("id", "note-1");
-    formData.set("jobsheetNo", "DOM-001");
-    formData.set("shippingMode", "domestic_truck");
-    formData.set("domesticOrigin", "HCM");
-    formData.set("domesticDestination", "DAD");
-    formData.set("commodityHsCode", "  Textiles / 5208  ");
+    formData.set("jobsheetNo", "COMM-002");
+    formData.set("shippingMode", "air_export");
+    formData.set("aol", "SGN");
+    formData.set("aod", "NRT");
+    formData.set("finalDestination", "Tokyo");
+    formData.set("mawbNo", "123-45678901");
+    formData.set("hawbNo", "HAWB-001");
+    formData.set("flightNo", "JL752");
+    formData.set("etd", "2026-06-01T08:00:00.000Z");
+    formData.set("eta", "2026-06-01T14:00:00.000Z");
+    formData.set("commodity", "Live Horses");
+    formData.set("hsCode", "01012100");
 
     await updateShippingNoteDraftAction({ ok: true }, formData);
 
     expect(mocks.updateShippingNoteDraft).toHaveBeenCalledWith(
       "note-1",
-      expect.objectContaining({ commodityHsCode: "Textiles / 5208" }),
+      expect.objectContaining({
+        commodity: "Live Horses",
+        hsCode: "01012100",
+      }),
+      actor,
+    );
+  });
+
+  it("persists Sea metadata (containerNo, sealNo, carrierName, grossWeight) on create and update", async () => {
+    // Create Sea
+    const createForm = new FormData();
+    createForm.set("jobsheetNo", "SEA-001");
+    createForm.set("shippingMode", "sea_export");
+    createForm.set("portOfLoading", "VNSGN");
+    createForm.set("portOfDischarge", "USLAX");
+    createForm.set("finalDestination", "Los Angeles");
+    createForm.set("mblNo", "MBL-888");
+    createForm.set("hblNo", "HBL-999");
+    createForm.set("vesselName", "Maersk Emerald");
+    createForm.set("voyageNo", "ME-26");
+    createForm.set("etd", "2026-06-01T08:00:00.000Z");
+    createForm.set("eta", "2026-06-20T14:00:00.000Z");
+    createForm.set("containerNo", "  TGHU9876543  ");
+    createForm.set("sealNo", "  SEAL-1122  ");
+    createForm.set("carrierName", "  Maersk Line  ");
+    createForm.set("grossWeight", "  24,500 KGS  ");
+
+    await createShippingNoteDraftAction({ ok: true }, createForm);
+
+    expect(mocks.createShippingNoteDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mblNo: "MBL-888",
+        hblNo: "HBL-999",
+        containerNo: "TGHU9876543",
+        sealNo: "SEAL-1122",
+        carrierName: "Maersk Line",
+        grossWeight: "24,500 KGS",
+      }),
+      actor,
+    );
+
+    // Update Sea Import
+    const updateForm = new FormData();
+    updateForm.set("id", "note-sea-1");
+    updateForm.set("jobsheetNo", "SEA-002");
+    updateForm.set("shippingMode", "sea_import");
+    updateForm.set("portOfLoading", "USLAX");
+    updateForm.set("portOfDischarge", "VNSGN");
+    updateForm.set("finalDestination", "Ho Chi Minh City");
+    updateForm.set("mblNo", "MBL-111");
+    updateForm.set("hblNo", "HBL-222");
+    updateForm.set("vesselName", "MSC Sarah");
+    updateForm.set("voyageNo", "MS-99");
+    updateForm.set("etd", "2026-06-01T08:00:00.000Z");
+    updateForm.set("eta", "2026-06-20T14:00:00.000Z");
+    updateForm.set("containerNo", "MSCU1112223");
+    updateForm.set("sealNo", "SEAL-3344");
+    updateForm.set("carrierName", "MSC");
+    updateForm.set("grossWeight", "18.5 TONS");
+
+    await updateShippingNoteDraftAction({ ok: true }, updateForm);
+
+    expect(mocks.updateShippingNoteDraft).toHaveBeenCalledWith(
+      "note-sea-1",
+      expect.objectContaining({
+        containerNo: "MSCU1112223",
+        sealNo: "SEAL-3344",
+        carrierName: "MSC",
+        grossWeight: "18.5 TONS",
+      }),
+      actor,
+    );
+  });
+
+  it("persists Air metadata (chargeableWeight, grossWeight) on create and update", async () => {
+    // Create Air Export
+    const createForm = new FormData();
+    createForm.set("jobsheetNo", "AIR-001");
+    createForm.set("shippingMode", "air_export");
+    createForm.set("aol", "SGN");
+    createForm.set("aod", "SIN");
+    createForm.set("finalDestination", "Singapore");
+    createForm.set("mawbNo", "081-12345678");
+    createForm.set("hawbNo", "HAWB-8888");
+    createForm.set("flightNo", "SQ178");
+    createForm.set("etd", "2026-06-01T08:00:00.000Z");
+    createForm.set("eta", "2026-06-01T12:00:00.000Z");
+    createForm.set("chargeableWeight", "  350.5 KGS  ");
+    createForm.set("grossWeight", "  320 KGS  ");
+
+    await createShippingNoteDraftAction({ ok: true }, createForm);
+
+    expect(mocks.createShippingNoteDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chargeableWeight: "350.5 KGS",
+        grossWeight: "320 KGS",
+      }),
+      actor,
+    );
+
+    // Update Air Import
+    const updateForm = new FormData();
+    updateForm.set("id", "note-air-1");
+    updateForm.set("jobsheetNo", "AIR-002");
+    updateForm.set("shippingMode", "air_import");
+    updateForm.set("aol", "SIN");
+    updateForm.set("aod", "SGN");
+    updateForm.set("finalDestination", "Ho Chi Minh City");
+    updateForm.set("mawbNo", "081-87654321");
+    updateForm.set("hawbNo", "HAWB-9999");
+    updateForm.set("flightNo", "SQ179");
+    updateForm.set("etd", "2026-06-01T08:00:00.000Z");
+    updateForm.set("eta", "2026-06-01T12:00:00.000Z");
+    updateForm.set("chargeableWeight", "500 KGS");
+    updateForm.set("grossWeight", "480 KGS");
+
+    await updateShippingNoteDraftAction({ ok: true }, updateForm);
+
+    expect(mocks.updateShippingNoteDraft).toHaveBeenCalledWith(
+      "note-air-1",
+      expect.objectContaining({
+        chargeableWeight: "500 KGS",
+        grossWeight: "480 KGS",
+      }),
+      actor,
+    );
+  });
+
+  it("persists Domestic metadata (licensePlate, multiline driverInformation, vehiclePayloadCapacity) and manual routing", async () => {
+    const multilineDriver = "Driver: Tran Van B\nCCCD: 012345678901\nPhone: 0987654321\nNotes: Urgent delivery";
+    const createForm = new FormData();
+    createForm.set("jobsheetNo", "DOM-001");
+    createForm.set("shippingMode", "domestic_truck");
+    createForm.set("domesticOrigin", "Binh Duong Industrial Zone");
+    createForm.set("domesticDestination", "Cat Lai Port, Thu Duc");
+    createForm.set("licensePlate", "  60C-543.21  ");
+    createForm.set("driverInformation", multilineDriver);
+    createForm.set("vehiclePayloadCapacity", "  8 TONS  ");
+
+    await createShippingNoteDraftAction({ ok: true }, createForm);
+
+    expect(mocks.createShippingNoteDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domesticOrigin: "Binh Duong Industrial Zone",
+        domesticDestination: "Cat Lai Port, Thu Duc",
+        licensePlate: "60C-543.21",
+        driverInformation: multilineDriver,
+        vehiclePayloadCapacity: "8 TONS",
+      }),
       actor,
     );
   });

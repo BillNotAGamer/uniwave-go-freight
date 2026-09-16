@@ -264,7 +264,6 @@ export default async function ShippingNoteDetailPage({
       </PageHeader>
 
       <div className="flex w-full flex-col gap-6 rounded-lg border border-border bg-card p-6 shadow-sm">
-
         <section className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-md border border-border bg-muted/40 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -275,30 +274,33 @@ export default async function ShippingNoteDetailPage({
                 <dt className="font-medium text-foreground">Mode</dt>
                 <dd>{getShippingModePresentation(note.shippingMode).label}</dd>
               </div>
-              {note.shippingMode === "custom" ? <>
-                <div><dt className="font-medium text-foreground">Custom Mode</dt><dd>{note.customModeName ?? "-"}</dd></div>
-                <div><dt className="font-medium text-foreground">From</dt><dd>{note.customOrigin ?? "-"}</dd></div>
-                <div><dt className="font-medium text-foreground">To</dt><dd>{note.customDestination ?? "-"}</dd></div>
-              </> : null}
+              {note.shippingMode === "custom" ? (
+                <>
+                  <div>
+                    <dt className="font-medium text-foreground">Custom Mode</dt>
+                    <dd>{note.customModeName ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">From</dt>
+                    <dd>{note.customOrigin ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">To</dt>
+                    <dd>{note.customDestination ?? "-"}</dd>
+                  </div>
+                </>
+              ) : null}
               <div>
-                <dt className="font-medium text-foreground">MAWB / HAWB</dt>
-                <dd>{formatMawbHawb(note)}</dd>
+                <dt className="font-medium text-foreground">Commodity</dt>
+                <dd>{note.commodity ?? note.commodityHsCode ?? "-"}</dd>
               </div>
               <div>
-                <dt className="font-medium text-foreground">Commidity/HS code</dt>
-                <dd>{note.commodityHsCode ?? "-"}</dd>
+                <dt className="font-medium text-foreground">HS Code</dt>
+                <dd>{note.hsCode ?? "-"}</dd>
               </div>
               <div>
-                <dt className="font-medium text-foreground">AOL</dt>
-                <dd>{note.aol ?? "-"}</dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">AOD</dt>
-                <dd>{note.aod ?? "-"}</dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">Final Destination</dt>
-                <dd>{note.finalDestination ?? "-"}</dd>
+                <dt className="font-medium text-foreground">Exchange Rate</dt>
+                <dd>{note.exchangeRate}</dd>
               </div>
             </dl>
           </div>
@@ -327,11 +329,136 @@ export default async function ShippingNoteDetailPage({
             </dl>
           </div>
 
+          {note.shippingMode === "sea_import" || note.shippingMode === "sea_export" ? (
+            <div className="rounded-md border border-border bg-muted/40 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Transport Documents
+              </p>
+              <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
+                <div>
+                  <dt className="font-medium text-foreground">MBL</dt>
+                  <dd>{note.mblNo ?? "-"}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-foreground">HBL</dt>
+                  <dd>{note.hblNo ?? "-"}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-foreground">Container No.</dt>
+                  <dd>{note.containerNo ?? "-"}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-foreground">Seal No.</dt>
+                  <dd>{note.sealNo ?? "-"}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-foreground">Carrier Name</dt>
+                  <dd>{note.carrierName ?? "-"}</dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
+
+          {note.shippingMode === "air_import" || note.shippingMode === "air_export" || Boolean(note.mawbHawbNo) ? (
+            <div className="rounded-md border border-border bg-muted/40 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Transport Documents
+              </p>
+              <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
+                <div>
+                  <dt className="font-medium text-foreground">MAWB / HAWB</dt>
+                  <dd>{formatMawbHawb(note)}</dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
+
           <div className="rounded-md border border-border bg-muted/40 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Shipment
+              Schedule & Cargo
             </p>
             <dl className="mt-3 space-y-2 text-sm text-muted-foreground">
+              {note.shippingMode === "sea_import" || note.shippingMode === "sea_export" ? (
+                <>
+                  <div>
+                    <dt className="font-medium text-foreground">POL</dt>
+                    <dd>{note.portOfLoading ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">POD</dt>
+                    <dd>{note.portOfDischarge ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">Final Destination</dt>
+                    <dd>{note.finalDestination ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">Vessel / Voyage</dt>
+                    <dd>
+                      {note.vesselName ?? "-"} / {note.voyageNo ?? "-"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">Gross Weight</dt>
+                    <dd>{note.grossWeight ?? "-"}</dd>
+                  </div>
+                </>
+              ) : null}
+
+              {note.shippingMode === "air_import" || note.shippingMode === "air_export" ? (
+                <>
+                  <div>
+                    <dt className="font-medium text-foreground">AOL</dt>
+                    <dd>{note.aol ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">AOD</dt>
+                    <dd>{note.aod ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">Final Destination</dt>
+                    <dd>{note.finalDestination ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">Flight No.</dt>
+                    <dd>{note.flightNo ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">Chargeable Weight</dt>
+                    <dd>{note.chargeableWeight ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">Gross Weight</dt>
+                    <dd>{note.grossWeight ?? "-"}</dd>
+                  </div>
+                </>
+              ) : null}
+
+              {note.shippingMode === "domestic_truck" ? (
+                <>
+                  <div>
+                    <dt className="font-medium text-foreground">Origin</dt>
+                    <dd>{note.domesticOrigin ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">Destination</dt>
+                    <dd>{note.domesticDestination ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">License Plate</dt>
+                    <dd>{note.licensePlate ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">Driver Information</dt>
+                    <dd className="whitespace-pre-wrap">{note.driverInformation ?? "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-medium text-foreground">Vehicle Payload Capacity</dt>
+                    <dd>{note.vehiclePayloadCapacity ?? "-"}</dd>
+                  </div>
+                </>
+              ) : null}
+
               <div>
                 <dt className="font-medium text-foreground">ETD</dt>
                 <dd>{formatDateTime(note.etd)}</dd>
@@ -345,10 +472,6 @@ export default async function ShippingNoteDetailPage({
                 <dd>
                   {note.volumeValue ?? "-"} {note.volumeUnit ?? ""}
                 </dd>
-              </div>
-              <div>
-                <dt className="font-medium text-foreground">Exchange Rate</dt>
-                <dd>{note.exchangeRate}</dd>
               </div>
             </dl>
           </div>

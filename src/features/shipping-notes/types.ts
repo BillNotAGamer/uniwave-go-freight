@@ -20,6 +20,16 @@ export type ShippingNoteListItem = {
 
 export type ShippingNoteDetail = ShippingNoteListItem & {
   commodityHsCode: string | null;
+  commodity?: string | null;
+  hsCode?: string | null;
+  containerNo?: string | null;
+  sealNo?: string | null;
+  carrierName?: string | null;
+  grossWeight?: string | null;
+  chargeableWeight?: string | null;
+  licensePlate?: string | null;
+  driverInformation?: string | null;
+  vehiclePayloadCapacity?: string | null;
   shipperPartnerId: string | null;
   consigneePartnerId: string | null;
   customerPartnerId: string | null;

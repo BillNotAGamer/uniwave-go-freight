@@ -102,6 +102,16 @@ function makeNote(
     customerPartnerId: null,
     agentPartnerId: null,
     commodityHsCode: null,
+    commodity: null,
+    hsCode: null,
+    containerNo: null,
+    sealNo: null,
+    carrierName: null,
+    grossWeight: null,
+    chargeableWeight: null,
+    licensePlate: null,
+    driverInformation: null,
+    vehiclePayloadCapacity: null,
     mawbHawbNo: null,
     customerText: null,
     agentText: null,
@@ -278,20 +288,109 @@ describe("ShippingNoteDetailPage Draft edit presentation", () => {
     expect(findDefinitionValue(jsx, "MAWB / HAWB")).toBe("LEGACY-AWB");
   });
 
-  it("shows the commodity/HS code in the Shipping information", async () => {
+  it("shows separate Commodity and HS Code with legacy fallback", async () => {
+    const saleUser = makeUser("sale");
+    const noteWithSplit = makeNote("draft");
+    noteWithSplit.commodity = "Precision Bearings";
+    noteWithSplit.hsCode = "8482.10.00";
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(noteWithSplit);
+
+    const jsxSplit = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+    expect(findDefinitionValue(jsxSplit, "Commodity")).toBe("Precision Bearings");
+    expect(findDefinitionValue(jsxSplit, "HS Code")).toBe("8482.10.00");
+
+    // Legacy fallback test
+    const noteLegacy = makeNote("draft");
+    noteLegacy.commodity = null;
+    noteLegacy.hsCode = null;
+    noteLegacy.commodityHsCode = "Electronics / 8517";
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(noteLegacy);
+
+    const jsxLegacy = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+    expect(findDefinitionValue(jsxLegacy, "Commodity")).toBe("Electronics / 8517");
+    expect(findDefinitionValue(jsxLegacy, "HS Code")).toBe("-");
+  });
+
+  it("renders Sea mode detail with Transport Documents and Gross Weight", async () => {
     const saleUser = makeUser("sale");
     const note = makeNote("draft");
-    note.commodityHsCode = "Electronics / 8517";
+    note.shippingMode = "sea_export";
+    note.containerNo = "MSCU1234567";
+    note.sealNo = "SEAL-9988";
+    note.carrierName = "Mediterranean Shipping Company";
+    note.grossWeight = "12500 KGS";
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
     mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
 
     const jsx = await ShippingNoteDetailPage({
       params: Promise.resolve({ id: "note-1" }),
     });
-    const text = collectText(jsx);
+    expect(findDefinitionValue(jsx, "MBL")).toBe("MBL-123");
+    expect(findDefinitionValue(jsx, "HBL")).toBe("HBL-123");
+    expect(findDefinitionValue(jsx, "Container No.")).toBe("MSCU1234567");
+    expect(findDefinitionValue(jsx, "Seal No.")).toBe("SEAL-9988");
+    expect(findDefinitionValue(jsx, "Carrier Name")).toBe("Mediterranean Shipping Company");
+    expect(findDefinitionValue(jsx, "Gross Weight")).toBe("12500 KGS");
 
-    expect(text).toContain("Commidity/HS code");
-    expect(text).toContain("Electronics / 8517");
+    // Must not render Air or Domestic fields
+    expect(findDefinitionValue(jsx, "Chargeable Weight")).toBeNull();
+    expect(findDefinitionValue(jsx, "License Plate")).toBeNull();
+    expect(findDefinitionValue(jsx, "Driver Information")).toBeNull();
+  });
+
+  it("renders Air mode detail with MAWB/HAWB, Chargeable Weight and Gross Weight", async () => {
+    const saleUser = makeUser("sale");
+    const note = makeNote("draft");
+    note.shippingMode = "air_export";
+    note.mawbNo = "081-12345678";
+    note.hawbNo = "HAWB-998877";
+    note.chargeableWeight = "450.5 KGS";
+    note.grossWeight = "420 KGS";
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+    expect(findDefinitionValue(jsx, "MAWB / HAWB")).toBe("081-12345678 / HAWB-998877");
+    expect(findDefinitionValue(jsx, "Chargeable Weight")).toBe("450.5 KGS");
+    expect(findDefinitionValue(jsx, "Gross Weight")).toBe("420 KGS");
+
+    // Must not render Sea documents or Domestic fields
+    expect(findDefinitionValue(jsx, "Container No.")).toBeNull();
+    expect(findDefinitionValue(jsx, "Seal No.")).toBeNull();
+    expect(findDefinitionValue(jsx, "Carrier Name")).toBeNull();
+    expect(findDefinitionValue(jsx, "License Plate")).toBeNull();
+  });
+
+  it("renders Domestic mode detail with License Plate, multiline Driver Information, and Payload", async () => {
+    const saleUser = makeUser("sale");
+    const note = makeNote("draft");
+    note.shippingMode = "domestic_truck";
+    note.domesticOrigin = "Warehouse A, Binh Duong";
+    note.domesticDestination = "Port Cat Lai, HCMC";
+    note.licensePlate = "51C-123.45";
+    note.driverInformation = "Nguyen Van A\nCCCD: 079123456789\nPhone: 0901234567";
+    note.vehiclePayloadCapacity = "5 TONS";
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+    expect(findDefinitionValue(jsx, "License Plate")).toBe("51C-123.45");
+    expect(findDefinitionValue(jsx, "Driver Information")).toContain("Nguyen Van A\nCCCD: 079123456789");
+    expect(findDefinitionValue(jsx, "Vehicle Payload Capacity")).toBe("5 TONS");
+
+    // Domestic has no Transport Documents card
+    expect(findDefinitionValue(jsx, "Container No.")).toBeNull();
+    expect(findDefinitionValue(jsx, "MAWB / HAWB")).toBeNull();
+    expect(findDefinitionValue(jsx, "Chargeable Weight")).toBeNull();
   });
 
   it("keeps Admin edit access but hides Submit for a Sale-created Draft", async () => {

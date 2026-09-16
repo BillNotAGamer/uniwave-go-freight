@@ -85,6 +85,9 @@ describe("Shipping Note create field presentation", () => {
       "hblNo",
       "vesselName",
       "voyageNo",
+      "containerNo",
+      "sealNo",
+      "carrierName",
     ]);
   });
 
@@ -109,7 +112,9 @@ describe("Shipping Note create field presentation", () => {
         (field) => field.name,
       );
 
-      expect(visibleNames).toEqual(requiredNames);
+      for (const requiredName of requiredNames) {
+        expect(visibleNames).toContain(requiredName);
+      }
     }
   });
 });
