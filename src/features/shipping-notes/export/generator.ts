@@ -33,6 +33,7 @@ import {
   formatTaxRuleSnapshotForExport,
   formatTaxTreatmentForExport,
 } from "./read-model";
+import { buildExportRoutingPresentation } from "./presentation";
 import type {
   InternalExportBuyingCharge,
   InternalExportCharge,
@@ -60,6 +61,7 @@ export type InternalXlsxGenerationResult = {
 
 const AMOUNT_VND_SCALE = 2;
 const MAX_EXCEL_INTEGER_DIGITS = 13;
+const VND_NUMBER_FORMAT = "#,##0.00";
 
 function getTemplatePath(): string {
   return path.resolve(
@@ -120,7 +122,7 @@ function getWorksheet(workbook: ExcelJS.Workbook): ExcelJS.Worksheet {
 
   if (
     worksheet.getCell(INTERNAL_XLSX_PROFIT_CELL.labelCell).value !==
-    INTERNAL_XLSX_PROFIT_CELL.label
+    INTERNAL_XLSX_PROFIT_CELL.templateLabel
   ) {
     throw new ExportError(
       EXPORT_ERROR_CODES.TEMPLATE_INVALID,
@@ -328,6 +330,24 @@ function writeChargeRows(
   });
 }
 
+function applyVndNumberFormats(worksheet: ExcelJS.Worksheet): void {
+  for (let rowNumber = INTERNAL_XLSX_SELLING_ROWS.start; rowNumber <= INTERNAL_XLSX_SELLING_ROWS.end; rowNumber += 1) {
+    worksheet.getCell(`D${rowNumber}`).numFmt = VND_NUMBER_FORMAT;
+  }
+
+  for (let rowNumber = INTERNAL_XLSX_BUYING_ROWS.start; rowNumber <= INTERNAL_XLSX_BUYING_ROWS.end; rowNumber += 1) {
+    worksheet.getCell(`D${rowNumber}`).numFmt = VND_NUMBER_FORMAT;
+  }
+
+  for (const cellAddress of [
+    INTERNAL_XLSX_SELLING_ROWS.totalCell,
+    INTERNAL_XLSX_BUYING_ROWS.totalCell,
+    INTERNAL_XLSX_PROFIT_CELL.valueCell,
+  ]) {
+    worksheet.getCell(cellAddress).numFmt = VND_NUMBER_FORMAT;
+  }
+}
+
 function writeTaxDetailRows(
   worksheet: ExcelJS.Worksheet,
   rowRange: TemplateRowMapping,
@@ -376,13 +396,23 @@ function writeTaxDetailRows(
   });
 }
 
-function formatDestination(exportData: InternalShippingNoteExportDto): string {
-  return (
-    exportData.note.customDestination ??
-    exportData.note.finalDestination ??
-    exportData.note.aod ??
-    ""
-  );
+function formatHeaderValue(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed && trimmed !== "-" ? trimmed : "";
+}
+
+function formatDestinationWithFinalDestination(
+  destination: string | null | undefined,
+  finalDestination: string | null | undefined,
+): string {
+  const destinationValue = formatHeaderValue(destination);
+  const finalDestinationValue = formatHeaderValue(finalDestination);
+
+  if (!destinationValue || destinationValue === finalDestinationValue) {
+    return destinationValue || finalDestinationValue;
+  }
+
+  return `${destinationValue} / ${finalDestinationValue}`;
 }
 
 function formatVolume(exportData: InternalShippingNoteExportDto): string {
@@ -395,11 +425,18 @@ function writeHeader(
   worksheet: ExcelJS.Worksheet,
   exportData: InternalShippingNoteExportDto,
 ): void {
+  const routing = buildExportRoutingPresentation(exportData.note);
+
   setCellValue(worksheet, INTERNAL_XLSX_HEADER_CELLS.jobsheetNo, exportData.note.jobsheetNo);
   setCellValue(
     worksheet,
+    INTERNAL_XLSX_HEADER_CELLS.billLabel,
+    routing.bill?.label ?? "",
+  );
+  setCellValue(
+    worksheet,
     INTERNAL_XLSX_HEADER_CELLS.mawbHawbNo,
-    exportData.note.mawbHawbNo ?? "",
+    formatHeaderValue(routing.bill?.value),
   );
   setCellValue(
     worksheet,
@@ -411,15 +448,46 @@ function writeHeader(
     INTERNAL_XLSX_HEADER_CELLS.consigneeText,
     exportData.note.consigneeText ?? "",
   );
-  setCellValue(worksheet, INTERNAL_XLSX_HEADER_CELLS.aol, exportData.note.aol ?? "");
-  setCellValue(worksheet, INTERNAL_XLSX_HEADER_CELLS.destination, formatDestination(exportData));
+  setCellValue(worksheet, INTERNAL_XLSX_HEADER_CELLS.originLabel, routing.origin.label);
+  setCellValue(
+    worksheet,
+    INTERNAL_XLSX_HEADER_CELLS.aol,
+    formatHeaderValue(routing.origin.value),
+  );
+  setCellValue(
+    worksheet,
+    INTERNAL_XLSX_HEADER_CELLS.destinationLabel,
+    routing.finalDestination
+      ? `${routing.destination.label} / FINAL DEST.`
+      : routing.destination.label,
+  );
+  setCellValue(
+    worksheet,
+    INTERNAL_XLSX_HEADER_CELLS.destination,
+    formatDestinationWithFinalDestination(
+      routing.destination.value,
+      routing.finalDestination?.value,
+    ),
+  );
   setCellValue(worksheet, INTERNAL_XLSX_HEADER_CELLS.etd, exportData.note.etd);
+  setCellValue(worksheet, INTERNAL_XLSX_HEADER_CELLS.eta, exportData.note.eta);
   setCellValue(worksheet, INTERNAL_XLSX_HEADER_CELLS.volume, formatVolume(exportData));
   setCellValue(
     worksheet,
     INTERNAL_XLSX_HEADER_CELLS.exchangeRate,
     exportData.note.exchangeRate,
   );
+  setCellValue(
+    worksheet,
+    INTERNAL_XLSX_HEADER_CELLS.agentText,
+    exportData.note.agentText ?? "",
+  );
+}
+
+function clearStaleSignOffIdentities(worksheet: ExcelJS.Worksheet): void {
+  for (const cellAddress of ["A46", "C46", "D46"]) {
+    worksheet.getCell(cellAddress).value = null;
+  }
 }
 
 function writeFormulas(
@@ -435,8 +503,7 @@ function writeFormulas(
     result: toExcelNumber(exportData.summary.totalBuyingVnd),
   };
 
-  // The app/read model uses Gross Profit. The client workbook keeps the
-  // requested NET PROFIT (USD) label and derives the value from E25-E37.
+  // The app/read model derives gross profit in VND from VND charge totals.
   worksheet.getCell(INTERNAL_XLSX_PROFIT_CELL.labelCell).value =
     INTERNAL_XLSX_PROFIT_CELL.label;
   worksheet.getCell(INTERNAL_XLSX_PROFIT_CELL.valueCell).value = {
@@ -491,11 +558,13 @@ export async function generateInternalShippingNoteXlsx(
   const taxDetailsWorksheet = getTaxDetailsWorksheet(workbook);
 
   writeHeader(worksheet, exportData);
+  applyVndNumberFormats(worksheet);
+  clearStaleSignOffIdentities(worksheet);
   writeChargeRows(
     worksheet,
     INTERNAL_XLSX_SELLING_ROWS,
     exportData.sellingCharges,
-    () => exportData.note.customerText ?? exportData.note.agentText ?? "",
+    () => "",
   );
   writeChargeRows(
     worksheet,

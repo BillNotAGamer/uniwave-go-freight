@@ -46,21 +46,27 @@ export const INTERNAL_XLSX_BUYING_ROWS = {
 export const INTERNAL_XLSX_PROFIT_CELL = {
   labelCell: "A38",
   labelRange: "A38:C38",
+  templateLabel: "NET PROFIT (USD)",
+  label: "GROSS PROFIT (VND)",
   valueCell: "E38",
-  label: "NET PROFIT (USD)",
   formula: "E25-E37",
 } as const;
 
 export const INTERNAL_XLSX_HEADER_CELLS = {
   jobsheetNo: "C6",
+  billLabel: "A7",
   mawbHawbNo: "C7",
   shipperText: "C9",
   consigneeText: "C10",
+  originLabel: "A11",
   aol: "C11",
+  destinationLabel: "A12",
   destination: "C12",
   etd: "C13",
+  eta: "C14",
   volume: "C15",
   exchangeRate: "E15",
+  agentText: "C16",
 } as const;
 
 export const INTERNAL_XLSX_TAX_DETAIL_COLUMNS = {

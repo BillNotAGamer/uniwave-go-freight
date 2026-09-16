@@ -11,13 +11,13 @@ import {
   formatTaxRuleSnapshotForExport,
   formatTaxTreatmentForExport,
 } from "../read-model";
+import { buildExportRoutingPresentation } from "../presentation";
 import type {
   InternalExportBuyingCharge,
   InternalExportCharge,
   InternalShippingNoteExportDto,
 } from "../types";
 import { getShippingModePresentation } from "../../mode-rules";
-import { formatMawbHawb } from "../../presentation";
 
 type InternalShippingNotePdfDocumentProps = {
   exportData: InternalShippingNoteExportDto;
@@ -218,22 +218,30 @@ function formatVolume(note: InternalShippingNoteExportDto["note"]): string {
 }
 
 function buildHeaderItems(note: InternalShippingNoteExportDto["note"]): InfoItem[] {
+  const routing = buildExportRoutingPresentation(note);
+
   return [
     { label: "Jobsheet No", value: note.jobsheetNo },
-    { label: "MAWB / HAWB", value: formatMawbHawb(note) },
+    ...(routing.bill
+      ? [{ label: routing.bill.label, value: formatOptional(routing.bill.value) }]
+      : []),
     { label: "Shipping Mode", value: getShippingModePresentation(note.shippingMode).label },
-    ...(note.shippingMode === "custom" ? [
-      { label: "Custom Mode", value: formatOptional(note.customModeName) },
-      { label: "From", value: formatOptional(note.customOrigin) },
-      { label: "To", value: formatOptional(note.customDestination) },
-    ] : []),
     { label: "Shipper", value: formatOptional(note.shipperText) },
     { label: "Consignee", value: formatOptional(note.consigneeText) },
     { label: "Customer", value: formatOptional(note.customerText) },
     { label: "Agent", value: formatOptional(note.agentText) },
-    { label: "AOL", value: formatOptional(note.aol) },
-    { label: "AOD", value: formatOptional(note.aod) },
-    { label: "Final Destination", value: formatOptional(note.finalDestination) },
+    { label: routing.origin.label, value: formatOptional(routing.origin.value) },
+    { label: routing.destination.label, value: formatOptional(routing.destination.value) },
+    ...(routing.finalDestination
+      ? [{
+          label: routing.finalDestination.label,
+          value: formatOptional(routing.finalDestination.value),
+        }]
+      : []),
+    ...routing.transport
+      .filter((field) => field.value?.trim())
+      .map((field) => ({ label: field.label, value: formatOptional(field.value) })),
+    { label: "Commodity / HS Code", value: formatOptional(note.commodityHsCode) },
     { label: "ETD", value: formatDate(note.etd) },
     { label: "ETA", value: formatDate(note.eta) },
     { label: "Volume", value: formatVolume(note) },

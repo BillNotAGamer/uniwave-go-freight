@@ -7,6 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 import { buildInternalExportSections } from "./read-model";
 import type { InternalExportChargeSourceRow } from "./read-model";
 import {
+  INTERNAL_XLSX_HEADER_CELLS,
+  INTERNAL_XLSX_PROFIT_CELL,
   INTERNAL_XLSX_TAX_DETAILS_WORKSHEET_NAME,
   INTERNAL_XLSX_TEMPLATE_RELATIVE_PATH,
   INTERNAL_XLSX_TEMPLATE_SHA256,
@@ -88,20 +90,68 @@ function buildExportData(): InternalShippingNoteExportDto {
       jobsheetNo: "ABC/001 SEA",
       mawbNo: null,
       hawbNo: null,
-      mawbHawbNo: "MAWB-1",
+      mawbHawbNo: null,
       shippingMode: "sea_export",
       shipperText: "Shipper",
       consigneeText: "Consignee",
       customerText: "Customer",
       agentText: "Agent",
-      aol: "SGN",
-      aod: "HAN",
-      finalDestination: "HAN",
+      aol: null,
+      aod: null,
+      portOfLoading: "HCM",
+      portOfDischarge: "MIAMI",
+      finalDestination: "MIAMI",
+      mblNo: "276301562",
+      hblNo: "SLT-2609001",
+      vesselName: "MAERSK PORT KLANG",
+      voyageNo: "638N",
       etd: new Date("2026-08-09T00:00:00.000Z"),
       eta: null,
       volumeValue: "1.000",
       volumeUnit: "cbm",
       exchangeRate: "1.000000",
+      status: "checked",
+    },
+    ...sections,
+  };
+}
+
+function buildAirGoldenExportData(): InternalShippingNoteExportDto {
+  const sections = buildInternalExportSections([
+    row({
+      chargeName: "Air freight",
+      currency: "USD",
+      unitPrice: "1700.0000",
+      exchangeRate: "26120.000000",
+      amountOriginal: "1700.0000",
+      amountVnd: "44404000.00",
+      vatPercent: "0.00",
+      vatAmount: "0.00",
+    }),
+  ]);
+
+  return {
+    note: {
+      id: "air-golden-1",
+      jobsheetNo: "UNI2609001-AE",
+      mawbNo: "45964854462",
+      hawbNo: "NIL",
+      mawbHawbNo: null,
+      shippingMode: "air_export",
+      shipperText: "Air Shipper",
+      consigneeText: "Air Consignee",
+      customerText: "Air Customer",
+      agentText: "DISCOVERY PLANET COMPANY LIMITED",
+      commodityHsCode: "Electronics / 8517",
+      aol: "SGN",
+      aod: "LAX",
+      finalDestination: "LOS ANGELES",
+      flightNo: "VN300",
+      etd: new Date("2026-09-01T00:00:00.000Z"),
+      eta: new Date("2026-09-03T00:00:00.000Z"),
+      volumeValue: "1.000",
+      volumeUnit: "cbm",
+      exchangeRate: "26.120000",
       status: "checked",
     },
     ...sections,
@@ -148,5 +198,65 @@ describe("internal XLSX generator tax-complete v2", () => {
     expect(worksheet?.getCell("B30").value).toBe(310000);
     expect(worksheet?.getCell("B33").value).toBe(67500);
     expect(worksheet?.getCell("B34").value).toBe(235000);
+  });
+
+  it("uses canonical Ocean labels and values in the fixed workbook header", async () => {
+    const { generateInternalShippingNoteXlsx } = await import("./generator");
+    const generated = await generateInternalShippingNoteXlsx(
+      buildExportData(),
+      new Date("2026-08-09T12:00:00.000Z"),
+    );
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(generated.buffer);
+    const worksheet = workbook.getWorksheet("AK");
+
+    expect(worksheet?.getCell("A7").value).toBe("MBL / HBL");
+    expect(worksheet?.getCell("C7").value).toBe("276301562 / SLT-2609001");
+    expect(worksheet?.getCell("A11").value).toBe("POL");
+    expect(worksheet?.getCell("C11").value).toBe("HCM");
+    expect(worksheet?.getCell("A12").value).toBe("POD / FINAL DEST.");
+    expect(worksheet?.getCell("C12").value).toBe("MIAMI");
+    expect(worksheet?.getCell("A7").value).not.toBe("MAWB / HAWB");
+  });
+
+  it("writes the canonical Air header, VND amounts, blank no-override cells, and no stale identities", async () => {
+    const { generateInternalShippingNoteXlsx } = await import("./generator");
+    const generated = await generateInternalShippingNoteXlsx(
+      buildAirGoldenExportData(),
+      new Date("2026-09-01T12:00:00.000Z"),
+    );
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(generated.buffer);
+    const worksheet = workbook.getWorksheet("AK");
+    const taxDetails = workbook.getWorksheet(INTERNAL_XLSX_TAX_DETAILS_WORKSHEET_NAME);
+
+    expect(worksheet?.getCell(INTERNAL_XLSX_HEADER_CELLS.jobsheetNo).value).toBe("UNI2609001-AE");
+    expect(worksheet?.getCell("A7").value).toBe("MAWB / HAWB");
+    expect(worksheet?.getCell("C7").value).toBe("45964854462 / NIL");
+    expect(worksheet?.getCell("A11").value).toBe("AOL");
+    expect(worksheet?.getCell("C11").value).toBe("SGN");
+    expect(worksheet?.getCell("A12").value).toBe("AOD / FINAL DEST.");
+    expect(worksheet?.getCell("C12").value).toBe("LAX / LOS ANGELES");
+    expect((worksheet?.getCell("C14").value as Date).toISOString()).toBe(
+      "2026-09-03T00:00:00.000Z",
+    );
+    expect(worksheet?.getCell("C16").value).toBe("DISCOVERY PLANET COMPANY LIMITED");
+    expect(worksheet?.getCell("E15").value).toBe("26.120000");
+
+    expect(worksheet?.getCell("D24").value).toBe(44404000);
+    expect(worksheet?.getCell("D24").numFmt).toBe("#,##0.00");
+    expect(worksheet?.getCell("E25").numFmt).toBe("#,##0.00");
+    expect(worksheet?.getCell(INTERNAL_XLSX_PROFIT_CELL.valueCell).numFmt).toBe("#,##0.00");
+    expect(worksheet?.getCell("D24").numFmt).not.toContain("$");
+    expect(worksheet?.getCell("E24").value).not.toBe("Air Customer");
+    expect(worksheet?.getCell(INTERNAL_XLSX_PROFIT_CELL.labelCell).value).toBe(
+      "GROSS PROFIT (VND)",
+    );
+
+    expect(taxDetails?.getCell("I4").value).toBe("");
+    expect(taxDetails?.getCell("J4").value).toBe("");
+    expect(worksheet?.getCell("A46").value).toBeNull();
+    expect(worksheet?.getCell("C46").value).toBeNull();
+    expect(worksheet?.getCell("D46").value).toBeNull();
   });
 });

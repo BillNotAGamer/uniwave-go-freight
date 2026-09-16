@@ -15,4 +15,29 @@ describe("internal export note projection", () => {
       shippingNotes.mawbHawbNo,
     );
   });
+
+  it("projects canonical mode-aware routing, commodity, and operational fields", () => {
+    expect(internalShippingNoteExportNoteSelect.portOfLoading).toBe(
+      shippingNotes.portOfLoading,
+    );
+    expect(internalShippingNoteExportNoteSelect.portOfDischarge).toBe(
+      shippingNotes.portOfDischarge,
+    );
+    expect(internalShippingNoteExportNoteSelect.mblNo).toBe(shippingNotes.mblNo);
+    expect(internalShippingNoteExportNoteSelect.hblNo).toBe(shippingNotes.hblNo);
+    expect(internalShippingNoteExportNoteSelect.vesselName).toBe(
+      shippingNotes.vesselName,
+    );
+    expect(internalShippingNoteExportNoteSelect.voyageNo).toBe(shippingNotes.voyageNo);
+    expect(internalShippingNoteExportNoteSelect.domesticOrigin).toBe(
+      shippingNotes.domesticOrigin,
+    );
+    expect(internalShippingNoteExportNoteSelect.domesticDestination).toBe(
+      shippingNotes.domesticDestination,
+    );
+    expect(internalShippingNoteExportNoteSelect.commodityHsCode).toBe(
+      shippingNotes.commodityHsCode,
+    );
+    expect(internalShippingNoteExportNoteSelect.flightNo).toBe(shippingNotes.flightNo);
+  });
 });

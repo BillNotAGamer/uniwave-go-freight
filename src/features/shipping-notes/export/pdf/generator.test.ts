@@ -107,11 +107,12 @@ function buildExportData(status: "checked" | "approved" | "locked" = "locked"): 
       mawbNo: "MAWB-123",
       hawbNo: "HAWB-456",
       mawbHawbNo: null,
-      shippingMode: "sea_export",
+      shippingMode: "air_export",
       shipperText: "Công ty Gửi Hàng",
       consigneeText: "Người nhận hàng",
       customerText: "Khách hàng Việt Nam",
       agentText: "Đại lý vận chuyển",
+      commodityHsCode: "Electronics / 8517",
       aol: "SGN",
       aod: "HAN",
       finalDestination: "Hà Nội",
@@ -123,6 +124,31 @@ function buildExportData(status: "checked" | "approved" | "locked" = "locked"): 
       status,
     },
     ...sections,
+  };
+}
+
+function buildOceanExportData(): InternalShippingNoteExportDto {
+  const exportData = buildExportData();
+
+  return {
+    ...exportData,
+    note: {
+      ...exportData.note,
+      jobsheetNo: "UNI2609001-SE",
+      mawbNo: null,
+      hawbNo: null,
+      mawbHawbNo: null,
+      shippingMode: "sea_export",
+      mblNo: "276301562",
+      hblNo: "SLT-2609001",
+      portOfLoading: "HCM",
+      portOfDischarge: "MIAMI",
+      finalDestination: "MIAMI",
+      vesselName: "MAERSK PORT KLANG",
+      voyageNo: "638N",
+      aol: null,
+      aod: null,
+    },
   };
 }
 
@@ -170,6 +196,8 @@ describe("internal PDF generator", () => {
     expect(text).toContain("Buying VAT");
     expect(text).toContain("Gross profit excl. VAT");
     expect(text).toContain("Khách hàng Việt Nam");
+    expect(text).toContain("COMMODITY / HS CODE");
+    expect(text).toContain("Electronics / 8517");
   });
 
   it("supports multi-page charge output without fixed XLSX row capacity", async () => {
@@ -184,5 +212,27 @@ describe("internal PDF generator", () => {
     expect(text).toContain("Selling long line 28");
     expect(text).toContain("Buying long line 28");
     expect(text).toContain("INTERNAL FINANCIAL SUMMARY");
+  });
+
+  it("uses Ocean bills, routing, and transport labels instead of Air labels", async () => {
+    const generated = await generateInternalShippingNotePdf(
+      buildOceanExportData(),
+      new Date("2026-09-01T12:00:00.000Z"),
+    );
+    const parsed = await pdfParse(generated.buffer);
+    const text = normalizeText(parsed.text);
+
+    expect(text).toContain("MBL / HBL");
+    expect(text).toContain("276301562 / SLT-2609001");
+    expect(text).toContain("POL");
+    expect(text).toContain("HCM");
+    expect(text).toContain("POD");
+    expect(text).toContain("MIAMI");
+    expect(text).toContain("FINAL DESTINATION");
+    expect(text).toContain("VESSEL");
+    expect(text).toContain("MAERSK PORT KLANG");
+    expect(text).toContain("VOYAGE");
+    expect(text).toContain("638N");
+    expect(text).not.toContain("MAWB / HAWB");
   });
 });
