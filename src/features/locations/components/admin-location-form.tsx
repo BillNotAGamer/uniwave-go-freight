@@ -12,9 +12,7 @@ import {
   type LocationAdminActionResult,
 } from "../actions";
 import {
-  ROUTING_LOCATION_APPLICABILITIES,
   ROUTING_LOCATION_TYPES,
-  type RoutingLocationApplicability,
 } from "../constants";
 import type { RoutingLocationDetail } from "../types";
 
@@ -27,16 +25,6 @@ const typeLabels: Record<(typeof ROUTING_LOCATION_TYPES)[number], string> = {
   inland: "Inland",
   other: "Other",
 };
-
-const applicabilityGroups: Array<{
-  label: string;
-  options: Array<{ value: RoutingLocationApplicability; label: string }>;
-}> = [
-  { label: "Ocean", options: [{ value: "sea_pol", label: "POL" }, { value: "sea_pod", label: "POD" }, { value: "sea_final_destination", label: "Final Destination" }] },
-  { label: "Air", options: [{ value: "air_aol", label: "AOL" }, { value: "air_aod", label: "AOD" }, { value: "air_final_destination", label: "Final Destination" }] },
-  { label: "Domestic", options: [{ value: "domestic_origin", label: "From" }, { value: "domestic_destination", label: "To" }] },
-  { label: "Custom", options: [{ value: "custom_origin", label: "From" }, { value: "custom_destination", label: "To" }] },
-];
 
 function SubmitButton({ children, pendingLabel, tone = "secondary" }: { children: React.ReactNode; pendingLabel: string; tone?: "primary" | "secondary" | "danger" }) {
   const { pending } = useFormStatus();
@@ -63,20 +51,16 @@ function LocationFields({ location }: { location?: RoutingLocationDetail }) {
   </div>;
 }
 
-function ApplicabilityChoices({ selected = [] }: { selected?: RoutingLocationApplicability[] }) {
-  return <fieldset className="space-y-3"><legend className="text-sm font-medium text-foreground">Shipping Note usage</legend><p className="text-sm text-muted-foreground">Select every context where this Location may be used. Type does not select these automatically.</p><div className="grid gap-3 md:grid-cols-2">{applicabilityGroups.map((group) => <div className="rounded-md border border-border p-3" key={group.label}><h3 className="text-sm font-semibold text-foreground">{group.label}</h3><div className="mt-2 space-y-2">{group.options.map((option) => <label className="flex items-center gap-2 text-sm text-foreground" key={option.value}><input defaultChecked={selected.includes(option.value)} name="applicabilities" type="checkbox" value={option.value} />{option.label}</label>)}</div></div>)}</div></fieldset>;
-}
-
 export function CreateLocationForm() {
   const router = useRouter();
   const [state, action] = useActionState(createRoutingLocationAdminAction, initialState);
   useEffect(() => { if (state.ok && state.locationId) router.push(`/admin/master-data/locations/${state.locationId}`); }, [router, state.locationId, state.ok]);
-  return <form action={action} className="space-y-6 rounded-lg border border-border bg-card p-5 shadow-sm"><LocationFields /><ApplicabilityChoices /><SubmitButton pendingLabel="Creating..." tone="primary">Create Location</SubmitButton><ActionMessage state={state} /></form>;
+  return <form action={action} className="space-y-6 rounded-lg border border-border bg-card p-5 shadow-sm"><LocationFields /><SubmitButton pendingLabel="Creating..." tone="primary">Create Location</SubmitButton><ActionMessage state={state} /></form>;
 }
 
 export function EditLocationForm({ location }: { location: RoutingLocationDetail }) {
   const [state, action] = useActionState(updateRoutingLocationAdminAction, initialState);
-  return <form action={action} className="space-y-6 rounded-lg border border-border bg-card p-5 shadow-sm"><input name="id" type="hidden" value={location.id} /><LocationFields location={location} /><ApplicabilityChoices selected={location.applicabilities} /><SubmitButton pendingLabel="Saving..." tone="primary">Save Location</SubmitButton><ActionMessage state={state} /></form>;
+  return <form action={action} className="space-y-6 rounded-lg border border-border bg-card p-5 shadow-sm"><input name="id" type="hidden" value={location.id} /><LocationFields location={location} /><SubmitButton pendingLabel="Saving..." tone="primary">Save Location</SubmitButton><ActionMessage state={state} /></form>;
 }
 
 export function LocationLifecycleControls({ location }: { location: RoutingLocationDetail }) {
@@ -86,5 +70,3 @@ export function LocationLifecycleControls({ location }: { location: RoutingLocat
   if (isDeactivated) return <form action={restoreAction} className="rounded-lg border border-amber-300 bg-amber-50 p-5 dark:border-amber-900/60 dark:bg-amber-950/30"><input name="id" type="hidden" value={location.id} /><h2 className="font-semibold text-foreground">Location is deactivated</h2><p className="mt-1 text-sm text-muted-foreground">Reactivate this same Location identity for future operational selection.</p><div className="mt-4"><SubmitButton pendingLabel="Reactivating..." tone="primary">Reactivate Location</SubmitButton></div><ActionMessage state={restoreState} /></form>;
   return <form action={deactivateAction} className="rounded-lg border border-red-200 bg-red-50 p-5 dark:border-red-900/60 dark:bg-red-950/30"><input name="id" type="hidden" value={location.id} /><h2 className="font-semibold text-foreground">Deactivate Location</h2><p className="mt-1 text-sm text-muted-foreground">It will no longer be available for future operational selection. Existing Shipping Notes remain unaffected.</p><label className="mt-4 flex items-center gap-2 text-sm text-foreground"><input name="confirmation" type="checkbox" value="confirmed" /> I understand this Location will be unavailable for future selection.</label><div className="mt-4"><SubmitButton pendingLabel="Deactivating..." tone="danger">Deactivate Location</SubmitButton></div><ActionMessage state={deactivateState} /></form>;
 }
-
-export const locationApplicabilityValues = ROUTING_LOCATION_APPLICABILITIES;

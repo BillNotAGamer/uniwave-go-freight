@@ -5,7 +5,6 @@ import { PageHeader } from "@/components/shell/page-header";
 import { EmptyState } from "@/components/ui/feedback";
 import {
   ROUTING_LOCATION_TYPES,
-  type RoutingLocationApplicability,
 } from "@/features/locations/constants";
 import { canMutateLocations } from "@/features/locations/permissions";
 import { listRoutingLocationsForAdmin } from "@/features/locations/queries";
@@ -24,19 +23,6 @@ const typeLabels = {
   inland: "Inland",
   other: "Other",
 } as const;
-
-const applicabilityLabels: Record<RoutingLocationApplicability, string> = {
-  sea_pol: "Ocean POL",
-  sea_pod: "Ocean POD",
-  sea_final_destination: "Ocean Final Destination",
-  air_aol: "Air AOL",
-  air_aod: "Air AOD",
-  air_final_destination: "Air Final Destination",
-  domestic_origin: "Domestic From",
-  domestic_destination: "Domestic To",
-  custom_origin: "Custom From",
-  custom_destination: "Custom To",
-};
 
 function firstValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -101,7 +87,7 @@ export default async function LocationListPage({ searchParams }: LocationListPag
     <>
       <PageHeader
         title="Master Data - Locations"
-        description="Manage reusable routing Locations and explicit Shipping Note usage contexts."
+        description="Manage reusable routing Location codes and names."
       >
         <Link
           className="rounded-md border border-indigo-600 bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500"
@@ -173,7 +159,6 @@ export default async function LocationListPage({ searchParams }: LocationListPag
                 <th className="border-b border-border px-3 py-3">Type</th>
                 <th className="border-b border-border px-3 py-3">Country</th>
                 <th className="border-b border-border px-3 py-3">Subdivision</th>
-                <th className="border-b border-border px-3 py-3">Applicabilities</th>
                 <th className="border-b border-border px-3 py-3">Status</th>
                 <th className="border-b border-border px-3 py-3"><span className="sr-only">Actions</span></th>
               </tr>
@@ -186,9 +171,6 @@ export default async function LocationListPage({ searchParams }: LocationListPag
                   <td className="border-b border-border/60 px-3 py-3 text-muted-foreground">{typeLabels[location.type]}</td>
                   <td className="border-b border-border/60 px-3 py-3 text-muted-foreground">{location.countryCode ?? "-"}</td>
                   <td className="border-b border-border/60 px-3 py-3 text-muted-foreground">{location.subdivision ?? "-"}</td>
-                  <td className="max-w-xs border-b border-border/60 px-3 py-3 text-muted-foreground">
-                    {location.applicabilities.map((applicability) => applicabilityLabels[applicability]).join(", ")}
-                  </td>
                   <td className="border-b border-border/60 px-3 py-3"><StatusBadge deletedAt={location.deletedAt} isActive={location.isActive} /></td>
                   <td className="border-b border-border/60 px-3 py-3">
                     <Link className="font-medium text-indigo-700 hover:underline dark:text-indigo-300" href={`/admin/master-data/locations/${location.id}`}>

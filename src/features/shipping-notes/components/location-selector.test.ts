@@ -8,7 +8,6 @@ vi.mock("../actions", () => ({
 
 import {
   getSelectedLocationFormValue,
-  getShippingNoteLocationApplicability,
   LocationSelector,
   LocationSelectorOptions,
 } from "./location-selector";
@@ -19,18 +18,6 @@ describe("LocationSelector", () => {
 
     expect(source).toContain("Enter manually");
     expect(source).not.toContain("Nhập thủ công");
-  });
-
-  it("maps every routing field to its explicit applicability without type inference", () => {
-    expect(getShippingNoteLocationApplicability("ocean", "portOfLoading")).toBe("sea_pol");
-    expect(getShippingNoteLocationApplicability("ocean", "portOfDischarge")).toBe("sea_pod");
-    expect(getShippingNoteLocationApplicability("ocean", "finalDestination")).toBe("sea_final_destination");
-    expect(getShippingNoteLocationApplicability("air", "aol")).toBe("air_aol");
-    expect(getShippingNoteLocationApplicability("air", "aod")).toBe("air_aod");
-    expect(getShippingNoteLocationApplicability("air", "finalDestination")).toBe("air_final_destination");
-    expect(getShippingNoteLocationApplicability("custom", "customOrigin")).toBe("custom_origin");
-    expect(getShippingNoteLocationApplicability("custom", "customDestination")).toBe("custom_destination");
-    expect(() => getShippingNoteLocationApplicability("domestic" as never, "domesticOrigin")).toThrow();
   });
 
   it.each([
@@ -51,9 +38,9 @@ describe("LocationSelector", () => {
     expect(html.indexOf("+ Add more")).toBeGreaterThan(html.indexOf(expected));
   });
 
-  it("passes contextual applicability and auto-selects the returned Location", () => {
+  it("auto-selects the returned Location without persisting field context", () => {
     const source = readFileSync(new URL("./location-selector.tsx", import.meta.url), "utf8");
-    expect(source).toContain("applicability,");
+    expect(source).not.toContain("applicability");
     expect(source).toContain("chooseLocation(result.location)");
     expect(source).toContain("setQuickAddOpen(false)");
     expect(source).toContain('role="dialog"');
@@ -69,7 +56,6 @@ describe("LocationSelector", () => {
 
   it("preserves an unmatched historical/manual value in the existing field name", () => {
     const markup = renderToStaticMarkup(createElement(LocationSelector, {
-      applicability: "sea_pol",
       initialValue: "LEGACY VALUE",
       label: "POL",
       name: "portOfLoading",

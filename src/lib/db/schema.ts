@@ -112,22 +112,6 @@ export const routingLocationTypeEnum = pgEnum("routing_location_type", [
   "other",
 ]);
 
-export const routingLocationApplicabilityEnum = pgEnum(
-  "routing_location_applicability",
-  [
-    "sea_pol",
-    "sea_pod",
-    "sea_final_destination",
-    "air_aol",
-    "air_aod",
-    "air_final_destination",
-    "domestic_origin",
-    "domestic_destination",
-    "custom_origin",
-    "custom_destination",
-  ],
-);
-
 export const users = pgTable("users", {
   id: idColumn(),
   email: text("email").notNull().unique(),
@@ -685,24 +669,6 @@ export const routingLocations = pgTable(
   ],
 );
 
-export const routingLocationApplicabilities = pgTable(
-  "routing_location_applicabilities",
-  {
-    id: idColumn(),
-    locationId: text("location_id")
-      .notNull()
-      .references(() => routingLocations.id, { onDelete: "cascade" }),
-    applicability: routingLocationApplicabilityEnum("applicability").notNull(),
-    createdAt,
-  },
-  (table) => [
-    index("routing_location_applicabilities_location_id_idx").on(table.locationId),
-    uniqueIndex(
-      "routing_location_applicabilities_location_id_applicability_uidx",
-    ).on(table.locationId, table.applicability),
-  ],
-);
-
 export const businessPartnersRelations = relations(
   businessPartners,
   ({ many }) => ({
@@ -778,23 +744,6 @@ export const partnerCategoryMembersRelations = relations(
     category: one(partnerCategories, {
       fields: [partnerCategoryMembers.categoryId],
       references: [partnerCategories.id],
-    }),
-  }),
-);
-
-export const routingLocationsRelations = relations(
-  routingLocations,
-  ({ many }) => ({
-    applicabilityMemberships: many(routingLocationApplicabilities),
-  }),
-);
-
-export const routingLocationApplicabilitiesRelations = relations(
-  routingLocationApplicabilities,
-  ({ one }) => ({
-    location: one(routingLocations, {
-      fields: [routingLocationApplicabilities.locationId],
-      references: [routingLocations.id],
     }),
   }),
 );
@@ -927,8 +876,3 @@ export type NewPartnerCategoryMember = typeof partnerCategoryMembers.$inferInser
 
 export type RoutingLocation = typeof routingLocations.$inferSelect;
 export type NewRoutingLocation = typeof routingLocations.$inferInsert;
-
-export type RoutingLocationApplicability =
-  typeof routingLocationApplicabilities.$inferSelect;
-export type NewRoutingLocationApplicability =
-  typeof routingLocationApplicabilities.$inferInsert;

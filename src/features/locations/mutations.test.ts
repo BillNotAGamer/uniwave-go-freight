@@ -5,14 +5,14 @@ const mocks = vi.hoisted(() => ({ transaction: vi.fn(), logAuditEvent: vi.fn() }
 vi.mock("@/lib/db/client", () => ({ db: { transaction: mocks.transaction } }));
 vi.mock("@/lib/audit/log", () => ({ logAuditEvent: mocks.logAuditEvent }));
 
-import type { User } from "@/lib/db/schema";
+import { routingLocations, type User } from "@/lib/db/schema";
 import { AuthorizationError } from "@/lib/permissions/require-permission";
 import { RoutingLocationConflictError, createRoutingLocation, deactivateRoutingLocation, quickCreateRoutingLocation, restoreRoutingLocation, updateRoutingLocation } from "./mutations";
 import type { CreateRoutingLocationInput } from "./validators";
 
 const now = new Date("2026-01-01T00:00:00Z");
 const row = { id: "location-1", code: "XY-01", name: "Synthetic Airport", type: "airport" as const, countryCode: "ZZ", subdivision: null, isActive: true, createdAt: now, updatedAt: now, deletedAt: null };
-const input: CreateRoutingLocationInput = { code: " xy-01 ", name: " Synthetic Airport ", type: "airport", countryCode: "zz", applicabilities: ["air_aol"] };
+const input: CreateRoutingLocationInput = { code: " xy-01 ", name: " Synthetic Airport ", type: "airport", countryCode: "zz" };
 
 function user(role: User["role"]): User {
   return { id: `${role}-1`, email: `${role}@example.test`, name: role, image: null, emailVerified: true, role, isActive: true, createdAt: now, updatedAt: now, deletedAt: null };
@@ -37,64 +37,65 @@ function transaction(tx: Record<string, unknown>) {
 describe("Routing Location mutations", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("rejects Sale and Accountant at the canonical mutation boundary", async () => {
-    await expect(createRoutingLocation(input, user("sale"))).rejects.toBeInstanceOf(AuthorizationError);
-    await expect(updateRoutingLocation("location-1", { ...input, id: "location-1" }, user("accountant"))).rejects.toBeInstanceOf(AuthorizationError);
-    await expect(deactivateRoutingLocation("location-1", user("sale"))).rejects.toBeInstanceOf(AuthorizationError);
-    await expect(restoreRoutingLocation("location-1", user("accountant"))).rejects.toBeInstanceOf(AuthorizationError);
+  it.each(["sale", "ops", "accountant"] as const)("rejects %s at every full-management boundary", async (role) => {
+    await expect(createRoutingLocation(input, user(role))).rejects.toBeInstanceOf(AuthorizationError);
+    await expect(updateRoutingLocation("location-1", { ...input, id: "location-1" }, user(role))).rejects.toBeInstanceOf(AuthorizationError);
+    await expect(deactivateRoutingLocation("location-1", user(role))).rejects.toBeInstanceOf(AuthorizationError);
+    await expect(restoreRoutingLocation("location-1", user(role))).rejects.toBeInstanceOf(AuthorizationError);
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
-  it("creates normalized identity and memberships transactionally with an attributed audit event", async () => {
+  it("creates normalized identity transactionally with an attributed audit event", async () => {
     const insert = vi.fn()
       .mockReturnValueOnce({ values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([row]) })) })
       .mockReturnValueOnce({ values: vi.fn().mockResolvedValue(undefined) })
       .mockReturnValueOnce({ values: vi.fn().mockResolvedValue(undefined) });
-    transaction({ insert, select: selectRows([{ applicability: "air_aol" }]) });
+    transaction({ insert });
 
     const result = await createRoutingLocation(input, user("admin"));
-    expect(result).toMatchObject({ code: "XY-01", countryCode: "ZZ", applicabilities: ["air_aol"] });
+    expect(result).toMatchObject({ code: "XY-01", countryCode: "ZZ" });
     expect(mocks.logAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ action: "routing_location.create", actorUserId: "admin-1" }));
   });
 
-  it("allows Sale quick-create with exactly the launching applicability and rejects Accountant", async () => {
+  it.each(["admin", "sale", "ops"] as const)("allows %s quick-create without membership writes and rejects Accountant", async (role) => {
     await expect(quickCreateRoutingLocation({
       code: "denied",
       name: "Denied",
       type: "other",
-      applicability: "air_aol",
     }, user("accountant"))).rejects.toBeInstanceOf(AuthorizationError);
 
     const insert = vi.fn()
       .mockReturnValueOnce({ values: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([row]) })) })
       .mockReturnValueOnce({ values: vi.fn().mockResolvedValue(undefined) });
-    transaction({ insert, select: selectRows([{ applicability: "sea_pol" }]) });
+    transaction({ insert });
 
     await expect(quickCreateRoutingLocation({
       code: " xy-01 ",
       name: " Synthetic Airport ",
       type: "airport",
       countryCode: "zz",
-      applicability: "sea_pol",
-    }, user("sale"))).resolves.toMatchObject({ applicabilities: ["sea_pol"] });
-    expect(insert).toHaveBeenCalledTimes(2);
+    }, user(role))).resolves.toMatchObject({ code: "XY-01" });
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(insert).toHaveBeenCalledWith(routingLocations);
     expect(mocks.logAuditEvent).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ action: "routing_location.create", actorUserId: "sale-1" }),
+      expect.objectContaining({ action: "routing_location.create", actorUserId: `${role}-1` }),
     );
   });
 
-  it("updates fields and synchronizes memberships transactionally", async () => {
+  it("updates identity metadata without membership writes", async () => {
     const updated = { ...row, name: "Synthetic Port", type: "seaport" as const };
     const insert = vi.fn()
       .mockReturnValueOnce({ values: vi.fn().mockResolvedValue(undefined) })
       .mockReturnValueOnce({ values: vi.fn().mockResolvedValue(undefined) });
     const update = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([updated]) })) })) }));
     const remove = vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) }));
-    transaction({ select: selectRows([row], [{ applicability: "air_aol" }], [{ applicability: "sea_pol" }]), insert, update, delete: remove });
+    transaction({ select: selectRows([row]), insert, update, delete: remove });
 
-    const result = await updateRoutingLocation("location-1", { ...input, id: "location-1", name: "Synthetic Port", type: "seaport", applicabilities: ["sea_pol"] }, user("admin"));
-    expect(result).toMatchObject({ name: "Synthetic Port", type: "seaport", applicabilities: ["sea_pol"] });
-    expect(remove).toHaveBeenCalled();
+    const result = await updateRoutingLocation("location-1", { ...input, id: "location-1", name: "Synthetic Port", type: "seaport" }, user("admin"));
+    expect(result).toMatchObject({ name: "Synthetic Port", type: "seaport" });
+    expect(remove).not.toHaveBeenCalled();
+    expect(insert).not.toHaveBeenCalled();
     expect(mocks.logAuditEvent).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ action: "routing_location.update", actorUserId: "admin-1" }));
   });
 
@@ -104,7 +105,7 @@ describe("Routing Location mutations", () => {
     const update = vi.fn()
       .mockReturnValueOnce({ set: vi.fn(() => ({ where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([deactivated]) })) })) })
       .mockReturnValueOnce({ set: vi.fn(() => ({ where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([restore]) })) })) });
-    transaction({ select: selectRows([row], [{ applicability: "air_aol" }], [{ applicability: "air_aol" }], [deactivated], [{ applicability: "air_aol" }], [{ applicability: "air_aol" }]), update });
+    transaction({ select: selectRows([row], [deactivated]), update });
 
     await expect(deactivateRoutingLocation("location-1", user("admin"))).resolves.toMatchObject({ isActive: false, deletedAt: now });
     await expect(restoreRoutingLocation("location-1", user("admin"))).resolves.toMatchObject({ isActive: true, deletedAt: null });

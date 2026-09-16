@@ -10,7 +10,6 @@ import {
   quickCreateRoutingLocation,
 } from "@/features/locations/mutations";
 import { searchRoutingLocations } from "@/features/locations/queries";
-import type { RoutingLocationApplicability } from "@/features/locations/constants";
 import {
   quickCreateRoutingLocationInputSchema,
   type QuickCreateRoutingLocationInput,
@@ -147,17 +146,14 @@ export async function searchShippingNoteServiceCatalogAction(
 
 /**
  * Safe, authenticated Location lookup for Shipping Note routing selection.
- * Applicability is the only selection authority; Location type is not passed
- * as a filter and therefore cannot be inferred by the UI.
+ * All active reusable Locations are eligible, independent of mode or type.
  */
 export async function searchShippingNoteLocationsAction(
   searchTerm: string,
-  applicability: RoutingLocationApplicability,
 ): Promise<ShippingNoteLocationLookupResult[]> {
   const session = await requireAuthenticatedUser();
   const parsed = shippingNoteLocationLookupInputSchema.safeParse({
     searchTerm,
-    applicability,
   });
 
   if (!parsed.success) {
@@ -165,7 +161,6 @@ export async function searchShippingNoteLocationsAction(
   }
 
   const locations = await searchRoutingLocations(parsed.data.searchTerm, session.user, {
-    applicability: parsed.data.applicability,
     limit: 12,
   });
 

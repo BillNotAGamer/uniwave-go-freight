@@ -1,5 +1,4 @@
 import type {
-  RoutingLocationApplicability,
   RoutingLocationLifecycleStatus,
   RoutingLocationType,
 } from "./constants";
@@ -15,7 +14,6 @@ export interface RoutingLocationDetail {
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
-  applicabilities: RoutingLocationApplicability[];
 }
 
 export type RoutingLocationListItem = RoutingLocationDetail;

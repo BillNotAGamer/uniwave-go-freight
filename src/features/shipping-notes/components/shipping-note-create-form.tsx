@@ -21,7 +21,6 @@ import {
   SHIPPING_NOTE_PARTY_SELECTOR_FIELDS,
 } from "./shipping-note-create-fields";
 import {
-  getShippingNoteLocationApplicability,
   LocationSelector,
 } from "./location-selector";
 import { PartnerSelector } from "./partner-selector";
@@ -167,7 +166,6 @@ export function ShippingNoteCreateForm({ action }: { action: CreateFormAction })
           <TextField key={field.name} label={field.label} name={field.name} required />
         ) : (
           <LocationSelector
-            applicability={getShippingNoteLocationApplicability(shipmentType!, field.name)}
             key={field.name}
             label={field.label}
             name={field.name}

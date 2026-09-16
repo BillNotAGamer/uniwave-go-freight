@@ -4,7 +4,6 @@ import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import {
   ROUTING_LOCATION_TYPES,
-  type RoutingLocationApplicability,
   type RoutingLocationType,
 } from "@/features/locations/constants";
 
@@ -14,43 +13,8 @@ import {
   type ShippingNoteLocationLookupResult,
 } from "../actions";
 
-export type LocationSelectorMode = "ocean" | "air" | "custom";
-
-const applicabilityByModeAndField: Record<
-  LocationSelectorMode,
-  Record<string, RoutingLocationApplicability>
-> = {
-  ocean: {
-    portOfLoading: "sea_pol",
-    portOfDischarge: "sea_pod",
-    finalDestination: "sea_final_destination",
-  },
-  air: {
-    aol: "air_aol",
-    aod: "air_aod",
-    finalDestination: "air_final_destination",
-  },
-  custom: {
-    customOrigin: "custom_origin",
-    customDestination: "custom_destination",
-  },
-};
-
 const controlClassName =
   "mt-1 h-10 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring";
-
-const applicabilityLabels: Record<RoutingLocationApplicability, string> = {
-  sea_pol: "Ocean POL",
-  sea_pod: "Ocean POD",
-  sea_final_destination: "Ocean Final Destination",
-  air_aol: "Air AOL",
-  air_aod: "Air AOD",
-  air_final_destination: "Air Final Destination",
-  domestic_origin: "Domestic From",
-  domestic_destination: "Domestic To",
-  custom_origin: "Custom From",
-  custom_destination: "Custom To",
-};
 
 function formatLocationType(type: string): string {
   return type.length > 0 ? `${type[0]?.toUpperCase()}${type.slice(1)}` : "Location";
@@ -74,7 +38,7 @@ export function LocationSelectorOptions({
       <li className="px-3 py-2 text-sm text-muted-foreground">No matching master locations.</li>
     ) : (
       results.map((location, index) => (
-        <li aria-selected={activeIndex === index} key={`${location.code}-${location.name}`} role="option">
+        <li aria-selected={activeIndex === index} key={`${location.type}-${location.code}`} role="option">
           <button
             className={`w-full rounded px-3 py-2 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               activeIndex === index ? "bg-muted" : "hover:bg-muted"
@@ -105,18 +69,6 @@ export function LocationSelectorOptions({
   </>;
 }
 
-/** Maps routing field and active mode to the sole authoritative applicability. */
-export function getShippingNoteLocationApplicability(
-  mode: LocationSelectorMode,
-  fieldName: string,
-): RoutingLocationApplicability {
-  const applicability = applicabilityByModeAndField[mode][fieldName];
-  if (!applicability) {
-    throw new Error(`No Location applicability is defined for ${mode}:${fieldName}.`);
-  }
-  return applicability;
-}
-
 /** Selection intentionally persists only the canonical Location code. */
 export function getSelectedLocationFormValue(
   location: Pick<ShippingNoteLocationLookupResult, "code">,
@@ -125,7 +77,6 @@ export function getSelectedLocationFormValue(
 }
 
 type LocationSelectorProps = {
-  applicability: RoutingLocationApplicability;
   initialValue?: string | null;
   label: string;
   name: string;
@@ -133,7 +84,6 @@ type LocationSelectorProps = {
 };
 
 export function LocationSelector({
-  applicability,
   initialValue = "",
   label,
   name,
@@ -175,7 +125,7 @@ export function LocationSelector({
     const timer = window.setTimeout(() => {
       startTransition(async () => {
         try {
-          const nextResults = await searchShippingNoteLocationsAction(query, applicability);
+          const nextResults = await searchShippingNoteLocationsAction(query);
           if (currentRequest !== requestId.current) return;
           setResults(nextResults);
           setOpen(true);
@@ -191,7 +141,7 @@ export function LocationSelector({
     }, 180);
 
     return () => window.clearTimeout(timer);
-  }, [applicability, displayValue, selected]);
+  }, [displayValue, selected]);
 
   function chooseLocation(location: ShippingNoteLocationLookupResult) {
     requestId.current += 1;
@@ -234,7 +184,6 @@ export function LocationSelector({
           type: quickAddType as RoutingLocationType,
           countryCode: quickAddCountryCode,
           subdivision: quickAddSubdivision,
-          applicability,
         });
         if (!result.ok) {
           setQuickAddError(result.error);
@@ -349,7 +298,7 @@ export function LocationSelector({
           <div className="grid w-full max-w-md gap-4 rounded-lg border border-border bg-card p-5 shadow-xl">
             <div>
               <h2 className="text-base font-semibold text-foreground" id={quickAddTitleId}>Add Location</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Create a reusable Location for this routing field and select it here.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Create a reusable Location and select it here.</p>
             </div>
             <label className="grid gap-1 text-sm font-medium text-foreground" htmlFor={quickAddCodeId}>
               Location Code
@@ -374,7 +323,6 @@ export function LocationSelector({
               Subdivision
               <input className={controlClassName} maxLength={255} onChange={(event) => setQuickAddSubdivision(event.target.value)} type="text" value={quickAddSubdivision} />
             </label>
-            <p className="text-xs text-muted-foreground">Shipping Note usage: {applicabilityLabels[applicability]}</p>
             {quickAddError ? <p className="text-sm text-red-700 dark:text-red-400" role="alert">{quickAddError}</p> : null}
             <div className="flex justify-end gap-2">
               <button className="rounded-md border border-border px-3 py-2 text-sm" disabled={isQuickAdding} onClick={() => setQuickAddOpen(false)} type="button">Cancel</button>

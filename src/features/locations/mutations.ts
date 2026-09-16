@@ -4,9 +4,8 @@ import { randomUUID } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { logAuditEvent } from "@/lib/audit/log";
-import { db, type Database } from "@/lib/db/client";
+import { db } from "@/lib/db/client";
 import {
-  routingLocationApplicabilities,
   routingLocations,
   type User as DbUser,
 } from "@/lib/db/schema";
@@ -35,8 +34,6 @@ export class RoutingLocationConflictError extends Error {
   }
 }
 
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
-
 function isUniqueConstraintError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "23505";
 }
@@ -44,36 +41,6 @@ function isUniqueConstraintError(error: unknown): boolean {
 function mapLocationWriteError(error: unknown): never {
   if (isUniqueConstraintError(error)) throw new RoutingLocationConflictError();
   throw error;
-}
-
-async function loadDetail(
-  tx: Transaction,
-  location: Omit<RoutingLocationDetail, "applicabilities">,
-): Promise<RoutingLocationDetail> {
-  const memberships = await tx
-    .select({ applicability: routingLocationApplicabilities.applicability })
-    .from(routingLocationApplicabilities)
-    .where(eq(routingLocationApplicabilities.locationId, location.id));
-
-  return { ...location, applicabilities: memberships.map((membership) => membership.applicability) };
-}
-
-async function replaceApplicabilities(
-  tx: Transaction,
-  locationId: string,
-  applicabilities: RoutingLocationDetail["applicabilities"],
-  now: Date,
-): Promise<void> {
-  await tx.delete(routingLocationApplicabilities)
-    .where(eq(routingLocationApplicabilities.locationId, locationId));
-  for (const applicability of applicabilities) {
-    await tx.insert(routingLocationApplicabilities).values({
-      id: randomUUID(),
-      locationId,
-      applicability,
-      createdAt: now,
-    });
-  }
 }
 
 async function createRoutingLocationRecord(
@@ -99,16 +66,7 @@ async function createRoutingLocationRecord(
       }).returning();
       if (!location) throw new Error("Failed to create routing Location.");
 
-      for (const applicability of parsed.applicabilities) {
-        await tx.insert(routingLocationApplicabilities).values({
-          id: randomUUID(),
-          locationId: location.id,
-          applicability,
-          createdAt: now,
-        });
-      }
-
-      const detail = await loadDetail(tx, location);
+      const detail = location;
       await logAuditEvent(tx, {
         actorUserId: actor.id,
         action: "routing_location.create",
@@ -137,14 +95,7 @@ export async function quickCreateRoutingLocation(
 ): Promise<RoutingLocationDetail> {
   assertCanQuickCreateLocations(actor);
   const parsed = quickCreateRoutingLocationInputSchema.parse(input);
-  return createRoutingLocationRecord({
-    code: parsed.code,
-    name: parsed.name,
-    type: parsed.type,
-    countryCode: parsed.countryCode,
-    subdivision: parsed.subdivision,
-    applicabilities: [parsed.applicability],
-  }, actor);
+  return createRoutingLocationRecord(parsed, actor);
 }
 
 export async function updateRoutingLocation(
@@ -160,7 +111,7 @@ export async function updateRoutingLocation(
       const [current] = await tx.select().from(routingLocations)
         .where(and(eq(routingLocations.id, id), isNull(routingLocations.deletedAt))).limit(1);
       if (!current) throw new Error("Routing Location not found or has been deactivated.");
-      const before = await loadDetail(tx, current);
+      const before = current;
       const now = new Date();
       const [updated] = await tx.update(routingLocations).set({
         code: parsed.code,
@@ -172,8 +123,7 @@ export async function updateRoutingLocation(
       }).where(eq(routingLocations.id, id)).returning();
       if (!updated) throw new Error("Failed to update routing Location.");
 
-      await replaceApplicabilities(tx, id, parsed.applicabilities, now);
-      const detail = await loadDetail(tx, updated);
+      const detail = updated;
       await logAuditEvent(tx, {
         actorUserId: actor.id,
         action: "routing_location.update",
@@ -200,7 +150,7 @@ export async function deactivateRoutingLocation(
     const [current] = await tx.select().from(routingLocations)
       .where(and(eq(routingLocations.id, id), isNull(routingLocations.deletedAt))).limit(1);
     if (!current) throw new Error("Routing Location not found or already deactivated.");
-    const before = await loadDetail(tx, current);
+    const before = current;
     const now = new Date();
     const [updated] = await tx.update(routingLocations).set({
       isActive: false,
@@ -208,7 +158,7 @@ export async function deactivateRoutingLocation(
       updatedAt: now,
     }).where(eq(routingLocations.id, id)).returning();
     if (!updated) throw new Error("Failed to deactivate routing Location.");
-    const detail = await loadDetail(tx, updated);
+    const detail = updated;
     await logAuditEvent(tx, {
       actorUserId: actor.id,
       action: "routing_location.deactivate",
@@ -232,7 +182,7 @@ export async function restoreRoutingLocation(
     const [current] = await tx.select().from(routingLocations)
       .where(eq(routingLocations.id, id)).limit(1);
     if (!current) throw new Error("Routing Location not found.");
-    const before = await loadDetail(tx, current);
+    const before = current;
     const now = new Date();
     const [updated] = await tx.update(routingLocations).set({
       isActive: true,
@@ -240,7 +190,7 @@ export async function restoreRoutingLocation(
       updatedAt: now,
     }).where(eq(routingLocations.id, id)).returning();
     if (!updated) throw new Error("Failed to restore routing Location.");
-    const detail = await loadDetail(tx, updated);
+    const detail = updated;
     await logAuditEvent(tx, {
       actorUserId: actor.id,
       action: "routing_location.restore",

@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./location-selector", () => ({
-  getShippingNoteLocationApplicability: (_mode: string, fieldName: string) => fieldName,
   LocationSelector: ({ label, name }: { label: string; name: string }) => `LOCATION_SELECTOR:${name}:${label}`,
 }));
 vi.mock("./partner-selector", () => ({
@@ -29,6 +28,6 @@ describe("Shipping Note create routing fields", () => {
 
     expect(source).toContain('shipmentType === "domestic" ? (');
     expect(source).toContain("<LocationSelector");
-    expect(source).toContain("getShippingNoteLocationApplicability(shipmentType!, field.name)");
+    expect(source).not.toContain("applicability");
   });
 });

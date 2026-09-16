@@ -208,12 +208,11 @@ describe("Shipping Note Location lookup action", () => {
       subdivision: null,
       isActive: true,
       deletedAt: null,
-      applicabilities: ["air_aol"],
       createdAt: new Date(),
       updatedAt: new Date(),
     }]);
 
-    await expect(searchShippingNoteLocationsAction(" Synthetic ", "air_aol")).resolves.toEqual([{
+    await expect(searchShippingNoteLocationsAction(" Synthetic ")).resolves.toEqual([{
       code: "SYN-AIR",
       name: "Synthetic Other Location",
       type: "other",
@@ -222,15 +221,15 @@ describe("Shipping Note Location lookup action", () => {
     expect(mocks.searchRoutingLocations).toHaveBeenCalledWith(
       "Synthetic",
       actor,
-      { applicability: "air_aol", limit: 12 },
+      { limit: 12 },
     );
   });
 
-  it("rejects invalid applicability without querying and never infers a type filter", async () => {
+  it("rejects blank search without querying", async () => {
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: { id: "sale-1", role: "sale" } });
 
     await expect(
-      searchShippingNoteLocationsAction("Synthetic", "airport" as never),
+      searchShippingNoteLocationsAction("  "),
     ).resolves.toEqual([]);
     expect(mocks.searchRoutingLocations).not.toHaveBeenCalled();
   });
@@ -279,11 +278,7 @@ describe("Shipping Note Master Data quick-create actions", () => {
     }, actor);
   });
 
-  it.each([
-    ["admin", "sea_pol"],
-    ["sale", "air_aol"],
-    ["ops", "custom_origin"],
-  ] as const)("allows %s to quick-create a Location with exact %s applicability", async (role, applicability) => {
+  it.each(["admin", "sale", "ops"] as const)("allows %s to quick-create a catalog Location", async (role) => {
     const actor = { id: `${role}-1`, role };
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: actor });
 
@@ -292,7 +287,6 @@ describe("Shipping Note Master Data quick-create actions", () => {
       name: " New Location ",
       type: "other",
       countryCode: " vn ",
-      applicability,
     })).resolves.toEqual({
       ok: true,
       location: { code: "NEW", name: "New Location", type: "other", countryCode: "VN" },
@@ -302,7 +296,6 @@ describe("Shipping Note Master Data quick-create actions", () => {
       name: "New Location",
       type: "other",
       countryCode: "VN",
-      applicability,
     }, actor);
   });
 
@@ -320,7 +313,6 @@ describe("Shipping Note Master Data quick-create actions", () => {
       code: "DENIED",
       name: "Denied",
       type: "other",
-      applicability: "air_aol",
     })).resolves.toEqual({
       ok: false,
       error: "You do not have permission to quick-create Locations.",
@@ -338,7 +330,6 @@ describe("Shipping Note Master Data quick-create actions", () => {
       code: "",
       name: "",
       type: "other",
-      applicability: "sea_pol",
     })).resolves.toEqual({
       ok: false,
       error: "Location code is required.",
@@ -348,7 +339,7 @@ describe("Shipping Note Master Data quick-create actions", () => {
     expect(mocks.quickCreateRoutingLocation).not.toHaveBeenCalled();
   });
 
-  it("returns a safe Location identity conflict without changing applicability or type", async () => {
+  it("returns a safe Location identity conflict without changing type", async () => {
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: { id: "sale-1", role: "sale" } });
     mocks.quickCreateRoutingLocation.mockRejectedValue(new RoutingLocationConflictError());
 
@@ -356,13 +347,12 @@ describe("Shipping Note Master Data quick-create actions", () => {
       code: "SGN",
       name: "Synthetic",
       type: "other",
-      applicability: "air_aol",
     })).resolves.toEqual({
       ok: false,
       error: "A Location with this type and code already exists.",
     });
     expect(mocks.quickCreateRoutingLocation).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "other", applicability: "air_aol" }),
+      expect.objectContaining({ type: "other" }),
       expect.anything(),
     );
   });

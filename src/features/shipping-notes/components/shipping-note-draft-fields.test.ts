@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./location-selector", () => ({
-  getShippingNoteLocationApplicability: (_mode: string, fieldName: string) => fieldName,
   LocationSelector: ({ label, name }: { label: string; name: string }) => `LOCATION_SELECTOR:${name}:${label}`,
 }));
 vi.mock("./partner-selector", () => ({

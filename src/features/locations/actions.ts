@@ -28,10 +28,6 @@ function readString(formData: Pick<FormData, "get">, key: string): string | unde
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
 }
 
-function readStrings(formData: Pick<FormData, "getAll">, key: string): string[] {
-  return formData.getAll(key).filter((value): value is string => typeof value === "string");
-}
-
 function revalidateLocations(id?: string): void {
   revalidatePath("/admin/master-data/locations");
   revalidatePath("/admin/master-data/locations/new");
@@ -59,7 +55,6 @@ export async function createRoutingLocationAdminAction(
     type: readString(formData, "type"),
     countryCode: readString(formData, "countryCode"),
     subdivision: readString(formData, "subdivision"),
-    applicabilities: readStrings(formData, "applicabilities"),
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid Location details." };
@@ -85,7 +80,6 @@ export async function updateRoutingLocationAdminAction(
     type: readString(formData, "type"),
     countryCode: readString(formData, "countryCode"),
     subdivision: readString(formData, "subdivision"),
-    applicabilities: readStrings(formData, "applicabilities"),
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid Location details." };

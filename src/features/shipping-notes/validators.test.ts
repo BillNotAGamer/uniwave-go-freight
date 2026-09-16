@@ -60,6 +60,29 @@ const validSeaInput = {
 } as const;
 
 describe("shipping note validation schemas", () => {
+  it.each(["air_import", "air_export", "sea_import", "sea_export"] as const)(
+    "accepts unlisted manual routing on %s without a Master Data lookup",
+    (shippingMode) => {
+      const air = shippingMode.startsWith("air_");
+      const input = {
+        ...(air ? validAirInput : validSeaInput),
+        shippingMode,
+        ...(air
+          ? { aol: " Unlisted origin ", aod: "Unlisted destination" }
+          : { portOfLoading: " Unlisted origin ", portOfDischarge: "Unlisted destination" }),
+        finalDestination: "Unlisted final destination",
+      };
+      for (const parsed of [
+        shippingNoteDraftInputSchema.parse(input),
+        updateShippingNoteDraftInputSchema.parse({ ...input, id: "note-1" }),
+      ]) {
+        expect(air ? parsed.aol : parsed.portOfLoading).toBe("Unlisted origin");
+        expect(air ? parsed.aod : parsed.portOfDischarge).toBe("Unlisted destination");
+        expect(parsed.finalDestination).toBe("Unlisted final destination");
+      }
+    },
+  );
+
   it("accepts a trimmed Custom mode name without transport-family routing", () => {
     const parsed = shippingNoteDraftInputSchema.parse({
       jobsheetNo: "CUSTOM-1",

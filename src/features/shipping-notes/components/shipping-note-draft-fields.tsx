@@ -11,7 +11,6 @@ import {
 } from "../mode-rules";
 import type { ShippingNoteDetail } from "../types";
 import {
-  getShippingNoteLocationApplicability,
   LocationSelector,
 } from "./location-selector";
 import { PartnerSelector } from "./partner-selector";
@@ -85,14 +84,14 @@ export function ShippingNoteDraftFields({ values, includeJobsheetNo = true }: Sh
 
     <Section title="Routing">
       {shipmentFamily === "ocean" ? <>
-        <LocationSelector applicability={getShippingNoteLocationApplicability("ocean", "portOfLoading")} initialValue={values?.portOfLoading} label="POL" name="portOfLoading" required />
-        <LocationSelector applicability={getShippingNoteLocationApplicability("ocean", "portOfDischarge")} initialValue={values?.portOfDischarge} label="POD" name="portOfDischarge" required />
-        <div className="sm:col-span-2"><LocationSelector applicability={getShippingNoteLocationApplicability("ocean", "finalDestination")} initialValue={values?.finalDestination} label="Final Destination" name="finalDestination" required /></div>
+        <LocationSelector initialValue={values?.portOfLoading} label="POL" name="portOfLoading" required />
+        <LocationSelector initialValue={values?.portOfDischarge} label="POD" name="portOfDischarge" required />
+        <div className="sm:col-span-2"><LocationSelector initialValue={values?.finalDestination} label="Final Destination" name="finalDestination" required /></div>
       </> : null}
       {shipmentFamily === "air" ? <>
-        <LocationSelector applicability={getShippingNoteLocationApplicability("air", "aol")} initialValue={values?.aol} label="AOL" name="aol" required />
-        <LocationSelector applicability={getShippingNoteLocationApplicability("air", "aod")} initialValue={values?.aod} label="AOD" name="aod" required />
-        <div className="sm:col-span-2"><LocationSelector applicability={getShippingNoteLocationApplicability("air", "finalDestination")} initialValue={values?.finalDestination} label="Final Destination" name="finalDestination" required /></div>
+        <LocationSelector initialValue={values?.aol} label="AOL" name="aol" required />
+        <LocationSelector initialValue={values?.aod} label="AOD" name="aod" required />
+        <div className="sm:col-span-2"><LocationSelector initialValue={values?.finalDestination} label="Final Destination" name="finalDestination" required /></div>
       </> : null}
       {shipmentFamily === "domestic" ? <>
         <TextField defaultValue={values?.domesticOrigin} label="From" name="domesticOrigin" required />
@@ -100,8 +99,8 @@ export function ShippingNoteDraftFields({ values, includeJobsheetNo = true }: Sh
       </> : null}
       {shipmentFamily === "custom" ? <>
         <div className="sm:col-span-2"><TextField defaultValue={values?.customModeName} label="Mode" name="customModeName" required /></div>
-        <LocationSelector applicability={getShippingNoteLocationApplicability("custom", "customOrigin")} initialValue={values?.customOrigin} label="From" name="customOrigin" />
-        <LocationSelector applicability={getShippingNoteLocationApplicability("custom", "customDestination")} initialValue={values?.customDestination} label="To" name="customDestination" />
+        <LocationSelector initialValue={values?.customOrigin} label="From" name="customOrigin" />
+        <LocationSelector initialValue={values?.customDestination} label="To" name="customDestination" />
       </> : null}
     </Section>
 
