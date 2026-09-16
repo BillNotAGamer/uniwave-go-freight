@@ -16,9 +16,10 @@ export type ShippingNoteListItem = {
   consigneeText: string | null;
   status: ShippingNoteStatus;
   createdAt: Date;
+  createdByName: string | null;
 };
 
-export type ShippingNoteDetail = ShippingNoteListItem & {
+export type ShippingNoteDetail = Omit<ShippingNoteListItem, "createdByName"> & {
   commodityHsCode: string | null;
   commodity?: string | null;
   hsCode?: string | null;

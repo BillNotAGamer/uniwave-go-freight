@@ -158,6 +158,11 @@ export const shippingNoteDetailWithCreatorSelect = {
   },
 } as const;
 
+export const shippingNoteListWithCreatorSelect = {
+  ...shippingNoteListColumns,
+  createdByName: users.name,
+} as const;
+
 export async function listShippingNotesForUser(
   user: DbUser,
   filters: ShippingNotesListFilters = {},
@@ -165,8 +170,9 @@ export async function listShippingNotesForUser(
   const where = buildShippingNotesListWhere(user, filters);
 
   return db
-    .select(shippingNoteListColumns)
+    .select(shippingNoteListWithCreatorSelect)
     .from(shippingNotes)
+    .leftJoin(users, eq(users.id, shippingNotes.createdById))
     .where(where)
     .orderBy(desc(shippingNotes.createdAt));
 }

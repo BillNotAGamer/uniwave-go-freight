@@ -13,6 +13,8 @@ vi.mock("@/lib/db/client", () => ({
 
 import {
   buildShippingNotesListWhere,
+  listShippingNotesForUser,
+  shippingNoteListWithCreatorSelect,
   escapeShippingNoteJobsheetLikePattern,
   getShippingNoteById,
   getShippingNoteDetailForUser,
@@ -88,7 +90,7 @@ describe("C4 Shipping Note historical read model", () => {
     };
     const limit = vi.fn().mockResolvedValue([storedNote]);
     const where = vi.fn(() => ({ limit }));
-    const leftJoin = vi.fn(() => ({ where }));
+    const leftJoin = vi.fn().mockReturnValue({ where });
     const from = vi.fn(() => ({ leftJoin }));
     mocks.select.mockReturnValue({ from });
 
@@ -161,5 +163,26 @@ describe("C7 Shipping Note list query", () => {
     expect(saleQuery.sql).toContain('"shipping_notes"."created_by_id" = $1');
     expect(saleQuery.params).toEqual(["sale-1", "%UGF-26%"]);
     expect(adminQuery.sql).not.toContain('"shipping_notes"."created_by_id"');
+  });
+});
+
+
+describe("Shipping Note list creator relation", () => {
+  it("projects only the actual creator account name through one left join", async () => {
+    vi.clearAllMocks();
+    const rows = [{ id: "note-1", createdByName: "Haru Nguyen" }, { id: "note-2", createdByName: "Other Creator" }];
+    const orderBy = vi.fn().mockResolvedValue(rows);
+    const where = vi.fn().mockReturnValue({ orderBy });
+    const leftJoin = vi.fn().mockReturnValue({ where });
+    const from = vi.fn(() => ({ leftJoin }));
+    mocks.select.mockReturnValue({ from });
+    expect(await listShippingNotesForUser(adminUser, { jobsheet: "UGF" })).toEqual(rows);
+    expect(mocks.select).toHaveBeenCalledExactlyOnceWith(shippingNoteListWithCreatorSelect);
+    expect(shippingNoteListWithCreatorSelect.createdByName).toBe(users.name);
+    expect(leftJoin).toHaveBeenCalledExactlyOnceWith(users, expect.anything());
+    const join = new PgDialect().sqlToQuery(leftJoin.mock.calls[0][1]);
+    expect(join.sql).toBe('"users"."id" = "shipping_notes"."created_by_id"');
+    expect(new PgDialect().sqlToQuery(where.mock.calls[0][0]).params).toEqual(["%UGF%"]);
+    expect(orderBy).toHaveBeenCalledOnce();
   });
 });

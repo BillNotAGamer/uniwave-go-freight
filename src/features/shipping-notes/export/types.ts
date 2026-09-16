@@ -35,6 +35,9 @@ export type InternalShippingNoteExportDto = {
   note: {
     id: string;
     jobsheetNo: string;
+    createdByName?: string | null;
+    checkedByName?: string | null;
+    approvedByName?: string | null;
     mawbNo: string | null;
     hawbNo: string | null;
     mawbHawbNo: string | null;

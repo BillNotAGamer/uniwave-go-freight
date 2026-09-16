@@ -456,3 +456,51 @@ describe("internal XLSX generator tax-complete v2", () => {
     expect(worksheet?.getCell("E38").numFmt).toBe("#,##0.00");
   });
 });
+
+
+describe("XLSX workflow sign-off account names", () => {
+  it.each([
+    ["Haru Nguyen", "Owner Administrator", "Owner Administrator"],
+    ["Different Creator", "Actual Checker", "Actual Approver"],
+    ["Haru Nguyen", null, null],
+    [null, undefined, ""],
+  ])("writes canonical names and blank unknown actors: %s / %s / %s", async (creator, checker, approver) => {
+    const { generateInternalShippingNoteXlsx } = await import("./generator");
+    const data = buildExportData();
+    Object.assign(data.note, { createdByName: creator, checkedByName: checker, approvedByName: approver });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load((await generateInternalShippingNoteXlsx(data)).buffer);
+    const sheet = workbook.getWorksheet("AK")!;
+    expect(sheet.getCell("A42").value).toBe(creator || null);
+    expect(sheet.getCell("C42").value).toBe(checker || null);
+    expect(sheet.getCell("D42").value).toBe(approver || null);
+    expect(sheet.getCell("A41").value).toBe("Done by ");
+    expect(sheet.getCell("C41").value).toBe("CHECKED BY");
+    expect(sheet.getCell("D41").value).toBe("Approved by");
+    expect(["A42", "C42", "D42"].map((address) => sheet.getCell(address).value)).not.toContain("Sales");
+    expect(["A42", "C42", "D42"].map((address) => sheet.getCell(address).value)).not.toContain("Director");
+    for (const address of ["A46", "C46", "D46"]) expect(sheet.getCell(address).value).toBeNull();
+  });
+
+  it("changes only sign-off cells, preserving formulas, VAT, profit, and currency formats", async () => {
+    const { generateInternalShippingNoteXlsx } = await import("./generator");
+    const data = buildExportData();
+    const before = new ExcelJS.Workbook();
+    const after = new ExcelJS.Workbook();
+    await before.xlsx.load((await generateInternalShippingNoteXlsx(data)).buffer);
+    Object.assign(data.note, { createdByName: "Haru Nguyen", checkedByName: "Owner Administrator", approvedByName: "Owner Administrator" });
+    await after.xlsx.load((await generateInternalShippingNoteXlsx(data)).buffer);
+    function cells(workbook: ExcelJS.Workbook) {
+      const values: { sheet: string; address: string; value: ExcelJS.CellValue; numFmt: string }[] = [];
+      workbook.eachSheet((sheet) => sheet.eachRow((row) => row.eachCell((cell) => {
+        if (sheet.name === "AK" && ["A42", "C42", "D42"].includes(cell.address)) return;
+        values.push({ sheet: sheet.name, address: cell.address, value: cell.value, numFmt: cell.numFmt });
+      })));
+      return values;
+    }
+    expect(cells(after)).toEqual(cells(before));
+    expect(after.getWorksheet("AK")!.getCell("E25").value).toMatchObject({ formula: "SUM(D17:D24)" });
+    expect(after.getWorksheet("AK")!.getCell("E37").value).toMatchObject({ formula: "SUM(D26:D36)" });
+    expect(after.getWorksheet("AK")!.getCell("E38").value).toMatchObject({ formula: "E25-E37" });
+  });
+});

@@ -69,3 +69,8 @@ export function formatDetailDateTime(
 
   return `${day} ${month} ${year}, ${hours}:${minutes}`;
 }
+
+/** Existing account display name only; callers choose their empty-value convention. */
+export function formatAccountName(name: string | null | undefined): string | null {
+  return name?.trim() || null;
+}

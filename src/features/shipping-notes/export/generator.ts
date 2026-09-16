@@ -16,6 +16,7 @@ import {
   INTERNAL_XLSX_TEMPLATE_RELATIVE_PATH,
   INTERNAL_XLSX_BUYING_ROWS,
   INTERNAL_XLSX_HEADER_CELLS,
+  INTERNAL_XLSX_SIGN_OFF_CELLS,
   INTERNAL_XLSX_PROFIT_CELL,
   INTERNAL_XLSX_SELLING_ROWS,
   INTERNAL_XLSX_TAX_DETAIL_BUYING_ROWS,
@@ -38,6 +39,7 @@ import {
   getExportCommodityValue,
   getExportHsCodeValue,
 } from "./presentation";
+import { formatAccountName } from "../presentation";
 import { getShippingModePresentation } from "../mode-rules";
 import type {
   InternalExportBuyingCharge,
@@ -614,7 +616,13 @@ function writeHeader(
   }
 }
 
-function clearStaleSignOffIdentities(worksheet: ExcelJS.Worksheet): void {
+function writeSignOffIdentities(
+  worksheet: ExcelJS.Worksheet,
+  note: InternalShippingNoteExportDto["note"],
+): void {
+  worksheet.getCell(INTERNAL_XLSX_SIGN_OFF_CELLS.doneBy).value = formatAccountName(note.createdByName);
+  worksheet.getCell(INTERNAL_XLSX_SIGN_OFF_CELLS.checkedBy).value = formatAccountName(note.checkedByName);
+  worksheet.getCell(INTERNAL_XLSX_SIGN_OFF_CELLS.approvedBy).value = formatAccountName(note.approvedByName);
   for (const cellAddress of ["A46", "C46", "D46"]) {
     worksheet.getCell(cellAddress).value = null;
   }
@@ -689,7 +697,7 @@ export async function generateInternalShippingNoteXlsx(
 
   writeHeader(worksheet, exportData);
   applyVndNumberFormats(worksheet);
-  clearStaleSignOffIdentities(worksheet);
+  writeSignOffIdentities(worksheet, exportData.note);
   writeChargeRows(
     worksheet,
     INTERNAL_XLSX_SELLING_ROWS,

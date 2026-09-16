@@ -71,8 +71,8 @@ export const adminUserOperationTypeSchema = z.enum(ADMIN_USER_OPERATION_TYPES);
 
 export const adminUsersListQuerySchema = z.object({
   search: optionalTrimmedString(ADMIN_USERS_MAX_SEARCH_LENGTH),
-  role: adminUserRoleSchema.optional(),
-  status: adminUserStatusFilterSchema.optional(),
+  role: z.preprocess((value) => value === "" ? undefined : value, adminUserRoleSchema.optional()),
+  status: z.preprocess((value) => value === "" ? undefined : value, adminUserStatusFilterSchema.optional()),
   limit: boundedInteger(
     ADMIN_USERS_DEFAULT_LIMIT,
     ADMIN_USERS_MAX_LIMIT,

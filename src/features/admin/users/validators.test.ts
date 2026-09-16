@@ -192,3 +192,19 @@ describe("admin user management validators", () => {
     }).success).toBe(false);
   });
 });
+
+
+describe("Admin Users GET form filters", () => {
+  it.each(["Haru", "", "   "])("accepts search %s with empty role/status", (search) => {
+    expect(adminUsersListQuerySchema.parse({ search, role: "", status: "" })).toMatchObject({
+      search: search.trim() || undefined, role: undefined, status: undefined, limit: 20, offset: 0,
+    });
+  });
+  it("preserves valid filters and rejects genuinely invalid enums", () => {
+    expect(adminUsersListQuerySchema.parse({ search: "Haru", role: "sale", status: "active" })).toMatchObject({
+      search: "Haru", role: "sale", status: "active",
+    });
+    expect(adminUsersListQuerySchema.safeParse({ role: "director" }).success).toBe(false);
+    expect(adminUsersListQuerySchema.safeParse({ status: "invalid" }).success).toBe(false);
+  });
+});

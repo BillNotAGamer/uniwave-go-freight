@@ -117,3 +117,9 @@ export const INTERNAL_XLSX_TAX_SUMMARY_CELLS = {
   buyingTotalIncludingVatVnd: "B33",
   grossProfitExcludingVatVnd: "B34",
 } as const;
+
+export const INTERNAL_XLSX_SIGN_OFF_CELLS = {
+  doneBy: "A42",
+  checkedBy: "C42",
+  approvedBy: "D42",
+} as const;

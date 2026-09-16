@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { shippingNotes } from "@/lib/db/schema";
 
-import { formatDetailDateTime, formatDetailValue, formatMawbHawb } from "./presentation";
+import { formatAccountName, formatDetailDateTime, formatDetailValue, formatMawbHawb } from "./presentation";
 
 // Exercise the real Drizzle mapping without trusting its generic unknown return type.
 function readTimestamp(
@@ -79,5 +79,14 @@ describe("Shipping Note detail empty values", () => {
     expect(formatDetailValue(0)).toBe("0");
     expect(formatDetailValue("Driver\nPhone")).toBe("Driver\nPhone");
     expect(formatDetailValue("  Reference  ")).toBe("  Reference  ");
+  });
+});
+
+
+describe("workflow account display names", () => {
+  it("uses existing names only and leaves fallback selection to the view", () => {
+    expect(formatAccountName("  Haru Nguyen  ")).toBe("Haru Nguyen");
+    for (const name of [null, undefined, "", "   "]) expect(formatAccountName(name)).toBeNull();
+    expect(formatAccountName("Sales")).toBe("Sales");
   });
 });

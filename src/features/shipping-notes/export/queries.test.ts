@@ -1,11 +1,14 @@
+import { sql } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/db/client", () => ({ db: {} }));
+const mocks = vi.hoisted(() => ({ select: vi.fn() }));
+vi.mock("@/lib/db/client", () => ({ db: { select: mocks.select } }));
 
-import { shippingNotes } from "@/lib/db/schema";
+import { shippingNotes, type User } from "@/lib/db/schema";
 
-import { internalShippingNoteExportNoteSelect } from "./queries";
+import { exportCreator, exportChecker, exportApprover, getInternalShippingNoteExportDataForUser, internalShippingNoteExportNoteSelect } from "./queries";
 
 describe("internal export note projection", () => {
   it("projects modern MAWB and HAWB fields alongside the legacy fallback", () => {
@@ -69,5 +72,34 @@ describe("internal export note projection", () => {
       shippingNotes.vehiclePayloadCapacity,
     );
     expect(internalShippingNoteExportNoteSelect.flightNo).toBe(shippingNotes.flightNo);
+  });
+});
+
+
+describe("XLSX canonical workflow actor read model", () => {
+  it.each([
+    ["Haru Nguyen", "Owner Administrator", "Other Approver"],
+    ["Haru Nguyen", null, null],
+  ])("joins persisted creator/checker/approver identities: %s / %s / %s", async (creator, checker, approver) => {
+    vi.clearAllMocks();
+    const note = { id: "note-1", jobsheetNo: "JS-1", status: "approved", createdByName: creator, checkedByName: checker, approvedByName: approver };
+    const chain = { from: vi.fn().mockReturnThis(), leftJoin: vi.fn().mockReturnThis(), where: vi.fn().mockReturnThis(), orderBy: vi.fn().mockResolvedValue([{ note, charge: null }]) };
+    mocks.select.mockReturnValue(chain);
+    const result = await getInternalShippingNoteExportDataForUser("note-1", { id: "current-viewer", role: "admin", name: "Current Viewer" } as User);
+    expect(result?.note).toMatchObject(note);
+    expect(mocks.select).toHaveBeenCalledOnce();
+    expect(chain.leftJoin).toHaveBeenCalledTimes(4);
+    const joins = chain.leftJoin.mock.calls.slice(0, 3);
+    for (const [index, table] of [exportCreator, exportChecker, exportApprover].entries()) {
+      expect(joins[index][0]).toBe(table);
+    }
+    expect(joins.map(([, on]) => new PgDialect().sqlToQuery(on).sql)).toEqual([
+      '"export_creator"."id" = "shipping_notes"."created_by_id"',
+      '"export_checker"."id" = "shipping_notes"."checked_by_id"',
+      '"export_approver"."id" = "shipping_notes"."approved_by_id"',
+    ]);
+    expect(new PgDialect().sqlToQuery(sql`${internalShippingNoteExportNoteSelect.createdByName}`).sql).toBe('"export_creator"."name"');
+    expect(new PgDialect().sqlToQuery(sql`${internalShippingNoteExportNoteSelect.checkedByName}`).sql).toBe('"export_checker"."name"');
+    expect(new PgDialect().sqlToQuery(sql`${internalShippingNoteExportNoteSelect.approvedByName}`).sql).toBe('"export_approver"."name"');
   });
 });

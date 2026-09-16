@@ -1,11 +1,12 @@
 import "server-only";
 
 import { and, asc, eq, isNull } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { db } from "@/lib/db/client";
 import { requirePermission } from "@/lib/permissions/require-permission";
 import { PERMISSIONS } from "@/lib/permissions/permissions";
-import { shippingNotes, shippingNoteCharges, type User as DbUser } from "@/lib/db/schema";
+import { shippingNotes, shippingNoteCharges, users, type User as DbUser } from "@/lib/db/schema";
 import { isInternalXlsxExportEligibleStatus } from "../status-policy";
 import {
   buildInternalExportSections,
@@ -13,9 +14,16 @@ import {
 } from "./read-model";
 import type { InternalShippingNoteExportDto } from "./types";
 
+export const exportCreator = alias(users, "export_creator");
+export const exportChecker = alias(users, "export_checker");
+export const exportApprover = alias(users, "export_approver");
+
 export const internalShippingNoteExportNoteSelect = {
   id: shippingNotes.id,
   jobsheetNo: shippingNotes.jobsheetNo,
+  createdByName: exportCreator.name,
+  checkedByName: exportChecker.name,
+  approvedByName: exportApprover.name,
   mawbNo: shippingNotes.mawbNo,
   hawbNo: shippingNotes.hawbNo,
   mawbHawbNo: shippingNotes.mawbHawbNo,
@@ -99,6 +107,9 @@ export async function getInternalShippingNoteExportDataForUser(
       },
     })
     .from(shippingNotes)
+    .leftJoin(exportCreator, eq(exportCreator.id, shippingNotes.createdById))
+    .leftJoin(exportChecker, eq(exportChecker.id, shippingNotes.checkedById))
+    .leftJoin(exportApprover, eq(exportApprover.id, shippingNotes.approvedById))
     .leftJoin(
       shippingNoteCharges,
       and(

@@ -128,6 +128,9 @@ export default async function AdminUsersPage({
         >
           Apply
         </button>
+        <Link className="w-fit text-sm underline underline-offset-4" href="/admin/users">
+          Clear
+        </Link>
       </form>
 
       {result.items.length > 0 ? (

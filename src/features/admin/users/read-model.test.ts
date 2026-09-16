@@ -1,3 +1,4 @@
+import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -159,5 +160,30 @@ describe("admin users read model", () => {
     expect(buildAdminUsersListWhere(
       adminUsersListQuerySchema.parse({ status: "all", search: "alice" }),
     )).toBeDefined();
+  });
+});
+
+
+describe("Admin Users search SQL", () => {
+  it.each(["active", "inactive", "deleted", "all"] as const)("combines name/email search with role and %s status", (status) => {
+    const query = new PgDialect().sqlToQuery(buildAdminUsersListWhere(
+      adminUsersListQuerySchema.parse({ search: "Haru", role: "sale", status }),
+    )!);
+    expect(query.sql).toContain('"users"."name" ilike');
+    expect(query.sql).toContain('"users"."email" ilike');
+    expect(query.sql).toContain('"users"."role" =');
+    expect(query.params).toEqual(expect.arrayContaining(["sale", "%Haru%", "%Haru%"]));
+    if (status === "active" || status === "inactive") {
+      expect(query.params).toContain(status === "active");
+      expect(query.sql).toContain('"users"."deleted_at" is null');
+    }
+    if (status === "deleted") expect(query.sql).toContain('"users"."deleted_at" is not null');
+  });
+  it("treats empty search/filter selections as the existing non-deleted default", () => {
+    const query = new PgDialect().sqlToQuery(buildAdminUsersListWhere(
+      adminUsersListQuerySchema.parse({ search: "", role: "", status: "" }),
+    )!);
+    expect(query.sql).toBe('"users"."deleted_at" is null');
+    expect(query.params).toEqual([]);
   });
 });

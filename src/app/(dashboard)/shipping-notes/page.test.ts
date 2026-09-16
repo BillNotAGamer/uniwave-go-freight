@@ -1,3 +1,4 @@
+import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { User } from "@/lib/db/schema";
@@ -69,5 +70,34 @@ describe("/shipping-notes C7 filters", () => {
     })).resolves.toBeTruthy();
 
     expect(mocks.listShippingNotesForUser).not.toHaveBeenCalled();
+  });
+});
+
+
+type HtmlElement = React.ReactElement<{ children?: React.ReactNode }>;
+function elements(node: unknown, type: string): HtmlElement[] {
+  if (Array.isArray(node)) return node.flatMap((child) => elements(child, type));
+  if (!React.isValidElement<{ children?: React.ReactNode }>(node)) return [];
+  return [...(node.type === type ? [node] : []), ...elements(node.props.children, type)];
+}
+function text(node: unknown): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(text).join("");
+  return React.isValidElement<{ children?: unknown }>(node) ? text(node.props.children) : "";
+}
+
+describe("Shipping Notes CREATED BY column", () => {
+  it("renders distinct persisted creator names rather than the current session account", async () => {
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: { ...user(), role: "admin", name: "Current Viewer" } });
+    mocks.listShippingNotesForUser.mockResolvedValue(["Haru Nguyen", "Other Creator", null, ""].map((name, index) => ({
+      id: `note-${index}`, jobsheetNo: `JS-${index}`, shippingMode: "air_export", shipperText: null,
+      consigneeText: null, status: "submitted", createdAt: now, createdByName: name,
+    })));
+    const page = await ShippingNotesPage({ searchParams: Promise.resolve({ jobsheet: "JS" }) });
+    expect(elements(page, "th").map(text)).toContain("Created by");
+    const rows = elements(elements(page, "tbody")[0], "tr");
+    expect(rows.map((row) => text(elements(row, "td").at(-1)))).toEqual(["Haru Nguyen", "Other Creator", "-", "-"]);
+    expect(rows.map(text).join(" ")).not.toContain("Current Viewer");
+    expect(mocks.listShippingNotesForUser).toHaveBeenLastCalledWith(expect.objectContaining({ role: "admin" }), { jobsheet: "JS" });
   });
 });

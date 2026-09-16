@@ -15,6 +15,8 @@ import {
 import { listShippingNotesForUser } from "@/features/shipping-notes/queries";
 import { getShippingModePresentation } from "@/features/shipping-notes/mode-rules";
 
+import { formatAccountName } from "@/features/shipping-notes/presentation";
+
 type ShippingNotesPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
@@ -121,6 +123,7 @@ export default async function ShippingNotesPage({
                   <th className="border-b border-border px-3 py-3">Consignee</th>
                   <th className="border-b border-border px-3 py-3">Status</th>
                   <th className="border-b border-border px-3 py-3">Created</th>
+                  <th className="border-b border-border px-3 py-3">Created by</th>
                 </tr>
               </thead>
               <tbody>
@@ -147,6 +150,9 @@ export default async function ShippingNotesPage({
                     </td>
                     <td className="border-b border-border/60 px-3 py-3 text-muted-foreground whitespace-nowrap">
                       {formatDate(note.createdAt)}
+                    </td>
+                    <td className="border-b border-border/60 px-3 py-3 text-muted-foreground break-words">
+                      {formatAccountName(note.createdByName) ?? "-"}
                     </td>
                   </tr>
                 ))}
