@@ -5,6 +5,7 @@ import {
 } from "@/lib/calculations/decimal";
 
 import {
+  CONTAINER_TYPE_VALUES,
   CURRENCY_CODES,
   SHIPPING_MODES,
   VOLUME_UNITS,
@@ -141,16 +142,24 @@ function normalizeJobsheetNo(value: string): string {
 
 const shippingModeSchema = z.enum(SHIPPING_MODES);
 const volumeUnitSchema = z.enum(VOLUME_UNITS);
+const cargoMetricSchema = optionalChargeDecimalStringField({
+  scale: 3,
+  maxIntegerDigits: 15,
+  minimum: "nonNegative",
+});
 const shippingNoteDraftBaseInputSchema = z.object({
   jobsheetNo: z.string().trim().min(1).transform(normalizeJobsheetNo),
   commodityHsCode: optionalTrimmedText().optional(),
   commodity: optionalTrimmedText().optional(),
   hsCode: optionalTrimmedText().optional(),
+  containerType: z.enum(CONTAINER_TYPE_VALUES).optional(),
   containerNo: optionalTrimmedText().optional(),
   sealNo: optionalTrimmedText().optional(),
   carrierName: optionalTrimmedText().optional(),
   grossWeight: optionalTrimmedText().optional(),
   chargeableWeight: optionalTrimmedText().optional(),
+  cbm: cargoMetricSchema,
+  revenueTon: cargoMetricSchema,
   licensePlate: optionalTrimmedText().optional(),
   driverInformation: optionalTrimmedText().optional(),
   vehiclePayloadCapacity: optionalTrimmedText().optional(),

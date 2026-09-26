@@ -24,6 +24,7 @@ import {
   LocationSelector,
 } from "./location-selector";
 import { PartnerSelector } from "./partner-selector";
+import { ContainerTypeSelect } from "./container-type-select";
 
 type CreateFormAction = (
   state: ShippingNoteActionResult,
@@ -43,11 +44,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function TextField({ name, label, required = false }: { name: string; label: string; required?: boolean }) {
+function TextField({ name, label, required = false, type = "text" }: { name: string; label: string; required?: boolean; type?: "text" | "number" }) {
   return (
     <label className="text-sm font-medium text-foreground" htmlFor={name}>
       {label}
-      <input className={controlClassName} id={name} name={name} required={required} type="text" />
+      <input className={controlClassName} id={name} min={type === "number" ? "0" : undefined} name={name} required={required} step={type === "number" ? "0.001" : undefined} type={type} />
     </label>
   );
 }
@@ -202,11 +203,19 @@ export function ShippingNoteCreateForm({ action }: { action: CreateFormAction })
           </select>
         </label>
         {shipmentType === "ocean" ? (
-          <TextField label="Gross Weight" name="grossWeight" />
+          <>
+            <TextField label="Gross Weight (KGS)" name="grossWeight" />
+            <TextField label="CBM" name="cbm" type="number" />
+            <TextField label="RT" name="revenueTon" type="number" />
+            <ContainerTypeSelect />
+            <TextField label="Container No." name="containerNo" />
+            <TextField label="Seal No." name="sealNo" />
+          </>
         ) : null}
         {shipmentType === "air" ? <>
           <TextField label="Chargeable Weight" name="chargeableWeight" />
-          <TextField label="Gross Weight" name="grossWeight" />
+          <TextField label="Gross Weight (KGS)" name="grossWeight" />
+          <TextField label="CBM" name="cbm" type="number" />
         </> : null}
         {shipmentType === "domestic" ? <>
           <TextField label="License Plate" name="licensePlate" />

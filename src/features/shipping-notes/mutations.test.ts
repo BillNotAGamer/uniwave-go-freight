@@ -308,6 +308,12 @@ describe("C4/C6 Shipping Note draft persistence", () => {
       flightNo: "VN123",
       vesselName: "Vessel One",
       voyageNo: "V001",
+      containerType: "40_dry_high",
+      containerNo: "CONT-1234",
+      sealNo: "SEAL-1234",
+      grossWeight: "12500 KGS",
+      cbm: "42.500",
+      revenueTon: "18.750",
       etd: "2026-06-01T08:00:00Z",
       eta: "2026-06-20T14:00:00Z",
     });
@@ -330,6 +336,12 @@ describe("C4/C6 Shipping Note draft persistence", () => {
       flightNo: null,
       vesselName: "Vessel One",
       voyageNo: "V001",
+      containerType: "40_dry_high",
+      containerNo: "CONT-1234",
+      sealNo: "SEAL-1234",
+      grossWeight: "12500 KGS",
+      cbm: "42.500",
+      revenueTon: "18.750",
     });
   });
 
@@ -359,6 +371,9 @@ describe("C4/C6 Shipping Note draft persistence", () => {
       hblNo: "HBL-UPDATED",
       vesselName: "Vessel Updated",
       voyageNo: "V002",
+      containerType: "20_reefer_standard",
+      cbm: "31.250",
+      revenueTon: "17.500",
       finalDestination: "Rotterdam",
       etd: "2026-06-01T08:00:00Z",
       eta: "2026-06-20T14:00:00Z",
@@ -376,6 +391,9 @@ describe("C4/C6 Shipping Note draft persistence", () => {
       hblNo: "HBL-UPDATED",
       vesselName: "Vessel Updated",
       voyageNo: "V002",
+      containerType: "20_reefer_standard",
+      cbm: "31.250",
+      revenueTon: "17.500",
     });
     expect(configured.updatedValues()).not.toHaveProperty("createdById");
   });

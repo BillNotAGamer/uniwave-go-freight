@@ -131,6 +131,19 @@ describe("C6 Shipping Note mode rules", () => {
     });
   });
 
+  it("keeps CBM for Air while clearing Ocean-only Cargo fields", () => {
+    const canonical = canonicalizeShippingNoteModeFields({
+      ...air,
+      containerType: "40_dry_high",
+      containerNo: "CONT-1",
+      sealNo: "SEAL-1",
+      cbm: "12.500",
+      revenueTon: "8.250",
+    });
+
+    expect(canonical).toMatchObject({ cbm: "12.500", containerType: undefined, containerNo: undefined, sealNo: undefined, revenueTon: undefined });
+  });
+
   it("keeps Air fields while clearing Domestic and Sea fields", () => {
     const canonical = canonicalizeShippingNoteModeFields({ ...domestic, ...sea, ...air, shippingMode: "air_export" as const });
 

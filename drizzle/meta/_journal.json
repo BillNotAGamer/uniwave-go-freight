@@ -127,6 +127,13 @@
       "when": 1789547948735,
       "tag": "0017_breezy_blackheart",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790417251850,
+      "tag": "0018_lethal_living_mummy",
+      "breakpoints": true
     }
   ]
 }

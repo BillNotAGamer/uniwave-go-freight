@@ -23,11 +23,14 @@ export type ShippingNoteDetail = Omit<ShippingNoteListItem, "createdByName"> & {
   commodityHsCode: string | null;
   commodity?: string | null;
   hsCode?: string | null;
+  containerType?: string | null;
   containerNo?: string | null;
   sealNo?: string | null;
   carrierName?: string | null;
   grossWeight?: string | null;
   chargeableWeight?: string | null;
+  cbm?: string | null;
+  revenueTon?: string | null;
   licensePlate?: string | null;
   driverInformation?: string | null;
   vehiclePayloadCapacity?: string | null;

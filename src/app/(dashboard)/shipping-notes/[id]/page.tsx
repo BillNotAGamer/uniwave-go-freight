@@ -60,6 +60,7 @@ import {
 import { listShippingNoteDocumentsForUser } from "@/features/shipping-notes/documents/queries";
 import { getStorageAvailability } from "@/features/shipping-notes/documents/service";
 import { getShippingModePresentation } from "@/features/shipping-notes/mode-rules";
+import { getContainerTypeLabel } from "@/features/shipping-notes/constants";
 import {
   formatDetailDateTime,
   formatDetailValue,
@@ -322,6 +323,10 @@ export default async function ShippingNoteDetailPage({
                     <dd className="break-words">{formatDetailValue(note.hblNo)}</dd>
                   </div>
                   <div>
+                    <dt className="font-medium text-foreground">Container Type</dt>
+                    <dd className="break-words">{formatDetailValue(getContainerTypeLabel(note.containerType))}</dd>
+                  </div>
+                  <div>
                     <dt className="font-medium text-foreground">Container No.</dt>
                     <dd className="break-words">{formatDetailValue(note.containerNo)}</dd>
                   </div>
@@ -426,8 +431,16 @@ export default async function ShippingNoteDetailPage({
                       </dd>
                     </div>
                     <div>
-                      <dt className="font-medium text-foreground">Gross Weight</dt>
+                      <dt className="font-medium text-foreground">Gross Weight (KGS)</dt>
                       <dd className="break-words">{formatDetailValue(note.grossWeight)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">CBM</dt>
+                      <dd className="break-words">{formatDetailValue(note.cbm)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">RT</dt>
+                      <dd className="break-words">{formatDetailValue(note.revenueTon)}</dd>
                     </div>
                   </>
                 ) : null}
@@ -455,8 +468,12 @@ export default async function ShippingNoteDetailPage({
                       <dd className="break-words">{formatDetailValue(note.chargeableWeight)}</dd>
                     </div>
                     <div>
-                      <dt className="font-medium text-foreground">Gross Weight</dt>
+                      <dt className="font-medium text-foreground">Gross Weight (KGS)</dt>
                       <dd className="break-words">{formatDetailValue(note.grossWeight)}</dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-foreground">CBM</dt>
+                      <dd className="break-words">{formatDetailValue(note.cbm)}</dd>
                     </div>
                   </>
                 ) : null}

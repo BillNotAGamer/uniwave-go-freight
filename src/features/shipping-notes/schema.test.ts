@@ -72,6 +72,7 @@ describe("C4 Shipping Note schema contract", () => {
     const newColumns = [
       { column: shippingNotes.commodity, expectedName: "commodity" },
       { column: shippingNotes.hsCode, expectedName: "hs_code" },
+      { column: shippingNotes.containerType, expectedName: "container_type" },
       { column: shippingNotes.containerNo, expectedName: "container_no" },
       { column: shippingNotes.sealNo, expectedName: "seal_no" },
       { column: shippingNotes.carrierName, expectedName: "carrier_name" },
@@ -88,6 +89,15 @@ describe("C4 Shipping Note schema contract", () => {
       expect(column.notNull).toBe(false);
       expect(column.dataType).toBe("string");
     }
+  });
+
+  it("defines nullable decimal cargo metrics for existing-note compatibility", () => {
+    for (const column of [shippingNotes.cbm, shippingNotes.revenueTon]) {
+      expect(column.notNull).toBe(false);
+      expect(column.dataType).toBe("string");
+    }
+    expect(shippingNotes.cbm.name).toBe("cbm");
+    expect(shippingNotes.revenueTon.name).toBe("revenue_ton");
   });
 
   it("defines four nullable, non-unique Partner references with lookup indexes", () => {

@@ -11,7 +11,7 @@ function readMigration(name: string): string {
 }
 
 describe("static migration readiness", () => {
-  it("has migration files through 0017", () => {
+  it("has migration files through 0018", () => {
     expect(readdirSync(drizzleDir).filter((file) => file.endsWith(".sql"))).toEqual([
       "0000_new_nick_fury.sql",
       "0001_dazzling_saracen.sql",
@@ -31,10 +31,11 @@ describe("static migration readiness", () => {
       "0015_purple_owl.sql",
       "0016_dry_wrecker.sql",
       "0017_breezy_blackheart.sql",
+      "0018_lethal_living_mummy.sql",
     ]);
   });
 
-  it("has journal entries through 0017 in order", () => {
+  it("has journal entries through 0018 in order", () => {
     const journal = JSON.parse(
       readFileSync(path.join(drizzleDir, "meta", "_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
@@ -58,6 +59,7 @@ describe("static migration readiness", () => {
       "15:0015_purple_owl",
       "16:0016_dry_wrecker",
       "17:0017_breezy_blackheart",
+      "18:0018_lethal_living_mummy",
     ]);
   });
 
@@ -91,6 +93,14 @@ describe("static migration readiness", () => {
     ]) {
       expect(migration).toContain(`ALTER TABLE "shipping_notes" ADD COLUMN ${column} text;`);
     }
+  });
+
+  it("0018 additively adds only nullable Cargo metric columns", () => {
+    const migration = readMigration("0018_lethal_living_mummy.sql").trim();
+
+    expect(migration).toBe(
+      'ALTER TABLE "shipping_notes" ADD COLUMN "container_type" text;--> statement-breakpoint\nALTER TABLE "shipping_notes" ADD COLUMN "cbm" numeric(18, 3);--> statement-breakpoint\nALTER TABLE "shipping_notes" ADD COLUMN "revenue_ton" numeric(18, 3);',
+    );
   });
 
   it("0003 contains post-checked workflow metadata and foreign keys", () => {

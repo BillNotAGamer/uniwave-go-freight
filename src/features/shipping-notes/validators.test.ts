@@ -128,6 +128,40 @@ describe("shipping note validation schemas", () => {
     expect(parsed.commodityHsCode).toBeUndefined();
   });
 
+  it("accepts non-negative Cargo metrics and canonical Ocean container types", () => {
+    const sea = shippingNoteDraftInputSchema.parse({
+      ...validSeaInput,
+      containerType: "40_dry_high",
+      cbm: " 12.500 ",
+      revenueTon: "8.250",
+    });
+    const air = shippingNoteDraftInputSchema.parse({
+      ...validAirInput,
+      cbm: "0.125",
+      revenueTon: "9.000",
+      containerType: "40_dry_high",
+    });
+
+    expect(sea).toMatchObject({ containerType: "40_dry_high", cbm: "12.500", revenueTon: "8.250" });
+    expect(air).toMatchObject({ cbm: "0.125", revenueTon: undefined, containerType: undefined });
+  });
+
+  it.each(["-0.001", "NaN", "1e3", "1.0000"])("rejects invalid CBM and RT decimal value %s", (value) => {
+    expect(() => shippingNoteDraftInputSchema.parse({ ...validSeaInput, cbm: value })).toThrow();
+    expect(() => shippingNoteDraftInputSchema.parse({ ...validSeaInput, revenueTon: value })).toThrow();
+  });
+
+  it("normalizes blank Cargo metrics to undefined before nullable persistence", () => {
+    const parsed = shippingNoteDraftInputSchema.parse({
+      ...validSeaInput,
+      cbm: " ",
+      revenueTon: "",
+    });
+
+    expect(parsed.cbm).toBeUndefined();
+    expect(parsed.revenueTon).toBeUndefined();
+  });
+
   it("rejects explicit blank optional text at the pure schema boundary", () => {
     expect(() => shippingNoteDraftInputSchema.parse({
       ...validSeaInput,

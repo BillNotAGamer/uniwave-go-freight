@@ -77,6 +77,9 @@ describe("C4 Shipping Note historical read model", () => {
     );
     expect(shippingNoteDetailSelect.mawbNo).toBe(shippingNotes.mawbNo);
     expect(shippingNoteDetailSelect.vesselName).toBe(shippingNotes.vesselName);
+    expect(shippingNoteDetailSelect.containerType).toBe(shippingNotes.containerType);
+    expect(shippingNoteDetailSelect.cbm).toBe(shippingNotes.cbm);
+    expect(shippingNoteDetailSelect.revenueTon).toBe(shippingNotes.revenueTon);
   });
 
   it("loads safe creator presentation data through the canonical user relation", async () => {

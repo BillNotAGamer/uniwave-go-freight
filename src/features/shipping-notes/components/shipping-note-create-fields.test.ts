@@ -85,8 +85,6 @@ describe("Shipping Note create field presentation", () => {
       "hblNo",
       "vesselName",
       "voyageNo",
-      "containerNo",
-      "sealNo",
       "carrierName",
     ]);
   });

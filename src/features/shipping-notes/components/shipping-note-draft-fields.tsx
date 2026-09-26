@@ -14,6 +14,7 @@ import {
   LocationSelector,
 } from "./location-selector";
 import { PartnerSelector } from "./partner-selector";
+import { ContainerTypeSelect } from "./container-type-select";
 
 type ShippingNoteDraftFieldValues = Partial<ShippingNoteDetail>;
 
@@ -110,8 +111,6 @@ export function ShippingNoteDraftFields({ values, includeJobsheetNo = true }: Sh
       <TextField defaultValue={values?.hblNo} label="HBL" name="hblNo" required />
       <TextField defaultValue={values?.vesselName} label="Vessel" name="vesselName" required />
       <TextField defaultValue={values?.voyageNo} label="Voyage" name="voyageNo" required />
-      <TextField defaultValue={values?.containerNo} label="Container No." name="containerNo" />
-      <TextField defaultValue={values?.sealNo} label="Seal No." name="sealNo" />
       <TextField defaultValue={values?.carrierName} label="Carrier Name" name="carrierName" />
     </Section> : null}
     {shipmentFamily === "air" ? <Section title="Transport Documents">
@@ -128,11 +127,19 @@ export function ShippingNoteDraftFields({ values, includeJobsheetNo = true }: Sh
         <input className={controlClassName} defaultValue={formatDatetimeLocalValue(values?.eta)} id="eta" name="eta" required={hasDirection} type="datetime-local" />
       </label>
       {shipmentFamily === "ocean" ? (
-        <TextField defaultValue={values?.grossWeight} label="Gross Weight" name="grossWeight" />
+        <>
+          <TextField defaultValue={values?.grossWeight} label="Gross Weight (KGS)" name="grossWeight" />
+          <TextField defaultValue={values?.cbm} label="CBM" name="cbm" type="number" />
+          <TextField defaultValue={values?.revenueTon} label="RT" name="revenueTon" type="number" />
+          <ContainerTypeSelect defaultValue={values?.containerType} />
+          <TextField defaultValue={values?.containerNo} label="Container No." name="containerNo" />
+          <TextField defaultValue={values?.sealNo} label="Seal No." name="sealNo" />
+        </>
       ) : null}
       {shipmentFamily === "air" ? <>
         <TextField defaultValue={values?.chargeableWeight} label="Chargeable Weight" name="chargeableWeight" />
-        <TextField defaultValue={values?.grossWeight} label="Gross Weight" name="grossWeight" />
+        <TextField defaultValue={values?.grossWeight} label="Gross Weight (KGS)" name="grossWeight" />
+        <TextField defaultValue={values?.cbm} label="CBM" name="cbm" type="number" />
       </> : null}
       {shipmentFamily === "domestic" ? <>
         <TextField defaultValue={values?.licensePlate} label="License Plate" name="licensePlate" />

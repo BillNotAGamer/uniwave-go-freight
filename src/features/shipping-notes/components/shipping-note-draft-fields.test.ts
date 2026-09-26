@@ -37,9 +37,12 @@ function render(mode: "sea_export" | "air_export" | "domestic_truck" | "custom")
       voyageNo: "V-1",
       containerNo: "CONT-1234",
       sealNo: "SEAL-5678",
+      containerType: "40_dry_high",
       carrierName: "Maersk",
       grossWeight: "1500 KGS",
       chargeableWeight: "1200 KGS",
+      cbm: "12.500",
+      revenueTon: "8.250",
       licensePlate: "29A-12345",
       driverInformation: "Nguyen Van A\nCCCD: 012345678901",
       vehiclePayloadCapacity: "5 TONS",
@@ -87,12 +90,15 @@ describe("Shipping Note Draft field presentation", () => {
     expect(html).not.toContain("Carrier Name");
     expect(html).toContain("Schedule &amp; Cargo");
     expect(html).toContain("Chargeable Weight");
-    expect(html).toContain("Gross Weight");
+    expect(html).toContain("Gross Weight (KGS)");
+    expect(html).toContain("CBM");
+    expect(html).not.toContain("Container Type");
+    expect(html).not.toContain('name="revenueTon"');
     expect(html).not.toContain("License Plate");
     expect(html).not.toContain("Driver Information");
   });
 
-  it("renders Ocean routing, transport documents with Container/Seal/Carrier, and Gross Weight", () => {
+  it("renders Ocean Cargo metrics and controlled Container Type options", () => {
     const html = render("sea_export");
 
     expect(html).toContain("POL");
@@ -101,11 +107,19 @@ describe("Shipping Note Draft field presentation", () => {
     expect(html).toContain("Transport Documents");
     expect(html).toContain("MBL");
     expect(html).toContain("HBL");
-    expect(html).toContain("Container No.");
-    expect(html).toContain("Seal No.");
     expect(html).toContain("Carrier Name");
     expect(html).toContain("Schedule &amp; Cargo");
-    expect(html).toContain("Gross Weight");
+    expect(html).toContain("Gross Weight (KGS)");
+    expect(html).toContain("CBM");
+    expect(html).toContain("RT");
+    expect(html).toContain("Container Type");
+    expect(html).toContain("Container No.");
+    expect(html).toContain("Seal No.");
+    expect(html).toContain('<optgroup label="General Sized Cargo">');
+    expect(html).toContain('value="40_dry_high"');
+    expect(html).toContain("40 Dry High");
+    expect(html).toContain("20 Reefer Standard");
+    expect(html).toContain("40 Flat High");
     expect(html).not.toContain("Chargeable Weight");
     expect(html).not.toContain("License Plate");
     expect(html).not.toContain("Driver Information");

@@ -155,7 +155,7 @@ describe("Shipping Note commodity/HS code actions", () => {
     );
   });
 
-  it("persists Sea metadata (containerNo, sealNo, carrierName, grossWeight) on create and update", async () => {
+  it("persists Sea Cargo metrics and Container Type on create and update", async () => {
     // Create Sea
     const createForm = new FormData();
     createForm.set("jobsheetNo", "SEA-001");
@@ -173,6 +173,9 @@ describe("Shipping Note commodity/HS code actions", () => {
     createForm.set("sealNo", "  SEAL-1122  ");
     createForm.set("carrierName", "  Maersk Line  ");
     createForm.set("grossWeight", "  24,500 KGS  ");
+    createForm.set("containerType", "40_dry_high");
+    createForm.set("cbm", "  42.500 ");
+    createForm.set("revenueTon", "  18.750 ");
 
     await createShippingNoteDraftAction({ ok: true }, createForm);
 
@@ -184,6 +187,9 @@ describe("Shipping Note commodity/HS code actions", () => {
         sealNo: "SEAL-1122",
         carrierName: "Maersk Line",
         grossWeight: "24,500 KGS",
+        containerType: "40_dry_high",
+        cbm: "42.500",
+        revenueTon: "18.750",
       }),
       actor,
     );
@@ -206,6 +212,9 @@ describe("Shipping Note commodity/HS code actions", () => {
     updateForm.set("sealNo", "SEAL-3344");
     updateForm.set("carrierName", "MSC");
     updateForm.set("grossWeight", "18.5 TONS");
+    updateForm.set("containerType", "20_reefer_standard");
+    updateForm.set("cbm", "31.250");
+    updateForm.set("revenueTon", "17.500");
 
     await updateShippingNoteDraftAction({ ok: true }, updateForm);
 
@@ -216,12 +225,15 @@ describe("Shipping Note commodity/HS code actions", () => {
         sealNo: "SEAL-3344",
         carrierName: "MSC",
         grossWeight: "18.5 TONS",
+        containerType: "20_reefer_standard",
+        cbm: "31.250",
+        revenueTon: "17.500",
       }),
       actor,
     );
   });
 
-  it("persists Air metadata (chargeableWeight, grossWeight) on create and update", async () => {
+  it("persists Air CBM while clearing Ocean-only Cargo values", async () => {
     // Create Air Export
     const createForm = new FormData();
     createForm.set("jobsheetNo", "AIR-001");
@@ -236,6 +248,9 @@ describe("Shipping Note commodity/HS code actions", () => {
     createForm.set("eta", "2026-06-01T12:00:00.000Z");
     createForm.set("chargeableWeight", "  350.5 KGS  ");
     createForm.set("grossWeight", "  320 KGS  ");
+    createForm.set("cbm", "  4.250 ");
+    createForm.set("containerType", "40_dry_high");
+    createForm.set("revenueTon", "9.500");
 
     await createShippingNoteDraftAction({ ok: true }, createForm);
 
@@ -243,6 +258,9 @@ describe("Shipping Note commodity/HS code actions", () => {
       expect.objectContaining({
         chargeableWeight: "350.5 KGS",
         grossWeight: "320 KGS",
+        cbm: "4.250",
+        containerType: undefined,
+        revenueTon: undefined,
       }),
       actor,
     );
@@ -262,6 +280,7 @@ describe("Shipping Note commodity/HS code actions", () => {
     updateForm.set("eta", "2026-06-01T12:00:00.000Z");
     updateForm.set("chargeableWeight", "500 KGS");
     updateForm.set("grossWeight", "480 KGS");
+    updateForm.set("cbm", "5.125");
 
     await updateShippingNoteDraftAction({ ok: true }, updateForm);
 
@@ -270,6 +289,9 @@ describe("Shipping Note commodity/HS code actions", () => {
       expect.objectContaining({
         chargeableWeight: "500 KGS",
         grossWeight: "480 KGS",
+        cbm: "5.125",
+        containerType: undefined,
+        revenueTon: undefined,
       }),
       actor,
     );
