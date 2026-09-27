@@ -41,8 +41,6 @@ function render(mode: "sea_export" | "air_export" | "domestic_truck" | "custom")
       carrierName: "Maersk",
       grossWeight: "1500 KGS",
       chargeableWeight: "1200 KGS",
-      cbm: "12.500",
-      revenueTon: "8.250",
       licensePlate: "29A-12345",
       driverInformation: "Nguyen Van A\nCCCD: 012345678901",
       vehiclePayloadCapacity: "5 TONS",
@@ -91,14 +89,14 @@ describe("Shipping Note Draft field presentation", () => {
     expect(html).toContain("Schedule &amp; Cargo");
     expect(html).toContain("Chargeable Weight");
     expect(html).toContain("Gross Weight (KGS)");
-    expect(html).toContain("CBM");
     expect(html).not.toContain("Container Type");
+    expect(html).not.toContain('name="cbm"');
     expect(html).not.toContain('name="revenueTon"');
     expect(html).not.toContain("License Plate");
     expect(html).not.toContain("Driver Information");
   });
 
-  it("renders Ocean Cargo metrics and controlled Container Type options", () => {
+  it("renders Ocean Container Type options without CBM or RT", () => {
     const html = render("sea_export");
 
     expect(html).toContain("POL");
@@ -110,16 +108,20 @@ describe("Shipping Note Draft field presentation", () => {
     expect(html).toContain("Carrier Name");
     expect(html).toContain("Schedule &amp; Cargo");
     expect(html).toContain("Gross Weight (KGS)");
-    expect(html).toContain("CBM");
-    expect(html).toContain("RT");
     expect(html).toContain("Container Type");
     expect(html).toContain("Container No.");
     expect(html).toContain("Seal No.");
     expect(html).toContain('<optgroup label="General Sized Cargo">');
     expect(html).toContain('value="40_dry_high"');
     expect(html).toContain("40 Dry High");
+    expect(html).toContain('<optgroup label="Reefer Container">');
     expect(html).toContain("20 Reefer Standard");
+    expect(html).toContain('<optgroup label="Odd Sized Container">');
     expect(html).toContain("40 Flat High");
+    expect((html.match(/<option value="(?:20|40|45)_[^"]+"/g) ?? [])).toHaveLength(14);
+    expect(html).not.toContain('name="cbm"');
+    expect(html).not.toContain('name="revenueTon"');
+    expect(html).not.toContain("multiple");
     expect(html).not.toContain("Chargeable Weight");
     expect(html).not.toContain("License Plate");
     expect(html).not.toContain("Driver Information");

@@ -205,8 +205,6 @@ export function ShippingNoteCreateForm({ action }: { action: CreateFormAction })
         {shipmentType === "ocean" ? (
           <>
             <TextField label="Gross Weight (KGS)" name="grossWeight" />
-            <TextField label="CBM" name="cbm" type="number" />
-            <TextField label="RT" name="revenueTon" type="number" />
             <ContainerTypeSelect />
             <TextField label="Container No." name="containerNo" />
             <TextField label="Seal No." name="sealNo" />
@@ -215,7 +213,6 @@ export function ShippingNoteCreateForm({ action }: { action: CreateFormAction })
         {shipmentType === "air" ? <>
           <TextField label="Chargeable Weight" name="chargeableWeight" />
           <TextField label="Gross Weight (KGS)" name="grossWeight" />
-          <TextField label="CBM" name="cbm" type="number" />
         </> : null}
         {shipmentType === "domestic" ? <>
           <TextField label="License Plate" name="licensePlate" />

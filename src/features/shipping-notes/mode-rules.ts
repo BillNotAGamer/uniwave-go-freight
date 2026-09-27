@@ -68,8 +68,6 @@ export type ShippingNoteModeInput = {
   licensePlate?: string;
   driverInformation?: string;
   vehiclePayloadCapacity?: string;
-  cbm?: string;
-  revenueTon?: string;
   etd?: Date;
   eta?: Date;
 };
@@ -86,7 +84,6 @@ export type ShippingNoteModeFieldRules = {
   requiredTextFields: ShippingNoteModeField[];
   requiredDateFields: Array<{ name: "etd" | "eta"; label: string }>;
   inactiveTextFields: ShippingNoteModeTextField[];
-  inactiveDecimalFields: Array<"cbm" | "revenueTon">;
 };
 
 const DOMESTIC_RULES: ShippingNoteModeFieldRules = {
@@ -124,7 +121,6 @@ const DOMESTIC_RULES: ShippingNoteModeFieldRules = {
     "customOrigin",
     "customDestination",
   ],
-  inactiveDecimalFields: ["cbm", "revenueTon"],
 };
 
 const AIR_RULES: ShippingNoteModeFieldRules = {
@@ -171,7 +167,6 @@ const AIR_RULES: ShippingNoteModeFieldRules = {
     "customOrigin",
     "customDestination",
   ],
-  inactiveDecimalFields: ["revenueTon"],
 };
 
 const SEA_RULES: ShippingNoteModeFieldRules = {
@@ -217,7 +212,6 @@ const SEA_RULES: ShippingNoteModeFieldRules = {
     "customOrigin",
     "customDestination",
   ],
-  inactiveDecimalFields: [],
 };
 
 const CUSTOM_RULES: ShippingNoteModeFieldRules = {
@@ -254,7 +248,6 @@ const CUSTOM_RULES: ShippingNoteModeFieldRules = {
     "chargeableWeight",
     "containerType",
   ],
-  inactiveDecimalFields: ["cbm", "revenueTon"],
 };
 
 const RULES_BY_FAMILY: Record<ShippingModeFamily, ShippingNoteModeFieldRules> = {
@@ -353,10 +346,6 @@ export function canonicalizeShippingNoteModeFields<T extends ShippingNoteModeInp
   } as T;
 
   for (const field of rules.inactiveTextFields) {
-    canonical[field] = undefined;
-  }
-
-  for (const field of rules.inactiveDecimalFields) {
     canonical[field] = undefined;
   }
 

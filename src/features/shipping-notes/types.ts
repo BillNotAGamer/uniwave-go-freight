@@ -29,8 +29,6 @@ export type ShippingNoteDetail = Omit<ShippingNoteListItem, "createdByName"> & {
   carrierName?: string | null;
   grossWeight?: string | null;
   chargeableWeight?: string | null;
-  cbm?: string | null;
-  revenueTon?: string | null;
   licensePlate?: string | null;
   driverInformation?: string | null;
   vehiclePayloadCapacity?: string | null;

@@ -129,8 +129,6 @@ export function ShippingNoteDraftFields({ values, includeJobsheetNo = true }: Sh
       {shipmentFamily === "ocean" ? (
         <>
           <TextField defaultValue={values?.grossWeight} label="Gross Weight (KGS)" name="grossWeight" />
-          <TextField defaultValue={values?.cbm} label="CBM" name="cbm" type="number" />
-          <TextField defaultValue={values?.revenueTon} label="RT" name="revenueTon" type="number" />
           <ContainerTypeSelect defaultValue={values?.containerType} />
           <TextField defaultValue={values?.containerNo} label="Container No." name="containerNo" />
           <TextField defaultValue={values?.sealNo} label="Seal No." name="sealNo" />
@@ -139,7 +137,6 @@ export function ShippingNoteDraftFields({ values, includeJobsheetNo = true }: Sh
       {shipmentFamily === "air" ? <>
         <TextField defaultValue={values?.chargeableWeight} label="Chargeable Weight" name="chargeableWeight" />
         <TextField defaultValue={values?.grossWeight} label="Gross Weight (KGS)" name="grossWeight" />
-        <TextField defaultValue={values?.cbm} label="CBM" name="cbm" type="number" />
       </> : null}
       {shipmentFamily === "domestic" ? <>
         <TextField defaultValue={values?.licensePlate} label="License Plate" name="licensePlate" />

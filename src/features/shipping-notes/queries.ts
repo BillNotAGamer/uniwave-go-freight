@@ -113,8 +113,6 @@ const shippingNoteDetailColumns = {
   carrierName: shippingNotes.carrierName,
   grossWeight: shippingNotes.grossWeight,
   chargeableWeight: shippingNotes.chargeableWeight,
-  cbm: shippingNotes.cbm,
-  revenueTon: shippingNotes.revenueTon,
   licensePlate: shippingNotes.licensePlate,
   driverInformation: shippingNotes.driverInformation,
   vehiclePayloadCapacity: shippingNotes.vehiclePayloadCapacity,

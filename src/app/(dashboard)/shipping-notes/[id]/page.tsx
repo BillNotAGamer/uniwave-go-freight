@@ -434,14 +434,6 @@ export default async function ShippingNoteDetailPage({
                       <dt className="font-medium text-foreground">Gross Weight (KGS)</dt>
                       <dd className="break-words">{formatDetailValue(note.grossWeight)}</dd>
                     </div>
-                    <div>
-                      <dt className="font-medium text-foreground">CBM</dt>
-                      <dd className="break-words">{formatDetailValue(note.cbm)}</dd>
-                    </div>
-                    <div>
-                      <dt className="font-medium text-foreground">RT</dt>
-                      <dd className="break-words">{formatDetailValue(note.revenueTon)}</dd>
-                    </div>
                   </>
                 ) : null}
 
@@ -470,10 +462,6 @@ export default async function ShippingNoteDetailPage({
                     <div>
                       <dt className="font-medium text-foreground">Gross Weight (KGS)</dt>
                       <dd className="break-words">{formatDetailValue(note.grossWeight)}</dd>
-                    </div>
-                    <div>
-                      <dt className="font-medium text-foreground">CBM</dt>
-                      <dd className="break-words">{formatDetailValue(note.cbm)}</dd>
                     </div>
                   </>
                 ) : null}

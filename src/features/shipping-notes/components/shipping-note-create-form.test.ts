@@ -30,4 +30,13 @@ describe("Shipping Note create routing fields", () => {
     expect(source).toContain("<LocationSelector");
     expect(source).not.toContain("applicability");
   });
+
+  it("places the one Container Type select in the Ocean cargo controls only", () => {
+    const source = readFileSync(new URL("./shipping-note-create-form.tsx", import.meta.url), "utf8");
+
+    expect(source).toContain('shipmentType === "ocean" ? (');
+    expect(source).toContain("<ContainerTypeSelect />");
+    expect(source).not.toContain('name="cbm"');
+    expect(source).not.toContain('name="revenueTon"');
+  });
 });

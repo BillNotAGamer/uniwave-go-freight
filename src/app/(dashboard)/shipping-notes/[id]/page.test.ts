@@ -122,8 +122,6 @@ function makeNote(
     carrierName: null,
     grossWeight: null,
     chargeableWeight: null,
-    cbm: null,
-    revenueTon: null,
     licensePlate: null,
     driverInformation: null,
     vehiclePayloadCapacity: null,
@@ -790,13 +788,12 @@ describe("ShippingNoteDetailPage presentation and null field preservation", () =
     expect(findDefinitionValue(jsx, "HS Code")).toBe("-");
   });
 
-  it("3: keeps Air null Chargeable Weight, Gross Weight, CBM, and MAWB/HAWB visible as '-'", async () => {
+  it("3: keeps Air null Chargeable Weight, Gross Weight, and MAWB/HAWB visible as '-'", async () => {
     const saleUser = makeUser("sale");
     const note = makeNote("draft");
     note.shippingMode = "air_export";
     note.chargeableWeight = null;
     note.grossWeight = null;
-    note.cbm = null;
     note.mawbNo = null;
     note.hawbNo = null;
     note.mawbHawbNo = null;
@@ -809,11 +806,10 @@ describe("ShippingNoteDetailPage presentation and null field preservation", () =
 
     expect(findDefinitionValue(jsx, "Chargeable Weight")).toBe("-");
     expect(findDefinitionValue(jsx, "Gross Weight (KGS)")).toBe("-");
-    expect(findDefinitionValue(jsx, "CBM")).toBe("-");
     expect(findDefinitionValue(jsx, "MAWB / HAWB")).toBe("-");
   });
 
-  it("4: keeps Sea null Cargo fields visible as '-'", async () => {
+  it("4: keeps Sea null Container and Gross Weight fields visible as '-'", async () => {
     const saleUser = makeUser("sale");
     const note = makeNote("draft");
     note.shippingMode = "sea_export";
@@ -822,8 +818,6 @@ describe("ShippingNoteDetailPage presentation and null field preservation", () =
     note.sealNo = null;
     note.carrierName = null;
     note.grossWeight = null;
-    note.cbm = null;
-    note.revenueTon = null;
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
     mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
 
@@ -836,8 +830,6 @@ describe("ShippingNoteDetailPage presentation and null field preservation", () =
     expect(findDefinitionValue(jsx, "Seal No.")).toBe("-");
     expect(findDefinitionValue(jsx, "Carrier Name")).toBe("-");
     expect(findDefinitionValue(jsx, "Gross Weight (KGS)")).toBe("-");
-    expect(findDefinitionValue(jsx, "CBM")).toBe("-");
-    expect(findDefinitionValue(jsx, "RT")).toBe("-");
   });
 
   it("5: keeps Domestic null License Plate, Driver Information, and Payload visible as '-'", async () => {
@@ -870,8 +862,6 @@ describe("ShippingNoteDetailPage presentation and null field preservation", () =
     note.sealNo = "SEAL-1122";
     note.carrierName = "Maersk Line";
     note.grossWeight = "18000 KGS";
-    note.cbm = "24.500";
-    note.revenueTon = "18.000";
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
     mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
 
@@ -886,8 +876,8 @@ describe("ShippingNoteDetailPage presentation and null field preservation", () =
     expect(findDefinitionValue(jsx, "Seal No.")).toBe("SEAL-1122");
     expect(findDefinitionValue(jsx, "Carrier Name")).toBe("Maersk Line");
     expect(findDefinitionValue(jsx, "Gross Weight (KGS)")).toBe("18000 KGS");
-    expect(findDefinitionValue(jsx, "CBM")).toBe("24.500");
-    expect(findDefinitionValue(jsx, "RT")).toBe("18.000");
+    expect(collectText(jsx)).not.toContain("CBM");
+    expect(collectText(jsx)).not.toContain("RT");
   });
 
   it("7: preserves multiline Driver Information with whitespace-pre-wrap and break-words", async () => {
@@ -992,8 +982,8 @@ describe("ShippingNoteDetailPage presentation and null field preservation", () =
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: makeUser("sale") });
     mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
     const jsx = await ShippingNoteDetailPage({ params: Promise.resolve({ id: note.id }) });
-    const labels = mode === "air_export" ? ["Chargeable Weight", "Gross Weight (KGS)", "CBM"]
-      : mode === "sea_export" ? ["Container Type", "Container No.", "Seal No.", "Carrier Name", "Gross Weight (KGS)", "CBM", "RT"]
+    const labels = mode === "air_export" ? ["Chargeable Weight", "Gross Weight (KGS)"]
+      : mode === "sea_export" ? ["Container Type", "Container No.", "Seal No.", "Carrier Name", "Gross Weight (KGS)"]
         : ["License Plate", "Driver Information", "Vehicle Payload Capacity"];
     for (const label of ["Commidity", "HS Code", ...labels]) {
       expect(findDefinitionValue(jsx, label)).toBe("-");

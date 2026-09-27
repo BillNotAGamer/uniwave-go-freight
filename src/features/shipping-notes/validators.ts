@@ -142,11 +142,6 @@ function normalizeJobsheetNo(value: string): string {
 
 const shippingModeSchema = z.enum(SHIPPING_MODES);
 const volumeUnitSchema = z.enum(VOLUME_UNITS);
-const cargoMetricSchema = optionalChargeDecimalStringField({
-  scale: 3,
-  maxIntegerDigits: 15,
-  minimum: "nonNegative",
-});
 const shippingNoteDraftBaseInputSchema = z.object({
   jobsheetNo: z.string().trim().min(1).transform(normalizeJobsheetNo),
   commodityHsCode: optionalTrimmedText().optional(),
@@ -158,8 +153,6 @@ const shippingNoteDraftBaseInputSchema = z.object({
   carrierName: optionalTrimmedText().optional(),
   grossWeight: optionalTrimmedText().optional(),
   chargeableWeight: optionalTrimmedText().optional(),
-  cbm: cargoMetricSchema,
-  revenueTon: cargoMetricSchema,
   licensePlate: optionalTrimmedText().optional(),
   driverInformation: optionalTrimmedText().optional(),
   vehiclePayloadCapacity: optionalTrimmedText().optional(),
