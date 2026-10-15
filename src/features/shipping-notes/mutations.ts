@@ -4,6 +4,7 @@ import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { logAuditEvent } from "@/lib/audit/log";
+import { rejectInactiveOrSoftDeletedUsers } from "@/lib/auth/user-state";
 import {
   AuthorizationError,
   requireAnyPermission,
@@ -20,6 +21,7 @@ import {
 import {
   cancelFinalizedShippingNoteInputSchema,
   cancelShippingNoteInputSchema,
+  duplicateShippingNoteInputSchema,
   lockShippingNoteInputSchema,
   reopenShippingNoteForCorrectionInputSchema,
   unlockShippingNoteInputSchema,
@@ -29,6 +31,7 @@ import type {
   CancelShippingNoteInput,
   CreateBuyingChargeInput,
   CreateShippingNoteDraftInput,
+  DuplicateShippingNoteInput,
   CreateSellingChargeInput,
   ApproveShippingNoteInput,
   LockShippingNoteInput,
@@ -87,6 +90,10 @@ import {
   type ChargeCatalogPersistence,
   type ChargeCatalogSelection,
 } from "./accounting/catalog-charge";
+import {
+  buildShippingNoteDuplicationDraft,
+  canDuplicateShippingNote,
+} from "./duplication";
 
 const CANCELLATION_REASON_REQUIRED = "Cancellation reason is required.";
 
@@ -129,9 +136,17 @@ function requireShippingNoteAccess(
   requireAnyPermission(user.role, permission);
 }
 
+export class ShippingNoteJobsheetConflictError extends Error {
+  constructor() {
+    super("Jobsheet No already exists.");
+    this.name = "ShippingNoteJobsheetConflictError";
+  }
+}
+
 async function assertJobsheetNoIsUnique(
   jobsheetNo: string,
   excludeId?: string,
+  queryClient: Pick<typeof db, "select"> = db,
 ): Promise<void> {
   const conditions = [eq(shippingNotes.jobsheetNo, jobsheetNo)];
 
@@ -139,15 +154,90 @@ async function assertJobsheetNoIsUnique(
     conditions.push(ne(shippingNotes.id, excludeId));
   }
 
-  const existing = await db
+  const existing = await queryClient
     .select({ id: shippingNotes.id })
     .from(shippingNotes)
     .where(and(...conditions))
     .limit(1);
 
   if (existing.length > 0) {
-    throw new Error("Jobsheet No already exists.");
+    throw new ShippingNoteJobsheetConflictError();
   }
+}
+
+function isPostgresUniqueViolation(error: unknown): boolean {
+  let current = error;
+
+  for (let depth = 0; depth < 5 && current && typeof current === "object"; depth += 1) {
+    if ("code" in current && current.code === "23505") {
+      return true;
+    }
+
+    current = "cause" in current ? current.cause : null;
+  }
+
+  return false;
+}
+
+async function insertShippingNoteDraftRecord(
+  tx: Pick<typeof db, "select" | "insert">,
+  canonicalInput: CreateShippingNoteDraftInput,
+  createdById: string,
+  preparedPartyPersistence?: ShippingNotePartyPersistence,
+): Promise<ShippingNoteDetail> {
+  const partyPersistence =
+    preparedPartyPersistence ?? await resolvePartyPersistence(canonicalInput, tx);
+  const [created] = await tx
+    .insert(shippingNotes)
+    .values({
+      jobsheetNo: canonicalInput.jobsheetNo,
+      commodityHsCode: normalizeOptionalText(canonicalInput.commodityHsCode),
+      commodity: normalizeOptionalText(canonicalInput.commodity),
+      hsCode: normalizeOptionalText(canonicalInput.hsCode),
+      containerType: normalizeOptionalText(canonicalInput.containerType),
+      containerNo: normalizeOptionalText(canonicalInput.containerNo),
+      sealNo: normalizeOptionalText(canonicalInput.sealNo),
+      carrierName: normalizeOptionalText(canonicalInput.carrierName),
+      grossWeight: normalizeOptionalText(canonicalInput.grossWeight),
+      chargeableWeight: normalizeOptionalText(canonicalInput.chargeableWeight),
+      licensePlate: normalizeOptionalText(canonicalInput.licensePlate),
+      driverInformation: normalizeOptionalText(canonicalInput.driverInformation),
+      vehiclePayloadCapacity: normalizeOptionalText(canonicalInput.vehiclePayloadCapacity),
+      shippingMode: canonicalInput.shippingMode,
+      mawbHawbNo: normalizeOptionalText(canonicalInput.mawbHawbNo),
+      ...partyPersistence,
+      domesticOrigin: normalizeOptionalText(canonicalInput.domesticOrigin),
+      domesticDestination: normalizeOptionalText(canonicalInput.domesticDestination),
+      customModeName: normalizeOptionalText(canonicalInput.customModeName),
+      customOrigin: normalizeOptionalText(canonicalInput.customOrigin),
+      customDestination: normalizeOptionalText(canonicalInput.customDestination),
+      aol: normalizeOptionalText(canonicalInput.aol),
+      aod: normalizeOptionalText(canonicalInput.aod),
+      portOfLoading: normalizeOptionalText(canonicalInput.portOfLoading),
+      portOfDischarge: normalizeOptionalText(canonicalInput.portOfDischarge),
+      finalDestination: normalizeOptionalText(canonicalInput.finalDestination),
+      mawbNo: normalizeOptionalText(canonicalInput.mawbNo),
+      hawbNo: normalizeOptionalText(canonicalInput.hawbNo),
+      mblNo: normalizeOptionalText(canonicalInput.mblNo),
+      hblNo: normalizeOptionalText(canonicalInput.hblNo),
+      flightNo: normalizeOptionalText(canonicalInput.flightNo),
+      vesselName: normalizeOptionalText(canonicalInput.vesselName),
+      voyageNo: normalizeOptionalText(canonicalInput.voyageNo),
+      etd: normalizeOptionalDate(canonicalInput.etd),
+      eta: normalizeOptionalDate(canonicalInput.eta),
+      volumeValue: normalizeOptionalNumber(canonicalInput.volumeValue),
+      volumeUnit: canonicalInput.volumeUnit ?? null,
+      exchangeRate: (canonicalInput.exchangeRate ?? 1).toString(),
+      status: "draft",
+      createdById,
+    })
+    .returning(shippingNoteDetailSelect);
+
+  if (!created) {
+    throw new Error("Failed to create shipping note draft.");
+  }
+
+  return created;
 }
 
 function ensureDraftAccess(note: ShippingNoteDetail | null, user: DbUser): ShippingNoteDetail {
@@ -437,56 +527,11 @@ export async function createShippingNoteDraft(
 
   try {
     return await db.transaction(async (tx) => {
-      const partyPersistence = await resolvePartyPersistence(canonicalInput, tx);
-      const [created] = await tx
-        .insert(shippingNotes)
-        .values({
-          jobsheetNo: canonicalInput.jobsheetNo,
-          commodityHsCode: normalizeOptionalText(canonicalInput.commodityHsCode),
-          commodity: normalizeOptionalText(canonicalInput.commodity),
-          hsCode: normalizeOptionalText(canonicalInput.hsCode),
-          containerType: normalizeOptionalText(canonicalInput.containerType),
-          containerNo: normalizeOptionalText(canonicalInput.containerNo),
-          sealNo: normalizeOptionalText(canonicalInput.sealNo),
-          carrierName: normalizeOptionalText(canonicalInput.carrierName),
-          grossWeight: normalizeOptionalText(canonicalInput.grossWeight),
-          chargeableWeight: normalizeOptionalText(canonicalInput.chargeableWeight),
-          licensePlate: normalizeOptionalText(canonicalInput.licensePlate),
-          driverInformation: normalizeOptionalText(canonicalInput.driverInformation),
-          vehiclePayloadCapacity: normalizeOptionalText(canonicalInput.vehiclePayloadCapacity),
-          shippingMode: canonicalInput.shippingMode,
-          mawbHawbNo: normalizeOptionalText(canonicalInput.mawbHawbNo),
-          ...partyPersistence,
-          domesticOrigin: normalizeOptionalText(canonicalInput.domesticOrigin),
-          domesticDestination: normalizeOptionalText(canonicalInput.domesticDestination),
-          customModeName: normalizeOptionalText(canonicalInput.customModeName),
-          customOrigin: normalizeOptionalText(canonicalInput.customOrigin),
-          customDestination: normalizeOptionalText(canonicalInput.customDestination),
-          aol: normalizeOptionalText(canonicalInput.aol),
-          aod: normalizeOptionalText(canonicalInput.aod),
-          portOfLoading: normalizeOptionalText(canonicalInput.portOfLoading),
-          portOfDischarge: normalizeOptionalText(canonicalInput.portOfDischarge),
-          finalDestination: normalizeOptionalText(canonicalInput.finalDestination),
-          mawbNo: normalizeOptionalText(canonicalInput.mawbNo),
-          hawbNo: normalizeOptionalText(canonicalInput.hawbNo),
-          mblNo: normalizeOptionalText(canonicalInput.mblNo),
-          hblNo: normalizeOptionalText(canonicalInput.hblNo),
-          flightNo: normalizeOptionalText(canonicalInput.flightNo),
-          vesselName: normalizeOptionalText(canonicalInput.vesselName),
-          voyageNo: normalizeOptionalText(canonicalInput.voyageNo),
-          etd: normalizeOptionalDate(canonicalInput.etd),
-          eta: normalizeOptionalDate(canonicalInput.eta),
-          volumeValue: normalizeOptionalNumber(canonicalInput.volumeValue),
-          volumeUnit: canonicalInput.volumeUnit ?? null,
-          exchangeRate: (canonicalInput.exchangeRate ?? 1).toString(),
-          status: "draft",
-          createdById: user.id,
-        })
-        .returning(shippingNoteDetailSelect);
-
-      if (!created) {
-        throw new Error("Failed to create shipping note draft.");
-      }
+      const created = await insertShippingNoteDraftRecord(
+        tx,
+        canonicalInput,
+        user.id,
+      );
 
       await logAuditEvent(tx, {
         actorUserId: user.id,
@@ -499,11 +544,119 @@ export async function createShippingNoteDraft(
       return created;
     });
   } catch (error) {
-    if (error instanceof AuthorizationError) {
+    if (
+      error instanceof AuthorizationError ||
+      error instanceof ShippingNoteJobsheetConflictError
+    ) {
       throw error;
     }
 
+    if (isPostgresUniqueViolation(error)) {
+      throw new ShippingNoteJobsheetConflictError();
+    }
+
     throw new Error("Failed to create shipping note draft.");
+  }
+}
+
+export async function duplicateShippingNote(
+  input: DuplicateShippingNoteInput,
+  user: DbUser,
+): Promise<ShippingNoteDetail> {
+  const actor = rejectInactiveOrSoftDeletedUsers(user);
+  if (!actor || actor.role === "accountant") {
+    throw new AuthorizationError();
+  }
+
+  const parsedInput = duplicateShippingNoteInputSchema.parse(input);
+
+  try {
+    return await db.transaction(async (tx) => {
+      const [source] = await tx
+        .select(shippingNoteDetailSelect)
+        .from(shippingNotes)
+        .where(
+          and(
+            eq(shippingNotes.id, parsedInput.sourceId),
+            isNull(shippingNotes.deletedAt),
+          ),
+        )
+        .limit(1)
+        .for("share");
+
+      if (!source || !canDuplicateShippingNote(source, actor)) {
+        throw new AuthorizationError();
+      }
+
+      if (parsedInput.newJobsheetNo === source.jobsheetNo) {
+        throw new ShippingNoteJobsheetConflictError();
+      }
+
+      await assertJobsheetNoIsUnique(parsedInput.newJobsheetNo, undefined, tx);
+
+      const partnerIds = [
+        source.shipperPartnerId,
+        source.consigneePartnerId,
+        source.customerPartnerId,
+        source.agentPartnerId,
+      ].filter((partnerId): partnerId is string => partnerId !== null);
+      const partners = partnerIds.length === 0
+        ? []
+        : await tx
+            .select({
+              id: businessPartners.id,
+              companyName: businessPartners.companyName,
+              isActive: businessPartners.isActive,
+              deletedAt: businessPartners.deletedAt,
+            })
+            .from(businessPartners)
+            .where(inArray(businessPartners.id, partnerIds));
+      const duplicateDraft = buildShippingNoteDuplicationDraft(
+        source,
+        parsedInput.newJobsheetNo,
+        partners,
+      );
+      const created = await insertShippingNoteDraftRecord(
+        tx,
+        duplicateDraft.input,
+        actor.id,
+        duplicateDraft.partyPersistence,
+      );
+
+      await logAuditEvent(tx, {
+        actorUserId: actor.id,
+        action: "shipping_note.duplicate",
+        entityType: "shipping_note",
+        entityId: created.id,
+        before: {
+          sourceShippingNoteId: source.id,
+          sourceJobsheetNo: source.jobsheetNo,
+        },
+        after: {
+          sourceShippingNoteId: source.id,
+          newShippingNoteId: created.id,
+          newJobsheetNo: created.jobsheetNo,
+          status: "draft",
+          createdById: actor.id,
+          copyScope: "operational_fields_only",
+        },
+      });
+
+      return created;
+    });
+  } catch (error) {
+    if (
+      error instanceof AuthorizationError ||
+      error instanceof ShippingNoteJobsheetConflictError
+    ) {
+      throw error;
+    }
+
+    if (isPostgresUniqueViolation(error)) {
+      throw new ShippingNoteJobsheetConflictError();
+    }
+
+    throw new Error("Failed to duplicate shipping note.");
   }
 }
 

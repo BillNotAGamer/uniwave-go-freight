@@ -65,6 +65,7 @@ import { ShippingNoteDocumentsPanel } from "@/features/shipping-notes/documents/
 import { ShippingNoteDraftForm } from "@/features/shipping-notes/components/shipping-note-draft-form";
 import { ShippingNoteSubmitForm } from "@/features/shipping-notes/components/shipping-note-submit-form";
 import { ShippingNoteHardDeleteControls } from "@/features/shipping-notes/components/shipping-note-hard-delete-controls";
+import { DuplicateShippingNoteControls } from "@/features/shipping-notes/components/duplicate-shipping-note-controls";
 import { BuyingChargeForm } from "@/features/shipping-notes/components/buying-charge-form";
 
 // Exercise the real Drizzle mapping without trusting its generic unknown return type.
@@ -162,6 +163,8 @@ type TargetElement = React.ReactElement<{
   documents?: unknown[];
   canManage?: boolean;
   canManageBuyingCharges?: boolean;
+  sourceId?: string;
+  sourceJobsheetNo?: string;
   children?: unknown;
 }>;
 
@@ -504,6 +507,54 @@ describe("ShippingNoteDetailPage Draft edit presentation", () => {
     expect(findComponentInTree(jsx, ShippingNoteDraftForm)).not.toBeNull();
     expect(findComponentInTree(jsx, ShippingNoteSubmitForm)).not.toBeNull();
   });
+});
+
+describe("ShippingNoteDetailPage duplicate eligibility", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getSellingChargesAndSummaryForNoteForUser.mockResolvedValue({
+      charges: [],
+      summary: { totalAmountVnd: "0.00" },
+    });
+    mocks.listBuyingChargesForNoteForUser.mockResolvedValue([]);
+    mocks.listChargeTaxDetailsForNoteForUser.mockResolvedValue([]);
+    mocks.listTaxRulesForUser.mockResolvedValue([]);
+    mocks.listShippingNoteExportHistoryForUser.mockResolvedValue([]);
+    mocks.listCustomsDeclarationsForNoteForUser.mockResolvedValue([]);
+    mocks.listShippingNoteDocumentsForUser.mockResolvedValue([]);
+  });
+
+  it.each([
+    ["admin", "other-owner", true],
+    ["sale", "sale-1", true],
+    ["sale", "other-owner", false],
+    ["ops", "ops-1", true],
+    ["ops", "other-owner", false],
+    ["accountant", "accountant-1", false],
+  ] as const)(
+    "shows duplicate controls for %s with source owner %s: %s",
+    async (role, createdById, expected) => {
+      const actor = makeUser(role);
+      const note = makeNote("locked");
+      note.createdById = createdById;
+      mocks.requireAuthenticatedUser.mockResolvedValue({ user: actor });
+      mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+      const jsx = await ShippingNoteDetailPage({
+        params: Promise.resolve({ id: note.id }),
+      });
+      const duplicate = findComponentInTree(jsx, DuplicateShippingNoteControls);
+
+      if (expected) {
+        expect(duplicate?.props).toMatchObject({
+          sourceId: "note-1",
+          sourceJobsheetNo: "JS-001",
+        });
+      } else {
+        expect(duplicate).toBeNull();
+      }
+    },
+  );
 });
 
 describe("ShippingNoteDetailPage Buying Charge defaults", () => {

@@ -33,6 +33,7 @@ import {
   cancelShippingNote,
   createBuyingChargeForNote,
   createShippingNoteDraft,
+  duplicateShippingNote,
   lockShippingNote,
   markShippingNoteChecked,
   reopenShippingNoteForCorrection,
@@ -53,6 +54,7 @@ import {
   cancelShippingNoteInputSchema,
   createBuyingChargeInputSchema,
   createShippingNoteDraftInputSchema,
+  duplicateShippingNoteInputSchema,
   partnerLookupSearchSchema,
   shippingNoteLocationLookupInputSchema,
   deleteBuyingChargeInputSchema,
@@ -320,6 +322,39 @@ export async function createShippingNoteDraftAction(
   }
 
   revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${noteId}`);
+  redirect(`/shipping-notes/${noteId}`);
+}
+
+export async function duplicateShippingNoteAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+  const parsed = duplicateShippingNoteInputSchema.safeParse({
+    sourceId: readFormString(formData, "sourceId"),
+    newJobsheetNo: readFormString(formData, "newJobsheetNo"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error:
+        parsed.error.issues[0]?.message ?? "Invalid duplication request.",
+    };
+  }
+
+  let noteId = "";
+
+  try {
+    const note = await duplicateShippingNote(parsed.data, session.user);
+    noteId = note.id;
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${parsed.data.sourceId}`);
   revalidatePath(`/shipping-notes/${noteId}`);
   redirect(`/shipping-notes/${noteId}`);
 }

@@ -140,10 +140,11 @@ function normalizeJobsheetNo(value: string): string {
   return value.trim().replace(/\s+/g, " ").toUpperCase();
 }
 
+const jobsheetNoSchema = z.string().trim().min(1).transform(normalizeJobsheetNo);
 const shippingModeSchema = z.enum(SHIPPING_MODES);
 const volumeUnitSchema = z.enum(VOLUME_UNITS);
 const shippingNoteDraftBaseInputSchema = z.object({
-  jobsheetNo: z.string().trim().min(1).transform(normalizeJobsheetNo),
+  jobsheetNo: jobsheetNoSchema,
   commodityHsCode: optionalTrimmedText().optional(),
   commodity: optionalTrimmedText().optional(),
   hsCode: optionalTrimmedText().optional(),
@@ -203,6 +204,11 @@ export const shippingNoteDraftInputSchema = shippingNoteDraftBaseInputSchema
   .transform(canonicalizeShippingNoteModeFields);
 
 export const createShippingNoteDraftInputSchema = shippingNoteDraftInputSchema;
+
+export const duplicateShippingNoteInputSchema = z.object({
+  sourceId: z.string().trim().min(1),
+  newJobsheetNo: jobsheetNoSchema,
+});
 
 export const partnerLookupSearchSchema = z.string().trim().min(1).max(120);
 
@@ -275,6 +281,9 @@ export const hardDeleteShippingNoteInputSchema = z.object({
 export type ShippingNoteDraftInput = z.infer<typeof shippingNoteDraftInputSchema>;
 export type CreateShippingNoteDraftInput = z.infer<
   typeof createShippingNoteDraftInputSchema
+>;
+export type DuplicateShippingNoteInput = z.infer<
+  typeof duplicateShippingNoteInputSchema
 >;
 export type UpdateShippingNoteDraftInput = z.infer<
   typeof updateShippingNoteDraftInputSchema

@@ -24,6 +24,7 @@ import { SellingChargeSummaryView } from "@/features/shipping-notes/components/s
 import { AccountingReviewControls } from "@/features/shipping-notes/components/accounting-review-controls";
 import { CancellationControls } from "@/features/shipping-notes/components/cancellation-controls";
 import { ShippingNoteHardDeleteControls } from "@/features/shipping-notes/components/shipping-note-hard-delete-controls";
+import { DuplicateShippingNoteControls } from "@/features/shipping-notes/components/duplicate-shipping-note-controls";
 import { CorrectionControls } from "@/features/shipping-notes/components/correction-controls";
 import { ExportHistoryPanel } from "@/features/shipping-notes/components/export-history-panel";
 import { InternalExportActions } from "@/features/shipping-notes/components/internal-export-actions";
@@ -66,6 +67,7 @@ import {
   formatDetailValue,
   formatMawbHawb,
 } from "@/features/shipping-notes/presentation";
+import { canDuplicateShippingNote } from "@/features/shipping-notes/duplication";
 
 function formatCreator(createdBy: { name: string; email: string } | null): string {
   return createdBy?.name.trim() || createdBy?.email || "Unknown user";
@@ -147,6 +149,7 @@ export default async function ShippingNoteDetailPage({
     user.role,
     PERMISSIONS.ADMIN_DESTRUCTIVE_ACTIONS,
   );
+  const canDuplicate = canDuplicateShippingNote(note, user);
   const hasNormalCancelPermission = hasPermission(
     user.role,
     PERMISSIONS.SHIPPING_NOTES_CANCEL,
@@ -249,6 +252,12 @@ export default async function ShippingNoteDetailPage({
         }
       >
         <div className="flex items-center gap-2">
+          {canDuplicate ? (
+            <DuplicateShippingNoteControls
+              sourceId={note.id}
+              sourceJobsheetNo={note.jobsheetNo}
+            />
+          ) : null}
           {canOpenInternalExports ? (
             <InternalExportActions
               noteId={note.id}

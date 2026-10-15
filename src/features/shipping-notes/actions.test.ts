@@ -1,20 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
 const mocks = vi.hoisted(() => ({
+  revalidatePath: vi.fn(),
+  redirect: vi.fn(),
   requireAuthenticatedUser: vi.fn(),
   searchRoutingLocations: vi.fn(),
   searchPartners: vi.fn(),
   searchServiceCatalogItems: vi.fn(),
   hardDeleteShippingNote: vi.fn(),
   createShippingNoteDraft: vi.fn(),
+  duplicateShippingNote: vi.fn(),
   updateShippingNoteDraft: vi.fn(),
   quickCreatePartner: vi.fn(),
   quickCreateRoutingLocation: vi.fn(),
 }));
+
+vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
+vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 
 vi.mock("@/lib/auth/session", () => ({
   requireAuthenticatedUser: mocks.requireAuthenticatedUser,
@@ -45,6 +49,7 @@ vi.mock("./mutations", () => ({
   createBuyingChargeForNote: vi.fn(),
   createSellingChargeForNote: vi.fn(),
   createShippingNoteDraft: mocks.createShippingNoteDraft,
+  duplicateShippingNote: mocks.duplicateShippingNote,
   lockShippingNote: vi.fn(),
   markShippingNoteChecked: vi.fn(),
   reopenShippingNoteForCorrection: vi.fn(),
@@ -64,6 +69,7 @@ vi.mock("./hard-delete", () => ({
 
 import {
   createShippingNoteDraftAction,
+  duplicateShippingNoteAction,
   quickCreateShippingNoteLocationAction,
   quickCreateShippingNotePartnerAction,
   searchShippingNotePartnersAction,
@@ -73,6 +79,64 @@ import {
 } from "./actions";
 import { AuthorizationError } from "@/lib/permissions/require-permission";
 import { RoutingLocationConflictError } from "@/features/locations/mutations";
+
+describe("duplicateShippingNoteAction", () => {
+  const actor = { id: "sale-1", role: "sale" as const };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: actor });
+    mocks.duplicateShippingNote.mockResolvedValue({ id: "copy-1" });
+  });
+
+  it("normalizes input, revalidates source/list/copy, and redirects to the copy", async () => {
+    const formData = new FormData();
+    formData.set("sourceId", "source-1");
+    formData.set("newJobsheetNo", " copy  001 ");
+
+    await duplicateShippingNoteAction({ ok: true }, formData);
+
+    expect(mocks.duplicateShippingNote).toHaveBeenCalledWith(
+      { sourceId: "source-1", newJobsheetNo: "COPY 001" },
+      actor,
+    );
+    expect(mocks.revalidatePath.mock.calls).toEqual([
+      ["/shipping-notes"],
+      ["/shipping-notes/source-1"],
+      ["/shipping-notes/copy-1"],
+    ]);
+    expect(mocks.redirect).toHaveBeenCalledWith("/shipping-notes/copy-1");
+  });
+
+  it("keeps the user on the source and returns a friendly server error", async () => {
+    mocks.duplicateShippingNote.mockRejectedValueOnce(
+      new AuthorizationError("You do not have permission to duplicate this Shipping Note."),
+    );
+    const formData = new FormData();
+    formData.set("sourceId", "source-1");
+    formData.set("newJobsheetNo", "COPY-002");
+
+    await expect(
+      duplicateShippingNoteAction({ ok: true }, formData),
+    ).resolves.toEqual({
+      ok: false,
+      error: "You do not have permission to duplicate this Shipping Note.",
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty Jobsheet before calling the mutation", async () => {
+    const formData = new FormData();
+    formData.set("sourceId", "source-1");
+    formData.set("newJobsheetNo", "   ");
+
+    const result = await duplicateShippingNoteAction({ ok: true }, formData);
+
+    expect(result).toMatchObject({ ok: false });
+    expect(mocks.duplicateShippingNote).not.toHaveBeenCalled();
+  });
+});
 
 describe("Shipping Note commodity/HS code actions", () => {
   const actor = { id: "sale-1", role: "sale" as const };
