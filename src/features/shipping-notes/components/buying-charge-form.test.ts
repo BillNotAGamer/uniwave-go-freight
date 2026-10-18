@@ -24,26 +24,27 @@ function exchangeRateInputValue(defaultExchangeRate?: string | null): string {
 }
 
 describe("BuyingChargeForm exchange-rate prefill", () => {
-  it("uses the Shipping Note rate for a new Buying Charge without floating-point conversion", () => {
-    expect(exchangeRateInputValue("25450.000000")).toBe("25450");
-    expect(exchangeRateInputValue("25450.125000")).toBe("25450.125");
+  it("renders the canonical VND rate until the user selects USD", () => {
+    expect(exchangeRateInputValue("25450.000000")).toBe("1");
+    expect(exchangeRateInputValue("25450.125000")).toBe("1");
   });
 
   it.each([
-    [undefined, "1"],
-    [null, "1"],
-    ["1.000000", "1"],
-    ["0", "1"],
-    ["-1.000000", "1"],
-    ["invalid", "1"],
-  ] as const)("falls back safely from %s to %s", (defaultExchangeRate, expected) => {
-    expect(exchangeRateInputValue(defaultExchangeRate)).toBe(expected);
+    undefined,
+    null,
+    "1.000000",
+    "0",
+    "-1.000000",
+    "invalid",
+  ] as const)("renders the VND default safely for %s", (defaultExchangeRate) => {
+    expect(exchangeRateInputValue(defaultExchangeRate)).toBe("1");
   });
 
   it("keeps existing Buying Charge editing bound to the charge's own saved rate", () => {
     const source = readFileSync(new URL("./buying-charges-list.tsx", import.meta.url), "utf8");
 
-    expect(source).toContain("defaultValue={charge.exchangeRate}");
+    expect(source).toContain("initialExchangeRate={charge.exchangeRate}");
+    expect(source).toContain("initialCurrency={charge.currency}");
     expect(source).not.toContain("defaultExchangeRate");
   });
 });

@@ -202,6 +202,37 @@ describe("internal PDF generator", () => {
     expect(text).not.toContain("COMMODITY / HS CODE");
   });
 
+  it("renders EUR labels and signed base, VAT, total, and summary values", async () => {
+    const exportData = buildExportData();
+    const sections = buildInternalExportSections([
+      row({
+        currency: "EUR",
+        quantity: "0.125",
+        unitPrice: "-0.1000",
+        exchangeRate: "28000.000000",
+        amountOriginal: "-0.0125",
+        amountVnd: "-350.00",
+        vatPercent: "8.00",
+        vatAmount: "-28.00",
+      }),
+    ]);
+    Object.assign(exportData, sections);
+
+    const generated = await generateInternalShippingNotePdf(
+      exportData,
+      new Date("2026-10-15T00:00:00.000Z"),
+    );
+    const parsed = await pdfParse(generated.buffer);
+    const text = normalizeText(parsed.text);
+
+    expect(text).toContain("-0.1000 EUR");
+    expect(text).toContain("28,000.000000");
+    expect(text).toContain("-350.00 VND");
+    expect(text).toContain("-28.00 VND");
+    expect(text).toContain("-378.00 VND");
+    expect(text).toContain("Gross profit excl. VAT-350.00 VND");
+  });
+
   it("supports multi-page charge output without fixed XLSX row capacity", async () => {
     const generated = await generateInternalShippingNotePdf(
       buildExportData(),

@@ -22,6 +22,7 @@ function createCurrencyBuckets(): Record<CurrencyCode, string[]> {
   return {
     VND: [],
     USD: [],
+    EUR: [],
   };
 }
 

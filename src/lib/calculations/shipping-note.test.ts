@@ -13,6 +13,7 @@ describe("shipping note summaries", () => {
       totalsByCurrency: [
         { currency: "VND", amountOriginal: "0.0000" },
         { currency: "USD", amountOriginal: "0.0000" },
+        { currency: "EUR", amountOriginal: "0.0000" },
       ],
     });
   });
@@ -22,12 +23,14 @@ describe("shipping note summaries", () => {
       { currency: "VND", amountOriginal: "100.0000", amountVnd: "100.00" },
       { currency: "USD", amountOriginal: "1.0000", amountVnd: "25.50" },
       { currency: "USD", amountOriginal: "2.0000", amountVnd: "24.50" },
+      { currency: "EUR", amountOriginal: "-0.5000", amountVnd: "-14.00" },
     ])).toStrictEqual({
-      chargeCount: 3,
-      totalVnd: "150.00",
+      chargeCount: 4,
+      totalVnd: "136.00",
       totalsByCurrency: [
         { currency: "VND", amountOriginal: "100.0000" },
         { currency: "USD", amountOriginal: "3.0000" },
+        { currency: "EUR", amountOriginal: "-0.5000" },
       ],
     });
   });
@@ -115,4 +118,30 @@ describe("shipping note summaries", () => {
       },
     ]).grossProfitVnd).toBe("0.00");
   });
+
+  it.each([
+    ["100.00", "-20.00", "120.00"],
+    ["-100.00", "30.00", "-130.00"],
+  ])(
+    "calculates signed gross profit from selling %s and buying %s",
+    (selling, buying, expected) => {
+      expect(summarizeFinancialCharges([
+        {
+          section: "selling",
+          currency: "EUR",
+          amountOriginal: selling.replace(/\.\d{2}$/, ".0000"),
+          amountVnd: selling,
+        },
+        {
+          section: "buying",
+          currency: "USD",
+          amountOriginal: buying.replace(/\.\d{2}$/, ".0000"),
+          amountVnd: buying,
+        },
+      ])).toMatchObject({
+        grossProfitVnd: expected,
+        grossProfitExcludingVatVnd: expected,
+      });
+    },
+  );
 });

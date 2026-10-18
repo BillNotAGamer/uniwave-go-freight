@@ -20,6 +20,7 @@ import {
   businessPartnersRelations,
   serviceCatalogItems,
   auditLogs,
+  currencyCodeEnum,
   shippingNoteCharges,
   shippingNoteCustomsDeclarations,
   shippingNoteDocuments,
@@ -145,6 +146,10 @@ describe("C4 Shipping Note schema contract", () => {
 });
 
 describe("C8A Accounting schema contract", () => {
+  it("defines the canonical VND, USD, and EUR currency enum", () => {
+    expect(currencyCodeEnum.enumValues).toEqual(["VND", "USD", "EUR"]);
+  });
+
   it("defines nullable catalog provenance and constrained nullable VAT override", () => {
     const config = getTableConfig(shippingNoteCharges);
     const [catalogForeignKey] = getInlineForeignKeys(shippingNoteCharges).filter(

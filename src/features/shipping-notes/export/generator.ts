@@ -259,6 +259,10 @@ function toExcelNumber(value: string, allowNegative = false): number {
   return excelNumber;
 }
 
+function toSignedExcelMoney(value: string): number {
+  return toExcelNumber(value, true);
+}
+
 function setCellValue(
   worksheet: ExcelJS.Worksheet,
   cellAddress: string,
@@ -332,7 +336,7 @@ function writeChargeRows(
       vertical: "top",
     };
 
-    worksheet.getCell(`D${rowNumber}`).value = toExcelNumber(charge.amountVnd);
+    worksheet.getCell(`D${rowNumber}`).value = toSignedExcelMoney(charge.amountVnd);
     worksheet.getCell(`E${rowNumber}`).value = partyTextForCharge(charge);
   });
 }
@@ -384,16 +388,16 @@ function writeTaxDetailRows(
     ).value = formatTaxTreatmentForExport(charge.taxTreatmentSnapshot);
     worksheet.getCell(
       `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.baseExcludingVatVnd}${rowNumber}`,
-    ).value = toExcelNumber(charge.amountVnd);
+    ).value = toSignedExcelMoney(charge.amountVnd);
     worksheet.getCell(
       `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.vatPercent}${rowNumber}`,
     ).value = toExcelNumber(charge.vatPercent);
     worksheet.getCell(
       `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.vatAmountVnd}${rowNumber}`,
-    ).value = toExcelNumber(charge.vatAmount);
+    ).value = toSignedExcelMoney(charge.vatAmount);
     worksheet.getCell(
       `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.totalIncludingVatVnd}${rowNumber}`,
-    ).value = toExcelNumber(charge.totalIncludingVatVnd);
+    ).value = toSignedExcelMoney(charge.totalIncludingVatVnd);
     worksheet.getCell(
       `${INTERNAL_XLSX_TAX_DETAIL_COLUMNS.overrideFlag}${rowNumber}`,
     ).value = charge.isOverride ? "Override" : "";
@@ -634,11 +638,11 @@ function writeFormulas(
 ): void {
   worksheet.getCell(INTERNAL_XLSX_SELLING_ROWS.totalCell).value = {
     formula: INTERNAL_XLSX_SELLING_ROWS.totalFormula,
-    result: toExcelNumber(exportData.summary.totalSellingVnd),
+    result: toSignedExcelMoney(exportData.summary.totalSellingVnd),
   };
   worksheet.getCell(INTERNAL_XLSX_BUYING_ROWS.totalCell).value = {
     formula: INTERNAL_XLSX_BUYING_ROWS.totalFormula,
-    result: toExcelNumber(exportData.summary.totalBuyingVnd),
+    result: toSignedExcelMoney(exportData.summary.totalBuyingVnd),
   };
 
   // The app/read model derives gross profit in VND from VND charge totals.
@@ -646,7 +650,7 @@ function writeFormulas(
     INTERNAL_XLSX_PROFIT_CELL.label;
   worksheet.getCell(INTERNAL_XLSX_PROFIT_CELL.valueCell).value = {
     formula: INTERNAL_XLSX_PROFIT_CELL.formula,
-    result: toExcelNumber(exportData.summary.grossProfitVnd, true),
+    result: toSignedExcelMoney(exportData.summary.grossProfitVnd),
   };
 }
 
@@ -656,23 +660,23 @@ function writeTaxSummary(
 ): void {
   worksheet.getCell(
     INTERNAL_XLSX_TAX_SUMMARY_CELLS.sellingSubtotalExcludingVatVnd,
-  ).value = toExcelNumber(exportData.summary.sellingSubtotalExcludingVatVnd);
+  ).value = toSignedExcelMoney(exportData.summary.sellingSubtotalExcludingVatVnd);
   worksheet.getCell(INTERNAL_XLSX_TAX_SUMMARY_CELLS.sellingVatVnd).value =
-    toExcelNumber(exportData.summary.sellingVatVnd);
+    toSignedExcelMoney(exportData.summary.sellingVatVnd);
   worksheet.getCell(
     INTERNAL_XLSX_TAX_SUMMARY_CELLS.sellingTotalIncludingVatVnd,
-  ).value = toExcelNumber(exportData.summary.sellingTotalIncludingVatVnd);
+  ).value = toSignedExcelMoney(exportData.summary.sellingTotalIncludingVatVnd);
   worksheet.getCell(
     INTERNAL_XLSX_TAX_SUMMARY_CELLS.buyingSubtotalExcludingVatVnd,
-  ).value = toExcelNumber(exportData.summary.buyingSubtotalExcludingVatVnd);
+  ).value = toSignedExcelMoney(exportData.summary.buyingSubtotalExcludingVatVnd);
   worksheet.getCell(INTERNAL_XLSX_TAX_SUMMARY_CELLS.buyingVatVnd).value =
-    toExcelNumber(exportData.summary.buyingVatVnd);
+    toSignedExcelMoney(exportData.summary.buyingVatVnd);
   worksheet.getCell(
     INTERNAL_XLSX_TAX_SUMMARY_CELLS.buyingTotalIncludingVatVnd,
-  ).value = toExcelNumber(exportData.summary.buyingTotalIncludingVatVnd);
+  ).value = toSignedExcelMoney(exportData.summary.buyingTotalIncludingVatVnd);
   worksheet.getCell(
     INTERNAL_XLSX_TAX_SUMMARY_CELLS.grossProfitExcludingVatVnd,
-  ).value = toExcelNumber(exportData.summary.grossProfitExcludingVatVnd, true);
+  ).value = toSignedExcelMoney(exportData.summary.grossProfitExcludingVatVnd);
 }
 
 export async function generateInternalShippingNoteXlsx(

@@ -125,4 +125,34 @@ describe("internal export read model", () => {
       totalIncludingVatVnd: "100000.00",
     });
   });
+
+  it("preserves stored EUR and signed financial values without historical recalculation", () => {
+    const sections = buildInternalExportSections([
+      row({
+        currency: "EUR",
+        unitPrice: "-0.1000",
+        exchangeRate: "28000.000000",
+        amountOriginal: "-0.0125",
+        amountVnd: "-350.00",
+        vatPercent: "8.00",
+        vatAmount: "-28.00",
+      }),
+    ]);
+
+    expect(sections.sellingCharges[0]).toMatchObject({
+      currency: "EUR",
+      unitPrice: "-0.1000",
+      exchangeRate: "28000.000000",
+      amountOriginal: "-0.0125",
+      amountVnd: "-350.00",
+      vatAmount: "-28.00",
+      totalIncludingVatVnd: "-378.00",
+    });
+    expect(sections.summary).toMatchObject({
+      totalSellingVnd: "-350.00",
+      sellingVatVnd: "-28.00",
+      sellingTotalIncludingVatVnd: "-378.00",
+      grossProfitVnd: "-350.00",
+    });
+  });
 });

@@ -11,7 +11,7 @@ function readMigration(name: string): string {
 }
 
 describe("static migration readiness", () => {
-  it("has migration files through 0018", () => {
+  it("has migration files through 0019", () => {
     expect(readdirSync(drizzleDir).filter((file) => file.endsWith(".sql"))).toEqual([
       "0000_new_nick_fury.sql",
       "0001_dazzling_saracen.sql",
@@ -32,10 +32,11 @@ describe("static migration readiness", () => {
       "0016_dry_wrecker.sql",
       "0017_breezy_blackheart.sql",
       "0018_lethal_living_mummy.sql",
+      "0019_add_eur_currency.sql",
     ]);
   });
 
-  it("has journal entries through 0018 in order", () => {
+  it("has journal entries through 0019 in order", () => {
     const journal = JSON.parse(
       readFileSync(path.join(drizzleDir, "meta", "_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
@@ -60,6 +61,7 @@ describe("static migration readiness", () => {
       "16:0016_dry_wrecker",
       "17:0017_breezy_blackheart",
       "18:0018_lethal_living_mummy",
+      "19:0019_add_eur_currency",
     ]);
   });
 
@@ -101,6 +103,32 @@ describe("static migration readiness", () => {
     expect(migration).toBe(
       'ALTER TABLE "shipping_notes" ADD COLUMN "container_type" text;--> statement-breakpoint\nALTER TABLE "shipping_notes" ADD COLUMN "cbm" numeric(18, 3);--> statement-breakpoint\nALTER TABLE "shipping_notes" ADD COLUMN "revenue_ton" numeric(18, 3);',
     );
+  });
+
+  it("0019 additively extends currency_code with EUR and aligns its snapshot", () => {
+    expect(readMigration("0019_add_eur_currency.sql").trim()).toBe(
+      'ALTER TYPE "public"."currency_code" ADD VALUE \'EUR\';',
+    );
+
+    const before = JSON.parse(
+      readFileSync(path.join(drizzleDir, "meta", "0018_snapshot.json"), "utf8"),
+    ) as { tables: unknown; enums: Record<string, { values: string[] }> };
+    const after = JSON.parse(
+      readFileSync(path.join(drizzleDir, "meta", "0019_snapshot.json"), "utf8"),
+    ) as { tables: unknown; enums: Record<string, { values: string[] }> };
+
+    expect(after.tables).toEqual(before.tables);
+    expect(before.enums["public.currency_code"]?.values).toEqual(["VND", "USD"]);
+    expect(after.enums["public.currency_code"]?.values).toEqual([
+      "VND",
+      "USD",
+      "EUR",
+    ]);
+    const beforeOtherEnums = { ...before.enums };
+    const afterOtherEnums = { ...after.enums };
+    delete beforeOtherEnums["public.currency_code"];
+    delete afterOtherEnums["public.currency_code"];
+    expect(afterOtherEnums).toEqual(beforeOtherEnums);
   });
 
   it("0003 contains post-checked workflow metadata and foreign keys", () => {

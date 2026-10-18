@@ -91,7 +91,7 @@ export const SHIPPING_NOTE_STATUSES = [
 
 export type ShippingNoteStatus = (typeof SHIPPING_NOTE_STATUSES)[number];
 
-export const CURRENCY_CODES = ["VND", "USD"] as const;
+export const CURRENCY_CODES = ["VND", "USD", "EUR"] as const;
 
 export type CurrencyCode = (typeof CURRENCY_CODES)[number];
 

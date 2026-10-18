@@ -455,6 +455,61 @@ describe("internal XLSX generator tax-complete v2", () => {
     expect(worksheet?.getCell("E37").numFmt).toBe("#,##0.00");
     expect(worksheet?.getCell("E38").numFmt).toBe("#,##0.00");
   });
+
+  it("serializes signed EUR financial values as numeric cells without changing formulas or sign-offs", async () => {
+    const { generateInternalShippingNoteXlsx } = await import("./generator");
+    const exportData = buildExportData();
+    const sections = buildInternalExportSections([
+      row({
+        currency: "EUR",
+        quantity: "0.125",
+        unitPrice: "-0.1000",
+        exchangeRate: "28000.000000",
+        amountOriginal: "-0.0125",
+        amountVnd: "-350.00",
+        vatPercent: "8.00",
+        vatAmount: "-28.00",
+      }),
+    ]);
+    Object.assign(exportData, sections);
+    Object.assign(exportData.note, {
+      createdByName: "Creator Name",
+      checkedByName: "Checker Name",
+      approvedByName: "Approver Name",
+    });
+
+    const generated = await generateInternalShippingNoteXlsx(exportData);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(generated.buffer);
+    const worksheet = workbook.getWorksheet("AK")!;
+    const taxWorksheet = workbook.getWorksheet(
+      INTERNAL_XLSX_TAX_DETAILS_WORKSHEET_NAME,
+    )!;
+
+    expect(worksheet.getCell("C24").value).toContain("-0.1000 EUR");
+    expect(worksheet.getCell("D24").value).toBe(-350);
+    expect(typeof worksheet.getCell("D24").value).toBe("number");
+    expect(worksheet.getCell("E25").value).toMatchObject({
+      formula: "SUM(D17:D24)",
+      result: -350,
+    });
+    expect(worksheet.getCell("E37").value).toMatchObject({
+      formula: "SUM(D26:D36)",
+    });
+    expect(worksheet.getCell("E38").value).toMatchObject({
+      formula: "E25-E37",
+      result: -350,
+    });
+    expect(taxWorksheet.getCell("E4").value).toBe(-350);
+    expect(taxWorksheet.getCell("G4").value).toBe(-28);
+    expect(taxWorksheet.getCell("H4").value).toBe(-378);
+    expect(worksheet.getCell("A42").value).toBe("Creator Name");
+    expect(worksheet.getCell("C42").value).toBe("Checker Name");
+    expect(worksheet.getCell("D42").value).toBe("Approver Name");
+    for (const address of ["A46", "C46", "D46"]) {
+      expect(worksheet.getCell(address).value).toBeNull();
+    }
+  });
 });
 
 

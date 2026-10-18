@@ -71,7 +71,7 @@ export const taxTreatmentEnum = pgEnum("tax_treatment", [
   "non_taxable",
 ]);
 
-export const currencyCodeEnum = pgEnum("currency_code", ["VND", "USD"]);
+export const currencyCodeEnum = pgEnum("currency_code", ["VND", "USD", "EUR"]);
 
 export const exportTypeEnum = pgEnum("export_type", ["excel", "pdf"]);
 

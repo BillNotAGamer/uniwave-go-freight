@@ -392,7 +392,7 @@ describe("shipping note validation schemas", () => {
     }
   });
 
-  it("requires USD exchange rate and allows VND without one", () => {
+  it("requires USD/EUR exchange rates and allows VND without one", () => {
     const vndCharge = createSellingChargeInputSchema.parse(baseSellingChargeInput);
 
     expect(vndCharge.currency).toBe("VND");
@@ -409,6 +409,18 @@ describe("shipping note validation schemas", () => {
       currency: "USD",
       exchangeRate: "25000.000000",
     });
+    expect(() => createSellingChargeInputSchema.parse({
+      ...baseSellingChargeInput,
+      currency: "EUR",
+    })).toThrow(/Exchange rate is required/);
+    expect(createSellingChargeInputSchema.parse({
+      ...baseSellingChargeInput,
+      currency: "EUR",
+      exchangeRate: "28000.000000",
+    })).toMatchObject({
+      currency: "EUR",
+      exchangeRate: "28000.000000",
+    });
   });
 
   it("validates charge decimal precision and minimums", () => {
@@ -420,6 +432,10 @@ describe("shipping note validation schemas", () => {
       ...baseSellingChargeInput,
       unitPrice: "0",
     }).unitPrice).toBe("0");
+    expect(createSellingChargeInputSchema.parse({
+      ...baseSellingChargeInput,
+      unitPrice: "-20.5000",
+    }).unitPrice).toBe("-20.5000");
     expect(() => createSellingChargeInputSchema.parse({
       ...baseSellingChargeInput,
       unitPrice: "1.00001",
@@ -429,7 +445,7 @@ describe("shipping note validation schemas", () => {
   it("rejects unsupported currency and overlong buying vendor text", () => {
     expect(() => createSellingChargeInputSchema.parse({
       ...baseSellingChargeInput,
-      currency: "EUR",
+      currency: "JPY",
     })).toThrow();
     expect(() => createBuyingChargeInputSchema.parse({
       ...baseSellingChargeInput,

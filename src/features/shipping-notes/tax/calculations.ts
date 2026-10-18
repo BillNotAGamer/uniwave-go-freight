@@ -34,7 +34,7 @@ function normalizeAmountVnd(value: string): string {
   const normalized = validateDecimalString(value, {
     scale: AMOUNT_VND_SCALE,
     maxIntegerDigits: VAT_AMOUNT_INTEGER_DIGITS,
-    minimum: "nonNegative",
+    allowNegative: true,
   });
 
   return formatScaledInteger(

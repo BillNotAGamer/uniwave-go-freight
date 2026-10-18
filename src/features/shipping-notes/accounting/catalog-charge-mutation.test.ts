@@ -66,7 +66,10 @@ function configureTransaction(catalogRows: Array<Record<string, unknown>>) {
   return { tx, inserted: () => inserted };
 }
 
-function input(serviceCatalogItemId?: string) {
+function input(
+  serviceCatalogItemId?: string,
+  overrides: Record<string, unknown> = {},
+) {
   return createSellingChargeInputSchema.parse({
     shippingNoteId: "note-1",
     serviceCatalogItemId,
@@ -75,6 +78,7 @@ function input(serviceCatalogItemId?: string) {
     unit: "Client unit",
     unitPrice: "100",
     currency: "VND",
+    ...overrides,
   });
 }
 
@@ -125,6 +129,38 @@ describe("catalog-backed charge mutation wiring", () => {
       chargeName: "Client-supplied wrong name",
       unit: "Client unit",
     });
+  });
+
+  it("persists and audits exact signed EUR amounts", async () => {
+    const configured = configureTransaction([]);
+
+    await createSellingChargeForNote(input(undefined, {
+      quantity: "0.125",
+      unitPrice: "-0.1000",
+      currency: "EUR",
+      exchangeRate: "28000",
+    }), actor);
+
+    expect(configured.inserted()).toMatchObject({
+      quantity: "0.125",
+      unitPrice: "-0.1000",
+      currency: "EUR",
+      exchangeRate: "28000.000000",
+      amountOriginal: "-0.0125",
+      amountVnd: "-350.00",
+    });
+    expect(mocks.logAuditEvent).toHaveBeenCalledWith(
+      configured.tx,
+      expect.objectContaining({
+        actorUserId: actor.id,
+        action: "shipping_note_charge.create",
+        after: expect.objectContaining({
+          currency: "EUR",
+          amountOriginal: "-0.0125",
+          amountVnd: "-350.00",
+        }),
+      }),
+    );
   });
 
   it("fails atomically when the selected item is missing, inactive, or deleted", async () => {

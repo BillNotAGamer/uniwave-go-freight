@@ -7,14 +7,10 @@ import {
   softDeleteSellingChargeAction,
   updateSellingChargeAction,
 } from "../actions";
-import { CURRENCY_CODES } from "../constants";
 import type { SellingChargeDetail } from "../types";
+import { formatFinancialDecimal } from "../presentation";
 import { ChargeCatalogSelector } from "./charge-catalog-selector";
-
-function formatNumber(value: string): string {
-  const num = Number(value);
-  return Number.isNaN(num) ? value : num.toLocaleString();
-}
+import { ChargeCurrencyFields } from "./charge-currency-fields";
 
 const actionInitialState: ShippingNoteActionResult = { ok: true };
 
@@ -133,40 +129,17 @@ function EditChargeRow({ charge, shippingNoteId, onCancel }: EditChargeRowProps)
                 className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-indigo-500 dark:focus:ring-indigo-500/20"
                 name="unitPrice"
                 type="number"
-                min="0"
                 step="0.0001"
                 defaultValue={charge.unitPrice}
                 required
               />
             </label>
 
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-              Currency
-              <select
-                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-indigo-500 dark:focus:ring-indigo-500/20"
-                name="currency"
-                defaultValue={charge.currency}
-                required
-              >
-                {CURRENCY_CODES.map((code) => (
-                  <option key={code} value={code}>
-                    {code}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-              Exchange Rate (Req. for USD)
-              <input
-                className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-indigo-500 dark:focus:ring-indigo-500/20"
-                name="exchangeRate"
-                type="number"
-                min="0.000001"
-                step="0.000001"
-                defaultValue={charge.exchangeRate}
-              />
-            </label>
+            <ChargeCurrencyFields
+              idPrefix={`selling-edit-${charge.id}`}
+              initialCurrency={charge.currency}
+              initialExchangeRate={charge.exchangeRate}
+            />
           </div>
 
           {!state.ok ? (
@@ -265,25 +238,25 @@ export function SellingChargesList({
                   {charge.description ?? "-"}
                 </td>
                 <td className="border-b border-slate-100 dark:border-slate-800/60 px-3 py-2 text-right text-slate-700 dark:text-slate-300">
-                  {formatNumber(charge.quantity)}
+                  {formatFinancialDecimal(charge.quantity)}
                 </td>
                 <td className="border-b border-slate-100 dark:border-slate-800/60 px-3 py-2 text-slate-700 dark:text-slate-300">
                   {charge.unit ?? "-"}
                 </td>
                 <td className="border-b border-slate-100 dark:border-slate-800/60 px-3 py-2 text-right text-slate-700 dark:text-slate-300">
-                  {formatNumber(charge.unitPrice)}
+                  {formatFinancialDecimal(charge.unitPrice)}
                 </td>
                 <td className="border-b border-slate-100 dark:border-slate-800/60 px-3 py-2 text-slate-700 dark:text-slate-300">
                   {charge.currency}
                 </td>
                 <td className="border-b border-slate-100 dark:border-slate-800/60 px-3 py-2 text-right text-slate-700 dark:text-slate-300">
-                  {formatNumber(charge.exchangeRate)}
+                  {formatFinancialDecimal(charge.exchangeRate)}
                 </td>
                 <td className="border-b border-slate-100 dark:border-slate-800/60 px-3 py-2 text-right text-slate-700 dark:text-slate-300">
-                  {formatNumber(charge.amountOriginal)}
+                  {formatFinancialDecimal(charge.amountOriginal)}
                 </td>
                 <td className="border-b border-slate-100 dark:border-slate-800/60 px-3 py-2 text-right font-medium text-slate-900 dark:text-slate-100">
-                  {formatNumber(charge.amountVnd)}
+                  {formatFinancialDecimal(charge.amountVnd)}
                 </td>
                 {canMutate ? (
                   <td className="border-b border-slate-100 dark:border-slate-800/60 px-3 py-2 whitespace-nowrap">

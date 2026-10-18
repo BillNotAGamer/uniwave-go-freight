@@ -2,12 +2,10 @@
 
 import { useState, useActionState } from "react";
 
-import { validateDecimalString } from "@/lib/calculations/decimal";
-
 import { createBuyingChargeAction } from "../actions";
-import { CURRENCY_CODES } from "../constants";
 import type { BuyingChargeActionState } from "../types";
 import { ChargeCatalogSelector } from "./charge-catalog-selector";
+import { ChargeCurrencyFields } from "./charge-currency-fields";
 
 function inputClassName() {
   return "mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-indigo-500 dark:focus:ring-indigo-500/20";
@@ -25,26 +23,6 @@ type BuyingChargeFormProps = {
 
 const initialState: BuyingChargeActionState = { ok: true };
 
-function formatDefaultExchangeRate(value: string | null | undefined): string {
-  if (typeof value !== "string") return "1";
-
-  try {
-    const normalized = validateDecimalString(value, {
-      scale: 6,
-      maxIntegerDigits: 12,
-      minimum: "positive",
-    });
-    const [integerPart, fractionalPart = ""] = normalized.split(".");
-    const significantFraction = fractionalPart.replace(/0+$/, "");
-
-    return significantFraction.length > 0
-      ? `${integerPart}.${significantFraction}`
-      : integerPart;
-  } catch {
-    return "1";
-  }
-}
-
 export function BuyingChargeForm({
   shippingNoteId,
   canManageBuyingCharges,
@@ -52,7 +30,6 @@ export function BuyingChargeForm({
 }: BuyingChargeFormProps) {
   const [state, formAction] = useActionState(createBuyingChargeAction, initialState);
   const [unit, setUnit] = useState("");
-  const initialExchangeRate = formatDefaultExchangeRate(defaultExchangeRate);
 
   if (!canManageBuyingCharges) {
     return null;
@@ -117,41 +94,15 @@ export function BuyingChargeForm({
             id="buying-unit-price"
             name="unitPrice"
             type="number"
-            min="0"
             step="0.0001"
             required
           />
         </label>
 
-        <label className={labelClassName()} htmlFor="buying-currency">
-          Currency
-          <select
-            className={inputClassName()}
-            id="buying-currency"
-            name="currency"
-            defaultValue="VND"
-            required
-          >
-            {CURRENCY_CODES.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className={labelClassName()} htmlFor="buying-exchange-rate">
-          Exchange Rate (Required for USD)
-          <input
-            className={inputClassName()}
-            id="buying-exchange-rate"
-            name="exchangeRate"
-            type="number"
-            min="0.000001"
-            step="0.000001"
-            defaultValue={initialExchangeRate}
-          />
-        </label>
+        <ChargeCurrencyFields
+          idPrefix="buying-new"
+          usdDefaultExchangeRate={defaultExchangeRate}
+        />
 
         <label className={labelClassName()} htmlFor="buying-vendor-or-agent">
           Vendor / Agent

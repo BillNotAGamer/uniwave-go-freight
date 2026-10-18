@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { shippingNotes } from "@/lib/db/schema";
 
-import { formatAccountName, formatDetailDateTime, formatDetailValue, formatMawbHawb } from "./presentation";
+import {
+  formatAccountName,
+  formatDetailDateTime,
+  formatDetailValue,
+  formatFinancialDecimal,
+  formatMawbHawb,
+} from "./presentation";
 
 // Exercise the real Drizzle mapping without trusting its generic unknown return type.
 function readTimestamp(
@@ -14,6 +20,21 @@ function readTimestamp(
   }
   return mapped;
 }
+
+describe("formatFinancialDecimal", () => {
+  it("groups signed values without floating-point conversion or precision loss", () => {
+    expect(formatFinancialDecimal("-0.0125")).toBe("-0.0125");
+    expect(formatFinancialDecimal("-12345678901234.5678")).toBe(
+      "-12,345,678,901,234.5678",
+    );
+  });
+
+  it("trims only insignificant zeroes and supports fixed minimum decimals", () => {
+    expect(formatFinancialDecimal("-10.1250")).toBe("-10.125");
+    expect(formatFinancialDecimal("-350.00", 2)).toBe("-350.00");
+    expect(formatFinancialDecimal("100", 4)).toBe("100.0000");
+  });
+});
 
 describe("MAWB / HAWB presentation", () => {
   it("prefers both modern values when they exist", () => {

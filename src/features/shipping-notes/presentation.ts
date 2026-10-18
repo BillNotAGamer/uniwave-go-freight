@@ -28,6 +28,26 @@ export function formatDetailValue(value: string | number | null | undefined): st
     : String(value);
 }
 
+export function formatFinancialDecimal(
+  value: string,
+  minimumFractionDigits = 0,
+): string {
+  const match = value.match(/^(-?)(\d+)(?:\.(\d+))?$/);
+  if (!match) {
+    return value;
+  }
+
+  const [, sign, integerPart, fractionalPart = ""] = match;
+  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const formattedFraction = fractionalPart
+    .replace(/0+$/, "")
+    .padEnd(minimumFractionDigits, "0");
+
+  return formattedFraction.length > 0
+    ? `${sign}${formattedInteger}.${formattedFraction}`
+    : `${sign}${formattedInteger}`;
+}
+
 const SHORT_MONTHS = [
   "Jan",
   "Feb",

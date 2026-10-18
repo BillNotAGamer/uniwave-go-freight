@@ -39,7 +39,7 @@ export type ChargeAmountInput = {
   unitPrice: string;
   currency: CurrencyCode;
   /**
-   * Required for USD (must be positive).
+   * Required for USD and EUR (must be positive).
    * Ignored for VND and always normalized to 1.000000.
    */
   exchangeRate?: string;
@@ -54,7 +54,7 @@ export type ChargeAmountResult = {
   exchangeRate: string;
   /** amountOriginal = quantity * unitPrice (4 decimal places). */
   amountOriginal: string;
-  /** amountVnd = amountOriginal for VND; amountOriginal * exchangeRate for USD (2 decimal places). */
+  /** amountVnd = amountOriginal for VND; amountOriginal * exchangeRate for foreign currencies. */
   amountVnd: string;
 };
 
@@ -74,7 +74,7 @@ function normalizeUnitPrice(unitPrice: string): string {
     validateDecimalString(unitPrice, {
       scale: UNIT_PRICE_SCALE,
       maxIntegerDigits: UNIT_PRICE_INTEGER_DIGITS,
-      minimum: "nonNegative",
+      allowNegative: true,
     }),
     UNIT_PRICE_SCALE,
   );
@@ -85,7 +85,7 @@ function assertAmountOriginalPrecision(amountOriginal: string): string {
     validateDecimalString(amountOriginal, {
       scale: AMOUNT_ORIGINAL_SCALE,
       maxIntegerDigits: AMOUNT_ORIGINAL_INTEGER_DIGITS,
-      minimum: "nonNegative",
+      allowNegative: true,
     }),
     AMOUNT_ORIGINAL_SCALE,
   );
@@ -96,7 +96,7 @@ function assertAmountVndPrecision(amountVnd: string): string {
     validateDecimalString(amountVnd, {
       scale: AMOUNT_VND_SCALE,
       maxIntegerDigits: AMOUNT_VND_INTEGER_DIGITS,
-      minimum: "nonNegative",
+      allowNegative: true,
     }),
     AMOUNT_VND_SCALE,
   );
@@ -106,7 +106,7 @@ function assertAmountVndPrecision(amountVnd: string): string {
  * Normalize and validate the exchange rate for a given currency.
  *
  * VND: always returns 1 regardless of supplied value.
- * USD: requires a positive decimal string; throws if missing/invalid.
+ * USD/EUR: require a positive charge-specific decimal string.
  */
 export function normalizeExchangeRate(
   currency: CurrencyCode,
@@ -118,7 +118,7 @@ export function normalizeExchangeRate(
 
   if (exchangeRate === undefined) {
     throw new Error(
-      "Exchange rate is required and must be a positive decimal value for USD charges.",
+      `Exchange rate is required and must be a positive decimal value for ${currency} charges.`,
     );
   }
 
@@ -136,7 +136,7 @@ export function normalizeExchangeRate(
  * Calculate charge amounts from validated decimal-string inputs.
  *
  * Returns database-ready strings at the schema-defined precision.
- * Throws if the exchange rate is invalid for USD.
+ * Throws if the exchange rate is invalid for a foreign-currency charge.
  */
 export function calculateChargeAmounts(
   input: ChargeAmountInput,

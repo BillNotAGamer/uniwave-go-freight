@@ -82,7 +82,8 @@ function optionalPositiveNumber() {
 type ChargeDecimalFieldOptions = {
   scale: number;
   maxIntegerDigits: number;
-  minimum: DecimalMinimum;
+  minimum?: DecimalMinimum;
+  allowNegative?: boolean;
 };
 
 function chargeDecimalStringField(options: ChargeDecimalFieldOptions) {
@@ -128,7 +129,7 @@ const chargeQuantitySchema = chargeDecimalStringField({
 const chargeUnitPriceSchema = chargeDecimalStringField({
   scale: 4,
   maxIntegerDigits: 14,
-  minimum: "nonNegative",
+  allowNegative: true,
 });
 const chargeExchangeRateSchema = optionalChargeDecimalStringField({
   scale: 6,
@@ -335,11 +336,11 @@ export const createSellingChargeInputSchema = z
   })
   .refine(
     (data) =>
-      data.currency !== "USD" ||
+      data.currency === "VND" ||
       data.exchangeRate !== undefined,
     {
       message:
-        "Exchange rate is required and must be a positive decimal value for USD charges.",
+        "Exchange rate is required and must be a positive decimal value for foreign-currency charges.",
       path: ["exchangeRate"],
     },
   );
@@ -358,11 +359,11 @@ export const updateSellingChargeInputSchema = z
   })
   .refine(
     (data) =>
-      data.currency !== "USD" ||
+      data.currency === "VND" ||
       data.exchangeRate !== undefined,
     {
       message:
-        "Exchange rate is required and must be a positive decimal value for USD charges.",
+        "Exchange rate is required and must be a positive decimal value for foreign-currency charges.",
       path: ["exchangeRate"],
     },
   );
@@ -396,11 +397,11 @@ const buyingChargeBaseInputSchema = z
   })
   .refine(
     (data) =>
-      data.currency !== "USD" ||
+      data.currency === "VND" ||
       data.exchangeRate !== undefined,
     {
       message:
-        "Exchange rate is required and must be a positive decimal value for USD charges.",
+        "Exchange rate is required and must be a positive decimal value for foreign-currency charges.",
       path: ["exchangeRate"],
     },
   );
