@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/session", () => ({
@@ -43,7 +43,12 @@ const admin = {
 
 describe("Drive upload route", () => {
   beforeEach(() => {
+    vi.stubEnv("AUTH_URL", "https://app.example.test");
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("returns safe no-store JSON for successful upload", async () => {

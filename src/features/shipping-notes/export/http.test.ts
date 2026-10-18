@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildContentDisposition,
@@ -20,6 +20,14 @@ function originMetadata(
 }
 
 describe("internal XLSX HTTP export safeguards", () => {
+  beforeEach(() => {
+    vi.stubEnv("AUTH_URL", "");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("accepts the configured public HTTPS origin through an internal proxy URL", () => {
     expect(isSameOriginRequestMetadata(originMetadata({
       requestOrigin: "http://railway-internal:8080",

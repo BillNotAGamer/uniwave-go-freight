@@ -1,6 +1,6 @@
 vi.mock("server-only", () => ({}));
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 import { AuthorizationError } from "@/lib/permissions/require-permission";
@@ -30,6 +30,15 @@ function makeRequest(origin = "http://localhost:3000"): NextRequest {
 }
 
 describe("Document download route handler", () => {
+  beforeEach(() => {
+    vi.stubEnv("AUTH_URL", "http://localhost:3000");
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("rejects cross-origin requests with 403", async () => {
     const request = new NextRequest(
       "http://localhost:3000/api/shipping-note-documents/doc-1/download",
