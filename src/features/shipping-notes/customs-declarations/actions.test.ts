@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-
 const mocks = vi.hoisted(() => ({
   requireAuthenticatedUser: vi.fn(),
   addCustomsDeclaration: vi.fn(),

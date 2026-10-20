@@ -1,68 +1,22 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-const ACCEPTED_BASELINE = Object.freeze({
-  total: 11,
-  critical: 0,
-  high: 3,
-  moderate: 8,
-});
+import { evaluateSecurityPolicy } from "./ci-security-audit-policy.mjs";
 
-const policyPath = path.join(
-  process.cwd(),
-  "src",
-  "lib",
-  "auth",
-  "better-auth-security-policy.json",
+const root = process.cwd();
+const betterAuthPolicy = JSON.parse(
+  readFileSync(
+    path.join(root, "src", "lib", "auth", "better-auth-security-policy.json"),
+    "utf8",
+  ),
 );
-const lockfilePath = path.join(process.cwd(), "package-lock.json");
-
-const betterAuthPolicy = JSON.parse(readFileSync(policyPath, "utf8"));
-const packageLock = JSON.parse(readFileSync(lockfilePath, "utf8"));
-
-function compareSemver(left, right) {
-  const leftParts = left.split(".").map((part) => Number(part));
-  const rightParts = right.split(".").map((part) => Number(part));
-
-  for (let index = 0; index < 3; index += 1) {
-    const leftPart = leftParts[index] ?? 0;
-    const rightPart = rightParts[index] ?? 0;
-
-    if (leftPart !== rightPart) {
-      return leftPart - rightPart;
-    }
-  }
-
-  return 0;
-}
-
-function getInstalledVersion(packageName) {
-  return packageLock.packages?.[`node_modules/${packageName}`]?.version ?? null;
-}
-
-function isPasswordlessEmailAuthEnabled() {
-  const passwordlessEmail = betterAuthPolicy.passwordlessEmail;
-
-  return (
-    passwordlessEmail.magicLinkEnabled ||
-    passwordlessEmail.emailOtpEnabled ||
-    passwordlessEmail.passwordlessEmailSignInEnabled
-  );
-}
-
-function isBetterAuthHighWaived() {
-  const installedVersion = getInstalledVersion("better-auth");
-
-  if (!installedVersion) {
-    return false;
-  }
-
-  const vulnerable =
-    compareSemver(installedVersion, betterAuthPolicy.minimumPatchedVersion) < 0;
-
-  return vulnerable && !isPasswordlessEmailAuthEnabled();
-}
+const packageLock = JSON.parse(
+  readFileSync(path.join(root, "package-lock.json"), "utf8"),
+);
+const exception = JSON.parse(
+  readFileSync(path.join(root, "scripts", "ci-security-exception.json"), "utf8"),
+);
 
 function runAudit(args) {
   const auditArgs = ["audit", "--json", ...args];
@@ -91,85 +45,62 @@ function runAudit(args) {
   return JSON.parse(result.stdout);
 }
 
-function getVulnerabilityEntries(audit) {
-  return Object.entries(audit.vulnerabilities ?? {}).map(([name, value]) => ({
-    name,
-    severity: value.severity,
-    isDirect: Boolean(value.isDirect),
-    effects: value.effects ?? [],
-  }));
+function listRuntimeTraceFiles(directory) {
+  if (!existsSync(directory)) return [];
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) return listRuntimeTraceFiles(entryPath);
+    return entry.isFile() && entry.name.endsWith(".nft.json") ? [entryPath] : [];
+  });
 }
 
-function evaluateAudit(label, audit) {
-  const counts = audit.metadata?.vulnerabilities;
-
-  if (!counts) {
-    throw new Error(`${label}: npm audit output is missing metadata counts.`);
+function inspectRuntimeTraces() {
+  const traceFiles = listRuntimeTraceFiles(path.join(root, ".next"));
+  const packageNames = new Set();
+  for (const traceFile of traceFiles) {
+    const trace = JSON.parse(readFileSync(traceFile, "utf8"));
+    for (const file of trace.files ?? []) {
+      const normalized = String(file).replaceAll("\\", "/");
+      const match = normalized.match(/\/node_modules\/((?:@[^/]+\/)?[^/]+)/u);
+      if (match?.[1]) packageNames.add(match[1]);
+    }
   }
-
-  const failures = [];
-
-  if (counts.critical > ACCEPTED_BASELINE.critical) {
-    failures.push(`${label}: critical vulnerabilities increased to ${counts.critical}.`);
-  }
-
-  if (counts.high > ACCEPTED_BASELINE.high) {
-    failures.push(`${label}: high vulnerabilities increased to ${counts.high}.`);
-  }
-
-  if (counts.moderate > ACCEPTED_BASELINE.moderate) {
-    failures.push(`${label}: moderate vulnerabilities increased to ${counts.moderate}.`);
-  }
-
-  if (counts.total > ACCEPTED_BASELINE.total) {
-    failures.push(`${label}: total vulnerabilities increased to ${counts.total}.`);
-  }
-
-  const highFindings = getVulnerabilityEntries(audit).filter(
-    (entry) => entry.severity === "high",
-  );
-  const unwaivedHighFindings = highFindings.filter(
-    (entry) =>
-      !(
-        (entry.name === "better-auth" && isBetterAuthHighWaived()) ||
-        entry.name === "sharp" ||
-        entry.name === "js-yaml"
-      ),
-  );
-
-  if (unwaivedHighFindings.length > 0) {
-    failures.push(
-      `${label}: unwaived high vulnerabilities found: ${unwaivedHighFindings
-        .map((entry) => entry.name)
-        .join(", ")}.`,
-    );
-  }
-
-  return { counts, failures, highFindings };
+  return {
+    inspected: existsSync(path.join(root, ".next")),
+    fileCount: traceFiles.length,
+    packageNames: [...packageNames],
+  };
 }
 
 const fullAudit = runAudit([]);
 const productionAudit = runAudit(["--omit=dev"]);
 
-const evaluations = [
-  ["npm audit", evaluateAudit("npm audit", fullAudit)],
-  ["npm audit --omit=dev", evaluateAudit("npm audit --omit=dev", productionAudit)],
-];
+const evaluation = evaluateSecurityPolicy({
+  fullAudit,
+  productionAudit,
+  packageLock,
+  betterAuthPolicy,
+  exception,
+  now: new Date(),
+  runtimeTrace: inspectRuntimeTraces(),
+});
 
-for (const [label, evaluation] of evaluations) {
-  console.log(`${label}: ${JSON.stringify(evaluation.counts)}`);
+console.log(`npm audit raw counts: ${JSON.stringify(evaluation.rawCounts.full)}`);
+console.log(
+  `npm audit --omit=dev raw counts: ${JSON.stringify(evaluation.rawCounts.production)}`,
+);
+for (const warning of evaluation.warnings) {
+  console.warn(`SECURITY EXCEPTION WARNING: ${warning}`);
 }
 
-const failures = evaluations.flatMap(([, evaluation]) => evaluation.failures);
-
-if (failures.length > 0) {
+if (evaluation.failures.length > 0) {
   console.error("Security audit policy failed:");
-  for (const failure of failures) {
+  for (const failure of evaluation.failures) {
     console.error(`- ${failure}`);
   }
   process.exit(1);
 }
 
 console.log(
-  "Security audit policy passed: accepted Better Auth waiver is still configuration-bound and no vulnerability count regression was detected.",
+  "Security audit policy passed: the approved exception is non-expired, exact-provenance, development-only, and absent from production audit and runtime traces.",
 );
