@@ -13,6 +13,9 @@ const mocks = vi.hoisted(() => ({
   createShippingNoteDraft: vi.fn(),
   duplicateShippingNote: vi.fn(),
   updateShippingNoteDraft: vi.fn(),
+  updateShippingNotePostSubmit: vi.fn(),
+  issueShippingNoteEditGrant: vi.fn(),
+  revokeShippingNoteEditGrant: vi.fn(),
   quickCreatePartner: vi.fn(),
   quickCreateRoutingLocation: vi.fn(),
 }));
@@ -61,6 +64,12 @@ vi.mock("./mutations", () => ({
   updateBuyingCharge: vi.fn(),
   updateSellingCharge: vi.fn(),
   updateShippingNoteDraft: mocks.updateShippingNoteDraft,
+  updateShippingNotePostSubmit: mocks.updateShippingNotePostSubmit,
+}));
+
+vi.mock("./edit-grants", () => ({
+  issueShippingNoteEditGrant: mocks.issueShippingNoteEditGrant,
+  revokeShippingNoteEditGrant: mocks.revokeShippingNoteEditGrant,
 }));
 
 vi.mock("./hard-delete", () => ({

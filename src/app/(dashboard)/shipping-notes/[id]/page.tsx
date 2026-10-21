@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import {
   submitShippingNoteAction,
   updateShippingNoteDraftAction,
+  updateShippingNotePostSubmitAction,
 } from "@/features/shipping-notes/actions";
 import { BuyingChargeForm } from "@/features/shipping-notes/components/buying-charge-form";
 import { BuyingChargesList } from "@/features/shipping-notes/components/buying-charges-list";
@@ -26,6 +27,7 @@ import { CancellationControls } from "@/features/shipping-notes/components/cance
 import { ShippingNoteHardDeleteControls } from "@/features/shipping-notes/components/shipping-note-hard-delete-controls";
 import { DuplicateShippingNoteControls } from "@/features/shipping-notes/components/duplicate-shipping-note-controls";
 import { CorrectionControls } from "@/features/shipping-notes/components/correction-controls";
+import { EditGrantControls } from "@/features/shipping-notes/components/edit-grant-controls";
 import { ExportHistoryPanel } from "@/features/shipping-notes/components/export-history-panel";
 import { InternalExportActions } from "@/features/shipping-notes/components/internal-export-actions";
 import { AccountingTaxChargeTable } from "@/features/shipping-notes/tax/components/accounting-tax-charge-table";
@@ -48,10 +50,17 @@ import {
   canCancelFinalizedShippingNoteStatus,
   canCancelShippingNoteStatus,
   canMutateBuyingChargeForActor,
+  canMutateReopenedSellingCharges,
+  canIssuePostSubmitEditGrantAtStatus,
   canSubmitShippingNoteDraft,
   canReopenShippingNoteForCorrectionStatus,
   isInternalXlsxExportEligibleStatus,
 } from "@/features/shipping-notes/status-policy";
+import {
+  hasActivePostSubmitEditGrant,
+  listEligibleEditGrantRecipients,
+  listShippingNoteEditGrantHistory,
+} from "@/features/shipping-notes/edit-grants";
 import { listTaxRulesForUser } from "@/features/tax-rules/queries";
 import { ShippingNoteDocumentsPanel } from "@/features/shipping-notes/documents/components/shipping-note-documents-panel";
 import {
@@ -94,9 +103,9 @@ export default async function ShippingNoteDetailPage({
     hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_EDIT_OWN) &&
     canSubmitShippingNoteDraft(note, user);
 
-  // Accountant cannot mutate charges, even though they can view.
   const canMutateCharges =
-    canEditDraft && user.role !== "accountant";
+    (canEditDraft && user.role !== "accountant") ||
+    canMutateReopenedSellingCharges(note, user);
   const canReadBuyingCharges = hasPermission(
     user.role,
     PERMISSIONS.BUYING_CHARGES_READ,
@@ -144,7 +153,20 @@ export default async function ShippingNoteDetailPage({
   );
   const canReopenForCorrection =
     canReopenShippingNoteForCorrectionStatus(note.status) &&
-      hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_REOPEN_FOR_CORRECTION);
+      hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_REOPEN_SELLING_RATES);
+  const canViewEditGrants = hasPermission(
+    user.role,
+    PERMISSIONS.SHIPPING_NOTES_MANAGE_EDIT_GRANTS,
+  );
+  const canManageEditGrants =
+    canViewEditGrants && canIssuePostSubmitEditGrantAtStatus(note.status);
+  const hasDelegatedEditAccess = await hasActivePostSubmitEditGrant(note.id, user);
+  const editGrantRecipients = canManageEditGrants
+    ? await listEligibleEditGrantRecipients(note.id, user)
+    : [];
+  const editGrantHistory = canViewEditGrants
+    ? await listShippingNoteEditGrantHistory(note.id, user)
+    : [];
   const canHardDelete = hasPermission(
     user.role,
     PERMISSIONS.ADMIN_DESTRUCTIVE_ACTIONS,
@@ -670,6 +692,23 @@ export default async function ShippingNoteDetailPage({
           </section>
         ) : null}
 
+        {canViewEditGrants ? (
+          <EditGrantControls
+            shippingNoteId={note.id}
+            recipients={editGrantRecipients}
+            history={editGrantHistory}
+          />
+        ) : null}
+
+        {hasDelegatedEditAccess ? (
+          <section className="grid gap-2 border-t border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
+            <h2 className="font-semibold text-foreground">Delegated operational editing is active</h2>
+            <p className="text-sm text-muted-foreground">
+              This access does not include charges, accounting actions, approval, Close, or creator attribution.
+            </p>
+          </section>
+        ) : null}
+
         {canReopenForCorrection &&
         (note.status === "checked" || note.status === "approved") ? (
           <CorrectionControls
@@ -717,6 +756,25 @@ export default async function ShippingNoteDetailPage({
                 submitLabel="Submit Draft"
               />
             ) : null}
+          </section>
+        ) : hasDelegatedEditAccess ? (
+          <section className="grid gap-6 border-t border-border pt-6">
+            <div className="space-y-2">
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">Edit operational details</h2>
+              <p className="text-sm text-muted-foreground">
+                Update the approved operational field set. Jobsheet number, creator, workflow, exchange-rate default,
+                and all financial data remain unchanged.
+              </p>
+            </div>
+            <ShippingNoteDraftForm
+              action={updateShippingNotePostSubmitAction}
+              expectedUpdatedAt={note.updatedAt}
+              hiddenId={note.id}
+              includeExchangeRate={false}
+              includeJobsheetNo={false}
+              submitLabel="Save operational changes"
+              values={note}
+            />
           </section>
         ) : (
           <p className="border-t border-border pt-6 text-sm text-muted-foreground">

@@ -17,7 +17,9 @@ type ShippingNoteDraftFormProps = {
   submitLabel: string;
   values?: Partial<ShippingNoteDetail>;
   includeJobsheetNo?: boolean;
+  includeExchangeRate?: boolean;
   hiddenId?: string;
+  expectedUpdatedAt?: Date;
 };
 
 const initialState: ShippingNoteActionResult = { ok: true };
@@ -27,14 +29,23 @@ export function ShippingNoteDraftForm({
   submitLabel,
   values,
   includeJobsheetNo = true,
+  includeExchangeRate = true,
   hiddenId,
+  expectedUpdatedAt,
 }: ShippingNoteDraftFormProps) {
   const [state, formAction] = useActionState(action, initialState);
 
   return (
     <form className="grid gap-4" action={formAction}>
       {hiddenId ? <input type="hidden" name="id" value={hiddenId} /> : null}
-      <ShippingNoteDraftFields values={values} includeJobsheetNo={includeJobsheetNo} />
+      {expectedUpdatedAt ? (
+        <input type="hidden" name="expectedUpdatedAt" value={expectedUpdatedAt.toISOString()} />
+      ) : null}
+      <ShippingNoteDraftFields
+        values={values}
+        includeJobsheetNo={includeJobsheetNo}
+        includeExchangeRate={includeExchangeRate}
+      />
 
       {state.ok ? null : (
         <p className="text-sm text-red-700 dark:text-red-400" role="alert">

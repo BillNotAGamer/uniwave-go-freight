@@ -40,14 +40,25 @@ const actor: User = {
 
 function configureTransaction(catalogRows: Array<Record<string, unknown>>) {
   let inserted: Record<string, unknown> | undefined;
+  let selectCall = 0;
   const tx = {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn().mockResolvedValue(catalogRows),
+    select: vi.fn(() => {
+      const isNoteLockQuery = selectCall++ === 0;
+      return {
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(() => isNoteLockQuery
+              ? { for: vi.fn().mockResolvedValue([{
+                  id: "note-1",
+                  status: "draft",
+                  createdById: "sale-1",
+                  sellingRateReopenedAt: null,
+                }]) }
+              : Promise.resolve(catalogRows)),
+          })),
         })),
-      })),
-    })),
+      };
+    }),
     insert: vi.fn(() => ({
       values: vi.fn((values: Record<string, unknown>) => {
         inserted = values;
@@ -106,7 +117,7 @@ describe("catalog-backed charge mutation wiring", () => {
 
     await createSellingChargeForNote(input("catalog-1"), actor);
 
-    expect(configured.tx.select).toHaveBeenCalledOnce();
+    expect(configured.tx.select).toHaveBeenCalledTimes(2);
     expect(configured.inserted()).toMatchObject({
       serviceCatalogItemId: "catalog-1",
       catalogCodeSnapshot: "OF",
@@ -122,7 +133,7 @@ describe("catalog-backed charge mutation wiring", () => {
   it("keeps manual creation DB-compatible without a catalog lookup", async () => {
     const configured = configureTransaction([]);
     await createSellingChargeForNote(input(), actor);
-    expect(configured.tx.select).not.toHaveBeenCalled();
+    expect(configured.tx.select).toHaveBeenCalledOnce();
     expect(configured.inserted()).toMatchObject({
       serviceCatalogItemId: null,
       catalogNameSnapshot: null,

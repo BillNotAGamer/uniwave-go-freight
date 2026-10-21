@@ -11,6 +11,9 @@ import {
   canMutateBuyingChargeAtStatus,
   canMutateBuyingChargeForActor,
   canMutateSellingChargeForDraft,
+  canMutateReopenedSellingCharges,
+  canIssuePostSubmitEditGrantAtStatus,
+  canUsePostSubmitEditGrantAtStatus,
   canReopenShippingNoteForCorrectionStatus,
   canSubmitShippingNoteDraft,
   canUnlockShippingNoteStatus,
@@ -75,6 +78,32 @@ describe("shipping note status policy", () => {
     expect(canMutateSellingChargeForDraft(note("draft"), accountant)).toBe(false);
     expect(canMutateSellingChargeForDraft(note("draft"), saleOther)).toBe(false);
     expect(canMutateSellingChargeForDraft(note("submitted"), admin)).toBe(false);
+  });
+
+  it("allows only Admin/Accountant to mutate selling charges during an active reopen", () => {
+    const reopened = { ...note("accounting_reviewing"), sellingRateReopenedAt: new Date() };
+    expect(canMutateReopenedSellingCharges(reopened, admin)).toBe(true);
+    expect(canMutateReopenedSellingCharges(reopened, accountant)).toBe(true);
+    expect(canMutateReopenedSellingCharges(reopened, saleOwner)).toBe(false);
+    expect(canMutateReopenedSellingCharges(reopened, opsOwner)).toBe(false);
+    expect(canMutateReopenedSellingCharges({ ...reopened, sellingRateReopenedAt: null }, admin)).toBe(false);
+    expect(canMutateReopenedSellingCharges({ status: "accounting_reviewing", createdById: "sale-1" }, admin)).toBe(false);
+    expect(canMutateReopenedSellingCharges({ ...reopened, status: "checked" }, admin)).toBe(false);
+  });
+
+  it("keeps delegated operational grants post-submit and ineffective at Draft/Exported/Closed/Cancelled", () => {
+    expect(SHIPPING_NOTE_STATUSES.filter(canIssuePostSubmitEditGrantAtStatus)).toStrictEqual([
+      "submitted",
+      "accounting_reviewing",
+      "checked",
+      "approved",
+    ]);
+    expect(SHIPPING_NOTE_STATUSES.filter(canUsePostSubmitEditGrantAtStatus)).toStrictEqual([
+      "submitted",
+      "accounting_reviewing",
+      "checked",
+      "approved",
+    ]);
   });
 
   it("allows buying charge mutation only while submitted or accounting reviewing", () => {

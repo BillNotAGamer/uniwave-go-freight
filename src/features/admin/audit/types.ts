@@ -24,6 +24,9 @@ export type AuditViewerEntityType = (typeof AUDIT_VIEWER_ENTITY_TYPES)[number];
 export const AUDIT_VIEWER_KNOWN_ACTIONS = [
   "shipping_note.create_draft",
   "shipping_note.update_draft",
+  "shipping_note.update_post_submit",
+  "shipping_note.edit_grant_issued",
+  "shipping_note.edit_grant_revoked",
   "shipping_note.submit",
   "shipping_note.accounting_review.start",
   "shipping_note.accounting_review.checked",
@@ -32,6 +35,7 @@ export const AUDIT_VIEWER_KNOWN_ACTIONS = [
   "shipping_note.unlock",
   "shipping_note.cancel",
   "shipping_note.reopen_for_correction",
+  "shipping_note.selling_rate_reopened",
   "shipping_note_charge.create",
   "shipping_note_charge.update",
   "shipping_note_charge.delete",

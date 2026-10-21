@@ -64,6 +64,13 @@ export const REOPEN_FOR_CORRECTION_SOURCE_STATUSES = [
   "approved",
 ] as const satisfies readonly ShippingNoteStatus[];
 
+export const POST_SUBMIT_EDIT_GRANT_STATUSES = [
+  "submitted",
+  "accounting_reviewing",
+  "checked",
+  "approved",
+] as const satisfies readonly ShippingNoteStatus[];
+
 export const NORMAL_BUSINESS_WORKFLOW_TARGET_STATUSES = [
   "submitted",
   "accounting_reviewing",
@@ -187,6 +194,29 @@ export function canReopenShippingNoteForCorrectionStatus(
   status: ShippingNoteStatus,
 ): boolean {
   return statusInList(status, REOPEN_FOR_CORRECTION_SOURCE_STATUSES);
+}
+
+export function canIssuePostSubmitEditGrantAtStatus(
+  status: ShippingNoteStatus,
+): boolean {
+  return statusInList(status, POST_SUBMIT_EDIT_GRANT_STATUSES);
+}
+
+export function canUsePostSubmitEditGrantAtStatus(
+  status: ShippingNoteStatus,
+): boolean {
+  return canIssuePostSubmitEditGrantAtStatus(status);
+}
+
+export function canMutateReopenedSellingCharges(
+  note: ShippingNotePolicySubject & { sellingRateReopenedAt?: Date | null },
+  actor: ShippingNotePolicyActor,
+): boolean {
+  return (
+    note.status === "accounting_reviewing" &&
+    note.sellingRateReopenedAt instanceof Date &&
+    (actor.role === "admin" || actor.role === "accountant")
+  );
 }
 
 export function isNormalBusinessWorkflowTargetStatus(

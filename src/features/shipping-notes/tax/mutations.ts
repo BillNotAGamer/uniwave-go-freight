@@ -58,7 +58,7 @@ const chargeTaxReturnColumns = {
   catalogVatRateSnapshot: shippingNoteCharges.catalogVatRateSnapshot,
 } as const;
 
-const joinedChargeColumns = {
+const activeChargeColumns = {
   id: shippingNoteCharges.id,
   shippingNoteId: shippingNoteCharges.shippingNoteId,
   section: shippingNoteCharges.section,
@@ -78,7 +78,6 @@ const joinedChargeColumns = {
   catalogNameSnapshot: shippingNoteCharges.catalogNameSnapshot,
   catalogUnitSnapshot: shippingNoteCharges.catalogUnitSnapshot,
   catalogVatRateSnapshot: shippingNoteCharges.catalogVatRateSnapshot,
-  noteStatus: shippingNotes.status,
 } as const;
 
 type JoinedCharge = {
@@ -173,24 +172,55 @@ async function loadActiveChargeForTax(
   tx: TaxMutationTransaction,
   chargeId: string,
 ): Promise<JoinedCharge> {
-  const [charge] = await tx
-    .select(joinedChargeColumns)
+  const [identity] = await tx
+    .select({ shippingNoteId: shippingNoteCharges.shippingNoteId })
     .from(shippingNoteCharges)
-    .innerJoin(shippingNotes, eq(shippingNotes.id, shippingNoteCharges.shippingNoteId))
     .where(
       and(
         eq(shippingNoteCharges.id, chargeId),
         isNull(shippingNoteCharges.deletedAt),
-        isNull(shippingNotes.deletedAt),
       ),
     )
     .limit(1);
+
+  if (!identity) {
+    throw new AuthorizationError();
+  }
+
+  const [note] = await tx
+    .select({ status: shippingNotes.status })
+    .from(shippingNotes)
+    .where(
+      and(
+        eq(shippingNotes.id, identity.shippingNoteId),
+        isNull(shippingNotes.deletedAt),
+      ),
+    )
+    .limit(1)
+    .for("update");
+
+  if (!note) {
+    throw new AuthorizationError();
+  }
+
+  const [charge] = await tx
+    .select(activeChargeColumns)
+    .from(shippingNoteCharges)
+    .where(
+      and(
+        eq(shippingNoteCharges.id, chargeId),
+        eq(shippingNoteCharges.shippingNoteId, identity.shippingNoteId),
+        isNull(shippingNoteCharges.deletedAt),
+      ),
+    )
+    .limit(1)
+    .for("update");
 
   if (!charge) {
     throw new AuthorizationError();
   }
 
-  return charge as JoinedCharge;
+  return { ...charge, noteStatus: note.status } as JoinedCharge;
 }
 
 export async function assignChargeTaxRule(

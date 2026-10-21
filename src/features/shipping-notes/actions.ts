@@ -43,6 +43,7 @@ import {
   unlockShippingNote,
   updateBuyingCharge,
   updateShippingNoteDraft,
+  updateShippingNotePostSubmit,
   createSellingChargeForNote,
   updateSellingCharge,
   softDeleteSellingCharge,
@@ -69,8 +70,15 @@ import {
   unlockShippingNoteInputSchema,
   updateBuyingChargeInputSchema,
   updateShippingNoteDraftInputSchema,
+  updateShippingNotePostSubmitInputSchema,
   updateSellingChargeInputSchema,
+  issueShippingNoteEditGrantInputSchema,
+  revokeShippingNoteEditGrantInputSchema,
 } from "./validators";
+import {
+  issueShippingNoteEditGrant,
+  revokeShippingNoteEditGrant,
+} from "./edit-grants";
 import type { BuyingChargeActionState } from "./types";
 
 export type ShippingNoteActionResult =
@@ -435,6 +443,126 @@ export async function updateShippingNoteDraftAction(
   revalidatePath("/shipping-notes");
   revalidatePath(`/shipping-notes/${noteId}`);
   redirect(`/shipping-notes/${noteId}`);
+}
+
+export async function updateShippingNotePostSubmitAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+  const parsed = updateShippingNotePostSubmitInputSchema.safeParse({
+    id: readFormString(formData, "id"),
+    expectedUpdatedAt: readFormString(formData, "expectedUpdatedAt"),
+    commodityHsCode: readFormString(formData, "commodityHsCode"),
+    commodity: readFormString(formData, "commodity"),
+    hsCode: readFormString(formData, "hsCode"),
+    containerType: readFormString(formData, "containerType"),
+    containerNo: readFormString(formData, "containerNo"),
+    sealNo: readFormString(formData, "sealNo"),
+    carrierName: readFormString(formData, "carrierName"),
+    grossWeight: readFormString(formData, "grossWeight"),
+    chargeableWeight: readFormString(formData, "chargeableWeight"),
+    licensePlate: readFormString(formData, "licensePlate"),
+    driverInformation: readFormString(formData, "driverInformation"),
+    vehiclePayloadCapacity: readFormString(formData, "vehiclePayloadCapacity"),
+    shippingMode: readFormString(formData, "shippingMode"),
+    shipperPartnerId: readFormString(formData, "shipperPartnerId"),
+    consigneePartnerId: readFormString(formData, "consigneePartnerId"),
+    customerPartnerId: readFormString(formData, "customerPartnerId"),
+    agentPartnerId: readFormString(formData, "agentPartnerId"),
+    mawbHawbNo: readFormString(formData, "mawbHawbNo"),
+    shipperText: readFormString(formData, "shipperText"),
+    consigneeText: readFormString(formData, "consigneeText"),
+    customerText: readFormString(formData, "customerText"),
+    agentText: readFormString(formData, "agentText"),
+    domesticOrigin: readFormString(formData, "domesticOrigin"),
+    domesticDestination: readFormString(formData, "domesticDestination"),
+    customModeName: readFormString(formData, "customModeName"),
+    customOrigin: readFormString(formData, "customOrigin"),
+    customDestination: readFormString(formData, "customDestination"),
+    airOrigin: readFormString(formData, "airOrigin"),
+    airDestination: readFormString(formData, "airDestination"),
+    aol: readFormString(formData, "aol"),
+    aod: readFormString(formData, "aod"),
+    portOfLoading: readFormString(formData, "portOfLoading"),
+    portOfDischarge: readFormString(formData, "portOfDischarge"),
+    finalDestination: readFormString(formData, "finalDestination"),
+    mawbNo: readFormString(formData, "mawbNo"),
+    hawbNo: readFormString(formData, "hawbNo"),
+    mblNo: readFormString(formData, "mblNo"),
+    hblNo: readFormString(formData, "hblNo"),
+    flightNo: readFormString(formData, "flightNo"),
+    vesselName: readFormString(formData, "vesselName"),
+    voyageNo: readFormString(formData, "voyageNo"),
+    etd: readFormString(formData, "etd"),
+    eta: readFormString(formData, "eta"),
+    volumeValue: readFormString(formData, "volumeValue"),
+    volumeUnit: readFormString(formData, "volumeUnit"),
+  });
+
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid Shipping Note data." };
+  }
+
+  try {
+    await updateShippingNotePostSubmit(parsed.data, session.user);
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath("/shipping-notes");
+  revalidatePath(`/shipping-notes/${parsed.data.id}`);
+  redirect(`/shipping-notes/${parsed.data.id}`);
+}
+
+export async function issueShippingNoteEditGrantAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+  const parsed = issueShippingNoteEditGrantInputSchema.safeParse({
+    shippingNoteId: readFormString(formData, "shippingNoteId"),
+    recipientUserId: readFormString(formData, "recipientUserId"),
+    reason: readFormString(formData, "reason"),
+  });
+
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid edit grant." };
+  }
+
+  try {
+    await issueShippingNoteEditGrant(parsed.data, session.user);
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath(`/shipping-notes/${parsed.data.shippingNoteId}`);
+  return { ok: true };
+}
+
+export async function revokeShippingNoteEditGrantAction(
+  _state: ShippingNoteActionResult,
+  formData: FormData,
+): Promise<ShippingNoteActionResult> {
+  const session = await requireAuthenticatedUser();
+  const parsed = revokeShippingNoteEditGrantInputSchema.safeParse({
+    shippingNoteId: readFormString(formData, "shippingNoteId"),
+    grantId: readFormString(formData, "grantId"),
+    reason: readFormString(formData, "reason"),
+  });
+
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid edit grant." };
+  }
+
+  try {
+    await revokeShippingNoteEditGrant(parsed.data, session.user);
+  } catch (error: unknown) {
+    return { ok: false, error: parseBooleanishError(error) };
+  }
+
+  revalidatePath(`/shipping-notes/${parsed.data.shippingNoteId}`);
+  return { ok: true };
 }
 
 export async function submitShippingNoteAction(

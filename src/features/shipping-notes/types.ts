@@ -66,7 +66,34 @@ export type ShippingNoteDetail = Omit<ShippingNoteListItem, "createdByName"> & {
   exchangeRate: string;
   createdById: string | null;
   submittedAt: Date | null;
+  sellingRateReopenedById?: string | null;
+  sellingRateReopenedAt?: Date | null;
+  sellingRateReopenReason?: string | null;
   updatedAt: Date;
+};
+
+export type ShippingNoteEditGrantView = {
+  id: string;
+  shippingNoteId: string;
+  recipientUserId: string;
+  recipientName: string;
+  recipientRole: "sale" | "ops";
+  grantedById: string;
+  grantedByName: string;
+  status: "active" | "revoked";
+  reason: string | null;
+  grantedAt: Date;
+  revokedAt: Date | null;
+  revokedById: string | null;
+  revokedByName: string | null;
+  revokeReason: string | null;
+};
+
+export type ShippingNoteEditGrantRecipient = {
+  id: string;
+  name: string;
+  email: string;
+  role: "sale" | "ops";
 };
 
 export type ShippingNoteCreator = Pick<User, "name" | "email">;

@@ -73,6 +73,11 @@ export const taxTreatmentEnum = pgEnum("tax_treatment", [
 
 export const currencyCodeEnum = pgEnum("currency_code", ["VND", "USD", "EUR"]);
 
+export const shippingNoteEditGrantStatusEnum = pgEnum(
+  "shipping_note_edit_grant_status",
+  ["active", "revoked"],
+);
+
 export const exportTypeEnum = pgEnum("export_type", ["excel", "pdf"]);
 
 export const exportStatusEnum = pgEnum("export_status", [
@@ -286,6 +291,15 @@ export const shippingNotes = pgTable(
       onDelete: "set null",
     }),
     approvedAt: timestamp("approved_at", { mode: "date", precision: 3 }),
+    sellingRateReopenedById: text("selling_rate_reopened_by_id").references(
+      () => users.id,
+      { onDelete: "set null" },
+    ),
+    sellingRateReopenedAt: timestamp("selling_rate_reopened_at", {
+      mode: "date",
+      precision: 3,
+    }),
+    sellingRateReopenReason: text("selling_rate_reopen_reason"),
     lockedById: text("locked_by_id").references(() => users.id, {
       onDelete: "set null",
     }),
@@ -309,6 +323,45 @@ export const shippingNotes = pgTable(
     ),
     index("shipping_notes_customer_partner_id_idx").on(table.customerPartnerId),
     index("shipping_notes_agent_partner_id_idx").on(table.agentPartnerId),
+  ],
+);
+
+export const shippingNoteEditGrants = pgTable(
+  "shipping_note_edit_grants",
+  {
+    id: idColumn(),
+    shippingNoteId: text("shipping_note_id")
+      .notNull()
+      .references(() => shippingNotes.id, { onDelete: "cascade" }),
+    recipientUserId: text("recipient_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    grantedById: text("granted_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    status: shippingNoteEditGrantStatusEnum("status")
+      .notNull()
+      .default("active"),
+    reason: text("reason"),
+    grantedAt: timestamp("granted_at", { mode: "date", precision: 3 })
+      .notNull()
+      .defaultNow(),
+    revokedAt: timestamp("revoked_at", { mode: "date", precision: 3 }),
+    revokedById: text("revoked_by_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    revokeReason: text("revoke_reason"),
+  },
+  (table) => [
+    index("shipping_note_edit_grants_note_idx").on(table.shippingNoteId),
+    index("shipping_note_edit_grants_recipient_idx").on(table.recipientUserId),
+    uniqueIndex("shipping_note_edit_grants_active_note_recipient_uidx")
+      .on(table.shippingNoteId, table.recipientUserId)
+      .where(sql`${table.status} = 'active'`),
+    check(
+      "shipping_note_edit_grants_revocation_state_check",
+      sql`(${table.status} = 'active' and ${table.revokedAt} is null and ${table.revokedById} is null) or (${table.status} = 'revoked' and ${table.revokedAt} is not null and ${table.revokedById} is not null)`,
+    ),
   ],
 );
 
@@ -566,6 +619,9 @@ export type NewVerification = typeof verifications.$inferInsert;
 
 export type ShippingNote = typeof shippingNotes.$inferSelect;
 export type NewShippingNote = typeof shippingNotes.$inferInsert;
+
+export type ShippingNoteEditGrant = typeof shippingNoteEditGrants.$inferSelect;
+export type NewShippingNoteEditGrant = typeof shippingNoteEditGrants.$inferInsert;
 
 export type ShippingNoteCharge = typeof shippingNoteCharges.$inferSelect;
 export type NewShippingNoteCharge = typeof shippingNoteCharges.$inferInsert;

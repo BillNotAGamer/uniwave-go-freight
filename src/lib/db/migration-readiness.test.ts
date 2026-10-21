@@ -11,7 +11,7 @@ function readMigration(name: string): string {
 }
 
 describe("static migration readiness", () => {
-  it("has migration files through 0019", () => {
+  it("has migration files through 0020", () => {
     expect(readdirSync(drizzleDir).filter((file) => file.endsWith(".sql"))).toEqual([
       "0000_new_nick_fury.sql",
       "0001_dazzling_saracen.sql",
@@ -33,10 +33,11 @@ describe("static migration readiness", () => {
       "0017_breezy_blackheart.sql",
       "0018_lethal_living_mummy.sql",
       "0019_add_eur_currency.sql",
+      "0020_phase3_edit_grants_selling_reopen.sql",
     ]);
   });
 
-  it("has journal entries through 0019 in order", () => {
+  it("has journal entries through 0020 in order", () => {
     const journal = JSON.parse(
       readFileSync(path.join(drizzleDir, "meta", "_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
@@ -62,6 +63,7 @@ describe("static migration readiness", () => {
       "17:0017_breezy_blackheart",
       "18:0018_lethal_living_mummy",
       "19:0019_add_eur_currency",
+      "20:0020_phase3_edit_grants_selling_reopen",
     ]);
   });
 
@@ -129,6 +131,23 @@ describe("static migration readiness", () => {
     delete beforeOtherEnums["public.currency_code"];
     delete afterOtherEnums["public.currency_code"];
     expect(afterOtherEnums).toEqual(beforeOtherEnums);
+  });
+
+  it("0020 adds only Phase 3 grant and selling-rate reopen structures", () => {
+    const migration = readMigration("0020_phase3_edit_grants_selling_reopen.sql");
+    for (const expected of [
+      'CREATE TYPE "public"."shipping_note_edit_grant_status"',
+      'CREATE TABLE "shipping_note_edit_grants"',
+      '"shipping_note_edit_grants_active_note_recipient_uidx"',
+      '"shipping_note_edit_grants_revocation_state_check"',
+      'ADD COLUMN "selling_rate_reopened_by_id" text',
+      'ADD COLUMN "selling_rate_reopened_at" timestamp (3)',
+      'ADD COLUMN "selling_rate_reopen_reason" text',
+    ]) {
+      expect(migration).toContain(expected);
+    }
+    expect(migration).not.toMatch(/(?:^|\n)(?:DROP|TRUNCATE|DELETE|UPDATE|INSERT)\s/im);
+    expect(migration).not.toContain('ALTER TABLE "shipping_note_charges"');
   });
 
   it("0003 contains post-checked workflow metadata and foreign keys", () => {

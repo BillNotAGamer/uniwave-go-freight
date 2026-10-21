@@ -32,6 +32,7 @@ describe("hosted database migration verification", () => {
           'sessions',
           'shipping_notes',
           'shipping_note_charges',
+          'shipping_note_edit_grants',
           'shipping_note_exports',
           'audit_logs',
           'tax_rules'
@@ -45,6 +46,7 @@ describe("hosted database migration verification", () => {
         "sessions",
         "shipping_notes",
         "shipping_note_charges",
+        "shipping_note_edit_grants",
         "shipping_note_exports",
         "audit_logs",
         "tax_rules",
@@ -196,6 +198,56 @@ describe("hosted database migration verification", () => {
     expect(columns.find((row) => row.column_name === "cancelled_at")?.udt_name).toBe(
       "timestamp",
     );
+  });
+
+  it("has Phase 3 edit-grant constraints and selling-rate reopen metadata", async () => {
+    await ensureDatabaseReady();
+
+    const constraints = await queryRows<{ constraint_name: string }>(sql`
+      select constraint_name
+      from information_schema.table_constraints
+      where table_schema = 'public'
+        and table_name = 'shipping_note_edit_grants'
+    `);
+    const constraintNames = new Set(constraints.map((row) => row.constraint_name));
+
+    for (const expectedConstraint of [
+      "shipping_note_edit_grants_revocation_state_check",
+      "shipping_note_edit_grants_shipping_note_id_shipping_notes_id_fk",
+      "shipping_note_edit_grants_recipient_user_id_users_id_fk",
+      "shipping_note_edit_grants_granted_by_id_users_id_fk",
+      "shipping_note_edit_grants_revoked_by_id_users_id_fk",
+    ]) {
+      expect(constraintNames.has(expectedConstraint)).toBe(true);
+    }
+
+    const indexes = await queryRows<{ indexname: string; indexdef: string }>(sql`
+      select indexname, indexdef
+      from pg_indexes
+      where schemaname = 'public'
+        and tablename = 'shipping_note_edit_grants'
+    `);
+    expect(indexes.find(
+      (row) => row.indexname === "shipping_note_edit_grants_active_note_recipient_uidx",
+    )?.indexdef).toContain("WHERE (status = 'active'::shipping_note_edit_grant_status)");
+
+    const reopenColumns = await queryRows<{ column_name: string; is_nullable: string }>(sql`
+      select column_name, is_nullable
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'shipping_notes'
+        and column_name in (
+          'selling_rate_reopened_by_id',
+          'selling_rate_reopened_at',
+          'selling_rate_reopen_reason'
+        )
+    `);
+    expect(new Set(reopenColumns.map((row) => row.column_name))).toEqual(new Set([
+      "selling_rate_reopened_by_id",
+      "selling_rate_reopened_at",
+      "selling_rate_reopen_reason",
+    ]));
+    expect(reopenColumns.every((column) => column.is_nullable === "YES")).toBe(true);
   });
 
   it("has durable export artifact and Drive upload foundation columns", async () => {

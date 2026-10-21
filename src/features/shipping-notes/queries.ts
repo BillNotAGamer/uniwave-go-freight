@@ -148,6 +148,9 @@ const shippingNoteDetailColumns = {
   exchangeRate: shippingNotes.exchangeRate,
   createdById: shippingNotes.createdById,
   submittedAt: shippingNotes.submittedAt,
+  sellingRateReopenedById: shippingNotes.sellingRateReopenedById,
+  sellingRateReopenedAt: shippingNotes.sellingRateReopenedAt,
+  sellingRateReopenReason: shippingNotes.sellingRateReopenReason,
   updatedAt: shippingNotes.updatedAt,
 } as const;
 

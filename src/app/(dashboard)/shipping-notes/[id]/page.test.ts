@@ -26,6 +26,9 @@ const mocks = vi.hoisted(() => ({
   getFinancialSummaryForNoteForUser: vi.fn(),
   getCancellationMetadataForNoteForUser: vi.fn(),
   listShippingNoteDocumentsForUser: vi.fn(),
+  hasActivePostSubmitEditGrant: vi.fn().mockResolvedValue(false),
+  listEligibleEditGrantRecipients: vi.fn().mockResolvedValue([]),
+  listShippingNoteEditGrantHistory: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/lib/auth/session", () => ({
@@ -58,6 +61,12 @@ vi.mock("@/features/shipping-notes/customs-declarations/queries", () => ({
 
 vi.mock("@/features/shipping-notes/documents/queries", () => ({
   listShippingNoteDocumentsForUser: mocks.listShippingNoteDocumentsForUser,
+}));
+
+vi.mock("@/features/shipping-notes/edit-grants", () => ({
+  hasActivePostSubmitEditGrant: mocks.hasActivePostSubmitEditGrant,
+  listEligibleEditGrantRecipients: mocks.listEligibleEditGrantRecipients,
+  listShippingNoteEditGrantHistory: mocks.listShippingNoteEditGrantHistory,
 }));
 
 import ShippingNoteDetailPage from "./page";

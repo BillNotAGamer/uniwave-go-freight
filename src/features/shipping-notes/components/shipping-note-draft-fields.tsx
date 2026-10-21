@@ -50,9 +50,17 @@ function Section({ children, title }: { children: React.ReactNode; title: string
   </section>;
 }
 
-type ShippingNoteDraftFieldsProps = { values?: ShippingNoteDraftFieldValues; includeJobsheetNo?: boolean };
+type ShippingNoteDraftFieldsProps = {
+  values?: ShippingNoteDraftFieldValues;
+  includeJobsheetNo?: boolean;
+  includeExchangeRate?: boolean;
+};
 
-export function ShippingNoteDraftFields({ values, includeJobsheetNo = true }: ShippingNoteDraftFieldsProps) {
+export function ShippingNoteDraftFields({
+  values,
+  includeJobsheetNo = true,
+  includeExchangeRate = true,
+}: ShippingNoteDraftFieldsProps) {
   const initial = getEditShipmentModePresentation(values?.shippingMode ?? "domestic_truck");
   const [shipmentFamily, setShipmentFamily] = useState<EditShipmentFamily>(initial.shipmentFamily);
   const [direction, setDirection] = useState<ShipmentDirection | null>(initial.direction);
@@ -170,9 +178,9 @@ export function ShippingNoteDraftFields({ values, includeJobsheetNo = true }: Sh
           {VOLUME_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
         </select>
       </label>
-      <label className="text-sm font-medium text-foreground" htmlFor="exchangeRate">Exchange Rate
+      {includeExchangeRate ? <label className="text-sm font-medium text-foreground" htmlFor="exchangeRate">Exchange Rate
         <input className={controlClassName} defaultValue={values?.exchangeRate ?? "1"} id="exchangeRate" min="0" name="exchangeRate" step="0.000001" type="number" />
-      </label>
+      </label> : null}
     </Section>
   </>;
 }

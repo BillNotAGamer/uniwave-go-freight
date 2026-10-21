@@ -50,6 +50,9 @@ const shippingNoteStateFields = [
   { field: "checkedAt", label: "Checked at" },
   { field: "approvedById", label: "Approved by" },
   { field: "approvedAt", label: "Approved at" },
+  { field: "sellingRateReopenedById", label: "Selling rates reopened by" },
+  { field: "sellingRateReopenedAt", label: "Selling rates reopened at" },
+  { field: "sellingRateReopenReason", label: "Selling-rate reopen reason" },
 ] as const satisfies readonly FieldConfig[];
 
 const shippingNoteDraftFields = [
@@ -87,6 +90,9 @@ const reopenFields = [
   { field: "checkedAt", label: "Checked at" },
   { field: "approvedById", label: "Approved by" },
   { field: "approvedAt", label: "Approved at" },
+  { field: "sellingRateReopenedById", label: "Selling rates reopened by" },
+  { field: "sellingRateReopenedAt", label: "Selling rates reopened at" },
+  { field: "sellingRateReopenReason", label: "Selling-rate reopen reason" },
 ] as const satisfies readonly FieldConfig[];
 
 const chargeFields = [
@@ -181,6 +187,30 @@ const actionCatalog: Record<AuditViewerKnownAction, KnownActionConfig> = {
     category: "shipping_note",
     fields: shippingNoteDraftFields,
   },
+  "shipping_note.update_post_submit": {
+    label: "Shipping Note operational details updated by grant",
+    category: "shipping_note",
+    fields: shippingNoteDraftFields,
+  },
+  "shipping_note.edit_grant_issued": {
+    label: "Shipping Note edit grant issued",
+    category: "shipping_note",
+    fields: [
+      { field: "grantId", label: "Grant" },
+      { field: "recipientUserId", label: "Recipient" },
+      { field: "status", label: "Grant status" },
+    ],
+  },
+  "shipping_note.edit_grant_revoked": {
+    label: "Shipping Note edit grant revoked",
+    category: "shipping_note",
+    fields: [
+      { field: "grantId", label: "Grant" },
+      { field: "recipientUserId", label: "Recipient" },
+      { field: "status", label: "Grant status" },
+      { field: "revokedAt", label: "Revoked at" },
+    ],
+  },
   "shipping_note.submit": {
     label: "Shipping Note submitted",
     category: "shipping_note",
@@ -222,6 +252,11 @@ const actionCatalog: Record<AuditViewerKnownAction, KnownActionConfig> = {
   },
   "shipping_note.reopen_for_correction": {
     label: "Shipping Note reopened for correction",
+    category: "shipping_note",
+    fields: reopenFields,
+  },
+  "shipping_note.selling_rate_reopened": {
+    label: "Selling rates reopened",
     category: "shipping_note",
     fields: reopenFields,
   },

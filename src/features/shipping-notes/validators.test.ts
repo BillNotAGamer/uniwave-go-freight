@@ -14,6 +14,9 @@ import {
   submitShippingNoteInputSchema,
   unlockShippingNoteInputSchema,
   updateShippingNoteDraftInputSchema,
+  updateShippingNotePostSubmitInputSchema,
+  issueShippingNoteEditGrantInputSchema,
+  revokeShippingNoteEditGrantInputSchema,
 } from "./validators";
 
 const baseSellingChargeInput = {
@@ -60,6 +63,36 @@ const validSeaInput = {
 } as const;
 
 describe("shipping note validation schemas", () => {
+  it("validates the scoped post-submit edit payload without Jobsheet or exchange-rate fields", () => {
+    const operationalFields: Record<string, unknown> = { ...validDomesticInput };
+    delete operationalFields.jobsheetNo;
+    const parsed = updateShippingNotePostSubmitInputSchema.parse({
+      ...operationalFields,
+      id: "note-1",
+      expectedUpdatedAt: "2026-10-21T00:00:00.000Z",
+    });
+    expect(parsed.id).toBe("note-1");
+    expect(parsed.expectedUpdatedAt).toEqual(new Date("2026-10-21T00:00:00.000Z"));
+    expect(parsed).not.toHaveProperty("jobsheetNo");
+    expect(parsed).not.toHaveProperty("exchangeRate");
+  });
+
+  it("validates named grant/revoke inputs and bounds optional reasons", () => {
+    expect(issueShippingNoteEditGrantInputSchema.parse({
+      shippingNoteId: "note-1",
+      recipientUserId: "sale-1",
+      reason: "Operational correction",
+    })).toMatchObject({ shippingNoteId: "note-1", recipientUserId: "sale-1" });
+    expect(revokeShippingNoteEditGrantInputSchema.parse({
+      shippingNoteId: "note-1",
+      grantId: "grant-1",
+    })).toMatchObject({ shippingNoteId: "note-1", grantId: "grant-1" });
+    expect(() => issueShippingNoteEditGrantInputSchema.parse({
+      shippingNoteId: "note-1",
+      recipientUserId: "sale-1",
+      reason: "x".repeat(501),
+    })).toThrow();
+  });
   it.each(["air_import", "air_export", "sea_import", "sea_export"] as const)(
     "accepts unlisted manual routing on %s without a Master Data lookup",
     (shippingMode) => {

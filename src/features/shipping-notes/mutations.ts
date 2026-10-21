@@ -13,8 +13,10 @@ import { PERMISSIONS, type Permission } from "@/lib/permissions/permissions";
 import {
   businessPartners,
   serviceCatalogItems,
+  shippingNoteEditGrants,
   shippingNotes,
   shippingNoteCharges,
+  users,
   type User as DbUser,
 } from "@/lib/db/schema";
 
@@ -42,6 +44,7 @@ import type {
   UnlockShippingNoteInput,
   UpdateBuyingChargeInput,
   UpdateShippingNoteDraftInput,
+  UpdateShippingNotePostSubmitInput,
   UpdateSellingChargeInput,
 } from "./validators";
 import type {
@@ -56,6 +59,7 @@ import {
   shippingNoteDetailSelect,
 } from "./queries";
 import { calculateChargeAmounts } from "@/lib/calculations/money";
+import { parseDecimalToScaledInteger } from "@/lib/calculations/decimal";
 import {
   canAccessDraftMutationSubject,
   canApproveShippingNoteStatus,
@@ -65,11 +69,14 @@ import {
   LOCK_SOURCE_STATUSES,
   canMutateBuyingChargeForActor,
   canMutateSellingChargeForDraft,
+  canMutateReopenedSellingCharges,
   canReopenShippingNoteForCorrectionStatus,
   canSubmitShippingNoteDraft,
   canUnlockShippingNoteStatus,
+  canUsePostSubmitEditGrantAtStatus,
   isExpectedAccountingTransitionSource,
 } from "./status-policy";
+import { updateShippingNotePostSubmitInputSchema } from "./validators";
 import {
   summarizeTaxCompleteness,
   TAX_COMPLETENESS_ERROR,
@@ -107,6 +114,81 @@ function normalizeOptionalText(value: string | undefined): string | null {
 
 function normalizeOptionalNumber(value: number | undefined): string | null {
   return value === undefined ? null : value.toString();
+}
+
+function buildPostSubmitOperationalPersistence(
+  input: UpdateShippingNotePostSubmitInput,
+  partyPersistence: ShippingNotePartyPersistence,
+) {
+  return {
+    commodityHsCode: normalizeOptionalText(input.commodityHsCode),
+    commodity: normalizeOptionalText(input.commodity),
+    hsCode: normalizeOptionalText(input.hsCode),
+    containerType: normalizeOptionalText(input.containerType),
+    containerNo: normalizeOptionalText(input.containerNo),
+    sealNo: normalizeOptionalText(input.sealNo),
+    carrierName: normalizeOptionalText(input.carrierName),
+    grossWeight: normalizeOptionalText(input.grossWeight),
+    chargeableWeight: normalizeOptionalText(input.chargeableWeight),
+    licensePlate: normalizeOptionalText(input.licensePlate),
+    driverInformation: normalizeOptionalText(input.driverInformation),
+    vehiclePayloadCapacity: normalizeOptionalText(input.vehiclePayloadCapacity),
+    shippingMode: input.shippingMode,
+    mawbHawbNo: normalizeOptionalText(input.mawbHawbNo),
+    ...partyPersistence,
+    domesticOrigin: normalizeOptionalText(input.domesticOrigin),
+    domesticDestination: normalizeOptionalText(input.domesticDestination),
+    customModeName: normalizeOptionalText(input.customModeName),
+    customOrigin: normalizeOptionalText(input.customOrigin),
+    customDestination: normalizeOptionalText(input.customDestination),
+    aol: normalizeOptionalText(input.aol),
+    aod: normalizeOptionalText(input.aod),
+    portOfLoading: normalizeOptionalText(input.portOfLoading),
+    portOfDischarge: normalizeOptionalText(input.portOfDischarge),
+    finalDestination: normalizeOptionalText(input.finalDestination),
+    mawbNo: normalizeOptionalText(input.mawbNo),
+    hawbNo: normalizeOptionalText(input.hawbNo),
+    mblNo: normalizeOptionalText(input.mblNo),
+    hblNo: normalizeOptionalText(input.hblNo),
+    flightNo: normalizeOptionalText(input.flightNo),
+    vesselName: normalizeOptionalText(input.vesselName),
+    voyageNo: normalizeOptionalText(input.voyageNo),
+    etd: normalizeOptionalDate(input.etd),
+    eta: normalizeOptionalDate(input.eta),
+    volumeValue: normalizeOptionalNumber(input.volumeValue),
+    volumeUnit: input.volumeUnit ?? null,
+  };
+}
+
+type PostSubmitOperationalPersistence = ReturnType<
+  typeof buildPostSubmitOperationalPersistence
+>;
+
+function arePostSubmitValuesEqual(
+  field: keyof PostSubmitOperationalPersistence,
+  currentValue: unknown,
+  proposedValue: unknown,
+): boolean {
+  if (currentValue instanceof Date || proposedValue instanceof Date) {
+    return currentValue instanceof Date &&
+      proposedValue instanceof Date &&
+      currentValue.getTime() === proposedValue.getTime();
+  }
+
+  if (field === "volumeValue" && currentValue !== null && proposedValue !== null) {
+    return parseDecimalToScaledInteger(String(currentValue), 3) ===
+      parseDecimalToScaledInteger(String(proposedValue), 3);
+  }
+
+  return currentValue === proposedValue;
+}
+
+function getChangedPostSubmitFields(
+  current: ShippingNoteDetail,
+  proposed: PostSubmitOperationalPersistence,
+): Array<keyof PostSubmitOperationalPersistence> {
+  return (Object.keys(proposed) as Array<keyof PostSubmitOperationalPersistence>)
+    .filter((field) => !arePostSubmitValuesEqual(field, current[field], proposed[field]));
 }
 
 async function resolvePartyPersistence(
@@ -748,6 +830,141 @@ export async function updateShippingNoteDraft(
   }
 }
 
+export async function updateShippingNotePostSubmit(
+  input: UpdateShippingNotePostSubmitInput,
+  user: DbUser,
+): Promise<ShippingNoteDetail> {
+  requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_EDIT_OWN);
+  const parsedInput = updateShippingNotePostSubmitInputSchema.parse(input);
+  const canonicalInput = canonicalizeShippingNoteModeFields(parsedInput);
+  assertValidShippingNoteModeFields(canonicalInput);
+
+  if (user.role !== "sale" && user.role !== "ops") {
+    throw new AuthorizationError();
+  }
+
+  try {
+    return await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({
+          ...shippingNoteDetailSelect,
+          checkedById: shippingNotes.checkedById,
+          checkedAt: shippingNotes.checkedAt,
+          approvedById: shippingNotes.approvedById,
+          approvedAt: shippingNotes.approvedAt,
+        })
+        .from(shippingNotes)
+        .where(and(eq(shippingNotes.id, parsedInput.id), isNull(shippingNotes.deletedAt)))
+        .limit(1)
+        .for("update");
+
+      if (
+        !current ||
+        current.createdById !== user.id ||
+        !canUsePostSubmitEditGrantAtStatus(current.status) ||
+        current.updatedAt.getTime() !== parsedInput.expectedUpdatedAt.getTime()
+      ) {
+        throw new AuthorizationError("This Shipping Note changed or is no longer editable. Refresh and try again.");
+      }
+
+      const [activeGrant] = await tx
+        .select({ id: shippingNoteEditGrants.id })
+        .from(shippingNoteEditGrants)
+        .innerJoin(users, eq(users.id, shippingNoteEditGrants.recipientUserId))
+        .where(
+          and(
+            eq(shippingNoteEditGrants.shippingNoteId, current.id),
+            eq(shippingNoteEditGrants.recipientUserId, user.id),
+            eq(shippingNoteEditGrants.status, "active"),
+            eq(users.isActive, true),
+            isNull(users.deletedAt),
+            eq(users.role, user.role),
+          ),
+        )
+        .limit(1)
+        .for("update");
+
+      if (!activeGrant) {
+        throw new AuthorizationError("Your edit grant is no longer active.");
+      }
+
+      const partyPersistence = await resolvePartyPersistence(canonicalInput, tx);
+      const operationalValues = buildPostSubmitOperationalPersistence(
+        canonicalInput,
+        partyPersistence,
+      );
+      const changedFields = getChangedPostSubmitFields(current, operationalValues);
+
+      if (changedFields.length === 0) {
+        return current;
+      }
+
+      const invalidatesCurrentSignoff =
+        current.status === "checked" || current.status === "approved";
+      const updatedAt = new Date();
+      const [updated] = await tx
+        .update(shippingNotes)
+        .set({
+          ...operationalValues,
+          ...(invalidatesCurrentSignoff
+            ? {
+                status: "accounting_reviewing" as const,
+                checkedById: null,
+                checkedAt: null,
+                approvedById: null,
+                approvedAt: null,
+              }
+            : {}),
+          updatedAt,
+        })
+        .where(
+          and(
+            eq(shippingNotes.id, current.id),
+            eq(shippingNotes.status, current.status),
+            eq(shippingNotes.updatedAt, parsedInput.expectedUpdatedAt),
+            isNull(shippingNotes.deletedAt),
+          ),
+        )
+        .returning(shippingNoteDetailSelect);
+
+      if (!updated) {
+        throw new AuthorizationError("This Shipping Note changed or is no longer editable. Refresh and try again.");
+      }
+
+      await logAuditEvent(tx, {
+        actorUserId: user.id,
+        action: "shipping_note.update_post_submit",
+        entityType: "shipping_note",
+        entityId: updated.id,
+        before: {
+          ...current,
+          amendment: {
+            changedFields,
+            previousStatus: current.status,
+            currentSignoffInvalidated: invalidatesCurrentSignoff,
+          },
+        },
+        after: {
+          ...updated,
+          amendment: {
+            changedFields,
+            newStatus: updated.status,
+            currentSignoffInvalidated: invalidatesCurrentSignoff,
+          },
+        },
+      });
+
+      return updated;
+    });
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
+
+    throw new Error("Failed to update Shipping Note with delegated access.");
+  }
+}
+
 export async function submitShippingNote(
   input: SubmitShippingNoteInput,
   user: DbUser,
@@ -850,13 +1067,30 @@ export async function markShippingNoteChecked(
 ): Promise<ShippingNoteDetail> {
   requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_MARK_CHECKED);
 
-  const current = ensureAccountingTransitionAccess(
+  ensureAccountingTransitionAccess(
     await getShippingNoteForUser(input.id, user),
     "accounting_reviewing",
   );
 
   try {
     return await db.transaction(async (tx) => {
+      const [lockedCurrent] = await tx
+        .select(shippingNoteDetailSelect)
+        .from(shippingNotes)
+        .where(
+          and(
+            eq(shippingNotes.id, input.id),
+            eq(shippingNotes.status, "accounting_reviewing"),
+            isNull(shippingNotes.deletedAt),
+          ),
+        )
+        .limit(1)
+        .for("update");
+
+      if (!lockedCurrent) {
+        throw new AuthorizationError();
+      }
+
       const checkedAt = new Date();
       const chargeTaxRows = await tx
         .select({
@@ -889,6 +1123,9 @@ export async function markShippingNoteChecked(
           status: "checked",
           checkedById: user.id,
           checkedAt,
+          sellingRateReopenedById: null,
+          sellingRateReopenedAt: null,
+          sellingRateReopenReason: null,
         })
         .where(
           and(
@@ -907,7 +1144,7 @@ export async function markShippingNoteChecked(
         action: "shipping_note.accounting_review.checked",
         entityType: "shipping_note",
         entityId: updated.id,
-        before: current,
+        before: lockedCurrent,
         after: {
           ...updated,
           checkedById: user.id,
@@ -1264,7 +1501,7 @@ export async function reopenShippingNoteForCorrection(
   input: ReopenShippingNoteForCorrectionInput,
   user: DbUser,
 ): Promise<ShippingNoteDetail> {
-  requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_REOPEN_FOR_CORRECTION);
+  requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_REOPEN_SELLING_RATES);
   const parsedInput = reopenShippingNoteForCorrectionInputSchema.parse(input);
 
   const current = ensureReopenTransitionAccess(
@@ -1283,6 +1520,9 @@ export async function reopenShippingNoteForCorrection(
           checkedAt: null,
           approvedById: null,
           approvedAt: null,
+          sellingRateReopenedById: user.id,
+          sellingRateReopenedAt: reopenTime,
+          sellingRateReopenReason: parsedInput.reason,
           updatedAt: reopenTime,
         })
         .where(
@@ -1300,7 +1540,7 @@ export async function reopenShippingNoteForCorrection(
 
       await logAuditEvent(tx, {
         actorUserId: user.id,
-        action: "shipping_note.reopen_for_correction",
+        action: "shipping_note.selling_rate_reopened",
         entityType: "shipping_note",
         entityId: updated.id,
         before: {
@@ -1310,6 +1550,9 @@ export async function reopenShippingNoteForCorrection(
           checkedAt: current.checkedAt,
           approvedById: current.approvedById,
           approvedAt: current.approvedAt,
+          sellingRateReopenedById: null,
+          sellingRateReopenedAt: null,
+          sellingRateReopenReason: null,
         },
         after: {
           id: updated.id,
@@ -1318,6 +1561,9 @@ export async function reopenShippingNoteForCorrection(
           checkedAt: null,
           approvedById: null,
           approvedAt: null,
+          sellingRateReopenedById: user.id,
+          sellingRateReopenedAt: reopenTime,
+          sellingRateReopenReason: parsedInput.reason,
         },
         reason: parsedInput.reason,
       });
@@ -1401,16 +1647,18 @@ const buyingChargeReturnColumns = {
 } as const;
 
 /**
- * Ensures the user can mutate selling charges on the given draft note.
- * Only sale (own draft) and admin (any draft) are allowed.
- * Accountant is denied.
+ * Selling charges are mutable either under the original Draft rules or by an
+ * Admin/Accountant while an explicit financial reopen is active.
  */
 function ensureChargeMutationAccess(note: ShippingNoteDetail | null, user: DbUser): ShippingNoteDetail {
   if (!note) {
     throw new AuthorizationError();
   }
 
-  if (!canMutateSellingChargeForDraft(note, user)) {
+  if (
+    !canMutateSellingChargeForDraft(note, user) &&
+    !canMutateReopenedSellingCharges(note, user)
+  ) {
     throw new AuthorizationError();
   }
 
@@ -1436,12 +1684,10 @@ export async function createSellingChargeForNote(
   input: CreateSellingChargeInput,
   user: DbUser,
 ): Promise<SellingChargeDetail> {
-  requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_EDIT_OWN);
-
-  const note = ensureChargeMutationAccess(
-    await getShippingNoteById(input.shippingNoteId),
-    user,
-  );
+  requireShippingNoteAccess(user, [
+    PERMISSIONS.SHIPPING_NOTES_EDIT_OWN,
+    PERMISSIONS.SHIPPING_NOTES_REOPEN_SELLING_RATES,
+  ]);
 
   const amounts = calculateChargeAmounts({
     quantity: input.quantity,
@@ -1452,6 +1698,13 @@ export async function createSellingChargeForNote(
 
   try {
     return await db.transaction(async (tx) => {
+      const [noteRow] = await tx
+        .select(shippingNoteDetailSelect)
+        .from(shippingNotes)
+        .where(and(eq(shippingNotes.id, input.shippingNoteId), isNull(shippingNotes.deletedAt)))
+        .limit(1)
+        .for("update");
+      const note = ensureChargeMutationAccess(noteRow ?? null, user);
       const catalog = await loadChargeCatalogPersistence(tx, input);
       const [created] = await tx
         .insert(shippingNoteCharges)
@@ -1502,7 +1755,10 @@ export async function updateSellingCharge(
   input: UpdateSellingChargeInput,
   user: DbUser,
 ): Promise<SellingChargeDetail> {
-  requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_EDIT_OWN);
+  requireShippingNoteAccess(user, [
+    PERMISSIONS.SHIPPING_NOTES_EDIT_OWN,
+    PERMISSIONS.SHIPPING_NOTES_REOPEN_SELLING_RATES,
+  ]);
 
   // Load the existing charge and verify it is a non-deleted selling charge.
   const [existingCharge] = await db
@@ -1542,12 +1798,6 @@ export async function updateSellingCharge(
     throw new AuthorizationError();
   }
 
-  // Verify the parent note is a draft the user can mutate.
-  ensureChargeMutationAccess(
-    await getShippingNoteById(existingCharge.shippingNoteId),
-    user,
-  );
-
   const amounts = calculateChargeAmounts({
     quantity: input.quantity,
     unitPrice: input.unitPrice,
@@ -1557,6 +1807,13 @@ export async function updateSellingCharge(
 
   try {
     return await db.transaction(async (tx) => {
+      const [noteRow] = await tx
+        .select(shippingNoteDetailSelect)
+        .from(shippingNotes)
+        .where(and(eq(shippingNotes.id, existingCharge.shippingNoteId), isNull(shippingNotes.deletedAt)))
+        .limit(1)
+        .for("update");
+      ensureChargeMutationAccess(noteRow ?? null, user);
       const catalog = await loadChargeCatalogPersistence(tx, input);
       const [updated] = await tx
         .update(shippingNoteCharges)
@@ -1613,7 +1870,10 @@ export async function softDeleteSellingCharge(
   shippingNoteId: string,
   user: DbUser,
 ): Promise<void> {
-  requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_EDIT_OWN);
+  requireShippingNoteAccess(user, [
+    PERMISSIONS.SHIPPING_NOTES_EDIT_OWN,
+    PERMISSIONS.SHIPPING_NOTES_REOPEN_SELLING_RATES,
+  ]);
 
   // Load existing charge and verify it is a non-deleted selling charge.
   const [existingCharge] = await db
@@ -1638,14 +1898,15 @@ export async function softDeleteSellingCharge(
     throw new AuthorizationError();
   }
 
-  // Verify the parent note is a draft the user can mutate.
-  ensureChargeMutationAccess(
-    await getShippingNoteById(existingCharge.shippingNoteId),
-    user,
-  );
-
   try {
     await db.transaction(async (tx) => {
+      const [noteRow] = await tx
+        .select(shippingNoteDetailSelect)
+        .from(shippingNotes)
+        .where(and(eq(shippingNotes.id, existingCharge.shippingNoteId), isNull(shippingNotes.deletedAt)))
+        .limit(1)
+        .for("update");
+      ensureChargeMutationAccess(noteRow ?? null, user);
       const [deleted] = await tx
         .update(shippingNoteCharges)
         .set({ deletedAt: new Date() })

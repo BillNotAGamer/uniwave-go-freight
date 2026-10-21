@@ -230,6 +230,37 @@ export const updateShippingNoteDraftInputSchema =
     })
     .transform(canonicalizeShippingNoteModeFields);
 
+export const updateShippingNotePostSubmitInputSchema =
+  shippingNoteDraftBaseInputSchema
+    .omit({ jobsheetNo: true, exchangeRate: true })
+    .extend({
+      id: z.string().trim().min(1),
+      expectedUpdatedAt: z.union([
+        z.date(),
+        z.string().datetime({ offset: true }).transform((value) => new Date(value)),
+      ]),
+    })
+    .superRefine((input, ctx) => {
+      for (const issue of validateShippingNoteModeFields(
+        canonicalizeShippingNoteModeFields(input),
+      )) {
+        ctx.addIssue({ code: "custom", path: [issue.path], message: issue.message });
+      }
+    })
+    .transform(canonicalizeShippingNoteModeFields);
+
+export const issueShippingNoteEditGrantInputSchema = z.object({
+  shippingNoteId: z.string().trim().min(1),
+  recipientUserId: z.string().trim().min(1),
+  reason: optionalTrimmedTextWithMax(500).optional(),
+});
+
+export const revokeShippingNoteEditGrantInputSchema = z.object({
+  shippingNoteId: z.string().trim().min(1),
+  grantId: z.string().trim().min(1),
+  reason: optionalTrimmedTextWithMax(500).optional(),
+});
+
 export const submitShippingNoteInputSchema = z.object({
   id: z.string().trim().min(1),
 });
@@ -288,6 +319,15 @@ export type DuplicateShippingNoteInput = z.infer<
 >;
 export type UpdateShippingNoteDraftInput = z.infer<
   typeof updateShippingNoteDraftInputSchema
+>;
+export type UpdateShippingNotePostSubmitInput = z.infer<
+  typeof updateShippingNotePostSubmitInputSchema
+>;
+export type IssueShippingNoteEditGrantInput = z.infer<
+  typeof issueShippingNoteEditGrantInputSchema
+>;
+export type RevokeShippingNoteEditGrantInput = z.infer<
+  typeof revokeShippingNoteEditGrantInputSchema
 >;
 export type SubmitShippingNoteInput = z.infer<typeof submitShippingNoteInputSchema>;
 export type StartAccountingReviewInput = z.infer<

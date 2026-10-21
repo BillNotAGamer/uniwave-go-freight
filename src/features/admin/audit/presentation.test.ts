@@ -26,7 +26,7 @@ function asText(value: unknown): string {
 
 describe("audit viewer presentation", () => {
   it("catalogs every current production audit action", () => {
-    expect(AUDIT_VIEWER_KNOWN_ACTIONS).toHaveLength(34);
+    expect(AUDIT_VIEWER_KNOWN_ACTIONS).toHaveLength(38);
     expect(Object.keys(AUDIT_VIEWER_ACTION_CATALOG).sort())
       .toEqual([...AUDIT_VIEWER_KNOWN_ACTIONS].sort());
     expect(getAuditActionPresentation("shipping_note.approve"))

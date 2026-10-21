@@ -24,6 +24,8 @@ import {
   shippingNoteCharges,
   shippingNoteCustomsDeclarations,
   shippingNoteDocuments,
+  shippingNoteEditGrants,
+  shippingNoteEditGrantStatusEnum,
   shippingNoteExports,
   shippingNotes,
   shippingNotesRelations,
@@ -190,12 +192,43 @@ describe("C8A Accounting schema contract", () => {
   });
 });
 
+describe("Phase 3 authorization schema contract", () => {
+  it("stores historical named-user grants with one active grant per note and recipient", () => {
+    const config = getTableConfig(shippingNoteEditGrants);
+    expect(shippingNoteEditGrantStatusEnum.enumValues).toEqual(["active", "revoked"]);
+    expect(shippingNoteEditGrants.shippingNoteId.notNull).toBe(true);
+    expect(shippingNoteEditGrants.recipientUserId.notNull).toBe(true);
+    expect(shippingNoteEditGrants.grantedById.notNull).toBe(true);
+    expect(shippingNoteEditGrants.grantedAt.notNull).toBe(true);
+    expect(config.indexes.map((index) => index.config.name)).toEqual(
+      expect.arrayContaining([
+        "shipping_note_edit_grants_note_idx",
+        "shipping_note_edit_grants_recipient_idx",
+        "shipping_note_edit_grants_active_note_recipient_uidx",
+      ]),
+    );
+    expect(config.indexes.find((index) =>
+      index.config.name === "shipping_note_edit_grants_active_note_recipient_uidx"
+    )?.config.unique).toBe(true);
+    expect(config.checks.map((check) => check.name)).toContain(
+      "shipping_note_edit_grants_revocation_state_check",
+    );
+  });
+
+  it("stores only current selling-rate reopen metadata on the note", () => {
+    expect(shippingNotes.sellingRateReopenedById.notNull).toBe(false);
+    expect(shippingNotes.sellingRateReopenedAt.notNull).toBe(false);
+    expect(shippingNotes.sellingRateReopenReason.notNull).toBe(false);
+  });
+});
+
 describe("Hard-delete dependency contract", () => {
   it("cascades owned Shipping Note rows while retaining independent audit records", () => {
     for (const table of [
       shippingNoteCharges,
       shippingNoteCustomsDeclarations,
       shippingNoteDocuments,
+      shippingNoteEditGrants,
       shippingNoteExports,
     ]) {
       const [noteForeignKey] = getInlineForeignKeys(table).filter((key) =>
