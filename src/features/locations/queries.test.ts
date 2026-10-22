@@ -17,7 +17,7 @@ function user(role: User["role"]): User {
 function locationRows(rows: unknown[]) {
   const offset = vi.fn().mockResolvedValue(rows);
   const limit = vi.fn(() => ({ offset }));
-  const orderBy = vi.fn(() => ({ limit }));
+    const orderBy = vi.fn(() => ({ limit }));
   const where = vi.fn<(_condition: import("drizzle-orm").SQL | undefined) => { orderBy: typeof orderBy }>().mockReturnValue({ orderBy });
   const from = vi.fn(() => ({ where }));
   return { from };
