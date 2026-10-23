@@ -5,25 +5,7 @@ const ACCEPTED_BASELINE = Object.freeze({
   moderate: 8,
 });
 
-const APPROVED_EXCEPTION_IDENTITY = Object.freeze({
-  schemaVersion: 1,
-  advisoryId: "GHSA-vfj7-8cjw-p6xm",
-  cve: "CVE-2026-93687",
-  npmAdvisorySource: 1240992,
-  advisoryUrl: "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
-  rootPackage: Object.freeze({ name: "braces", version: "3.0.3" }),
-  dependencyChain: Object.freeze([
-    Object.freeze({ name: "eslint-config-next", version: "16.3.8" }),
-    Object.freeze({ name: "@next/eslint-plugin-next", version: "16.3.8" }),
-    Object.freeze({ name: "fast-glob", version: "3.3.1" }),
-    Object.freeze({ name: "micromatch", version: "4.0.8" }),
-    Object.freeze({ name: "braces", version: "3.0.3" }),
-  ]),
-  classification: "development-only-eslint-tooling",
-  approvalOwner: "Product Owner",
-  approvalDate: "2026-10-20",
-  expiresAt: "2026-11-02T17:00:00Z",
-});
+const APPROVED_EXCEPTIONS = Object.freeze([]);
 
 function compareSemver(left, right) {
   const leftParts = left.split(".").map((part) => Number(part));
@@ -33,11 +15,6 @@ function compareSemver(left, right) {
     if (difference !== 0) return difference;
   }
   return 0;
-}
-
-function arraysEqual(left, right) {
-  return Array.isArray(left) && Array.isArray(right) && left.length === right.length &&
-    left.every((value, index) => value === right[index]);
 }
 
 function getCounts(label, audit) {
@@ -71,133 +48,21 @@ function isLegacyHighWaived(packageName, packageLock, betterAuthPolicy) {
     !passwordlessEnabled);
 }
 
-function validateManifest(exception) {
+function validateExceptionManifest(exceptionManifest) {
   const failures = [];
-  const expected = APPROVED_EXCEPTION_IDENTITY;
-  if (!exception || typeof exception !== "object" || Array.isArray(exception)) {
-    return ["exception metadata is missing or is not an object"];
+  if (!exceptionManifest || typeof exceptionManifest !== "object" ||
+      Array.isArray(exceptionManifest)) {
+    return ["exception manifest is missing or is not an object"];
   }
-
-  for (const field of ["schemaVersion", "advisoryId", "cve", "npmAdvisorySource",
-    "advisoryUrl", "classification", "approvalOwner", "approvalDate", "expiresAt"]) {
-    if (exception[field] !== expected[field]) {
-      failures.push(`${field} does not match the approved exception identity`);
-    }
+  if (exceptionManifest.schemaVersion !== 1) {
+    failures.push("exception manifest schemaVersion must be 1");
   }
-  if (exception.rootPackage?.name !== expected.rootPackage.name ||
-      exception.rootPackage?.version !== expected.rootPackage.version) {
-    failures.push("rootPackage does not match the approved package and version");
-  }
-
-  if (!Array.isArray(exception.dependencyChain)) {
-    failures.push("dependencyChain is missing or malformed");
-  } else {
-    const actual = exception.dependencyChain.map((entry) =>
-      `${entry?.name ?? ""}@${entry?.version ?? ""}`);
-    const approved = expected.dependencyChain.map((entry) => `${entry.name}@${entry.version}`);
-    if (!arraysEqual(actual, approved)) {
-      failures.push("dependencyChain does not match the approved provenance");
-    }
-  }
-
-  if (typeof exception.riskJustification !== "string" ||
-      exception.riskJustification.length < 100) {
-    failures.push("riskJustification is missing or incomplete");
-  }
-  if (!Array.isArray(exception.evidence) ||
-      !exception.evidence.includes(expected.advisoryUrl) ||
-      !exception.evidence.includes("package-lock.json") ||
-      !exception.evidence.includes(".next/**/*.nft.json")) {
-    failures.push("required evidence references are missing");
+  if (!Array.isArray(exceptionManifest.exceptions)) {
+    failures.push("exception manifest exceptions must be an array");
+  } else if (exceptionManifest.exceptions.length !== APPROVED_EXCEPTIONS.length) {
+    failures.push("security exceptions are present but no exceptions are approved");
   }
   return failures;
-}
-
-function validateApprovedException({ fullAudit, productionAudit, packageLock,
-  exception, now, runtimeTrace }) {
-  const failures = validateManifest(exception);
-  const expected = APPROVED_EXCEPTION_IDENTITY;
-  const evaluationTime = now instanceof Date ? now.getTime() : Number.NaN;
-  if (!Number.isFinite(evaluationTime)) {
-    failures.push("evaluation time is invalid");
-  } else if (evaluationTime >= Date.parse(expected.expiresAt)) {
-    failures.push(`exception expired at ${expected.expiresAt}`);
-  }
-
-  const fullVulnerabilities = fullAudit?.vulnerabilities ?? {};
-  const productionVulnerabilities = productionAudit?.vulnerabilities ?? {};
-  const chain = expected.dependencyChain;
-
-  for (let index = 0; index < chain.length; index += 1) {
-    const current = chain[index];
-    const parent = index > 0 ? chain[index - 1] : null;
-    const child = index + 1 < chain.length ? chain[index + 1] : null;
-    const lockEntry = getInstalledPackage(packageLock, current.name);
-    const finding = fullVulnerabilities[current.name];
-
-    if (!lockEntry) {
-      failures.push(`${current.name} is missing from package-lock.json`);
-    } else {
-      if (lockEntry.version !== current.version) {
-        failures.push(`${current.name} version changed from approved ${current.version} to ${lockEntry.version}`);
-      }
-      if (lockEntry.dev !== true) {
-        failures.push(`${current.name} is not marked development-only in package-lock.json`);
-      }
-      if (child && !(child.name in (lockEntry.dependencies ?? {}))) {
-        failures.push(`${current.name} no longer directly depends on ${child.name}`);
-      }
-    }
-
-    if (!finding) {
-      failures.push(`${current.name} is absent from the audit; the stale exception must be removed`);
-      continue;
-    }
-    if (finding.severity !== "high") {
-      failures.push(`${current.name} is no longer reported at the approved high severity`);
-    }
-    if (Boolean(finding.isDirect) !== (index === 0)) {
-      failures.push(`${current.name} direct-dependency classification changed`);
-    }
-    if (!arraysEqual(finding.nodes, [`node_modules/${current.name}`])) {
-      failures.push(`${current.name} audit node provenance changed`);
-    }
-    if (!arraysEqual(finding.effects, parent ? [parent.name] : [])) {
-      failures.push(`${current.name} reverse dependency provenance changed`);
-    }
-
-    if (child) {
-      if (!arraysEqual(finding.via, [child.name])) {
-        failures.push(`${current.name} advisory provenance changed`);
-      }
-    } else {
-      const advisory = Array.isArray(finding.via) ? finding.via[0] : null;
-      if (finding.via?.length !== 1 || !advisory || typeof advisory !== "object" ||
-          advisory.source !== expected.npmAdvisorySource ||
-          advisory.name !== expected.rootPackage.name ||
-          advisory.dependency !== expected.rootPackage.name ||
-          advisory.url !== expected.advisoryUrl || advisory.severity !== "high") {
-        failures.push("root npm advisory identity changed");
-      }
-    }
-
-    if (current.name in productionVulnerabilities) {
-      failures.push(`${current.name} is present in the production dependency audit`);
-    }
-  }
-
-  if (!runtimeTrace?.inspected || runtimeTrace.fileCount < 1) {
-    failures.push("Next.js runtime trace evidence is missing");
-  } else {
-    const tracedPackages = new Set(runtimeTrace.packageNames ?? []);
-    const runtimeMatches = chain.map((entry) => entry.name)
-      .filter((name) => tracedPackages.has(name));
-    if (runtimeMatches.length > 0) {
-      failures.push(`approved development-only packages appeared in runtime traces: ${runtimeMatches.join(", ")}`);
-    }
-  }
-
-  return [...new Set(failures)];
 }
 
 function evaluateBaseline({ label, audit, packageLock, betterAuthPolicy,
@@ -241,27 +106,11 @@ function evaluateBaseline({ label, audit, packageLock, betterAuthPolicy,
 }
 
 export function evaluateSecurityPolicy({ fullAudit, productionAudit, packageLock,
-  betterAuthPolicy, exception, now, runtimeTrace }) {
-  const exceptionFailures = validateApprovedException({ fullAudit, productionAudit,
-    packageLock, exception, now, runtimeTrace });
+  betterAuthPolicy, exception }) {
+  const exceptionFailures = validateExceptionManifest(exception);
   const approvedHighPackages = new Set();
   const acceptedExceptions = [];
   const warnings = [];
-
-  if (exceptionFailures.length === 0) {
-    for (const entry of APPROVED_EXCEPTION_IDENTITY.dependencyChain) {
-      approvedHighPackages.add(entry.name);
-    }
-    acceptedExceptions.push({ advisoryId: APPROVED_EXCEPTION_IDENTITY.advisoryId,
-      cve: APPROVED_EXCEPTION_IDENTITY.cve,
-      expiresAt: APPROVED_EXCEPTION_IDENTITY.expiresAt,
-      approvalOwner: APPROVED_EXCEPTION_IDENTITY.approvalOwner,
-      derivedPackageNames: [...approvedHighPackages] });
-    warnings.push(`TEMPORARY EXCEPTION ${APPROVED_EXCEPTION_IDENTITY.advisoryId} ` +
-      `(${APPROVED_EXCEPTION_IDENTITY.cve}) accepts ${approvedHighPackages.size} derived ` +
-      `package findings until ${APPROVED_EXCEPTION_IDENTITY.expiresAt}; approved by ` +
-      `${APPROVED_EXCEPTION_IDENTITY.approvalOwner}.`);
-  }
 
   const full = evaluateBaseline({ label: "npm audit", audit: fullAudit, packageLock,
     betterAuthPolicy, approvedHighPackages, production: false });
@@ -270,7 +119,7 @@ export function evaluateSecurityPolicy({ fullAudit, productionAudit, packageLock
     approvedHighPackages: new Set(), production: true });
   const failures = [
     ...exceptionFailures.map((failure) =>
-      `temporary exception ${APPROVED_EXCEPTION_IDENTITY.advisoryId} rejected: ${failure}.`),
+      `security exception manifest rejected: ${failure}.`),
     ...full.failures,
     ...production.failures,
   ];
@@ -286,4 +135,4 @@ export function evaluateSecurityPolicy({ fullAudit, productionAudit, packageLock
   };
 }
 
-export { ACCEPTED_BASELINE, APPROVED_EXCEPTION_IDENTITY };
+export { ACCEPTED_BASELINE, APPROVED_EXCEPTIONS };

@@ -1,29 +1,4 @@
 {
   "schemaVersion": 1,
-  "advisoryId": "GHSA-vfj7-8cjw-p6xm",
-  "cve": "CVE-2026-93687",
-  "npmAdvisorySource": 1240992,
-  "advisoryUrl": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
-  "rootPackage": {
-    "name": "braces",
-    "version": "3.0.3"
-  },
-  "dependencyChain": [
-    { "name": "eslint-config-next", "version": "16.3.8" },
-    { "name": "@next/eslint-plugin-next", "version": "16.3.8" },
-    { "name": "fast-glob", "version": "3.3.1" },
-    { "name": "micromatch", "version": "4.0.8" },
-    { "name": "braces", "version": "3.0.3" }
-  ],
-  "classification": "development-only-eslint-tooling",
-  "approvalOwner": "Product Owner",
-  "approvalDate": "2026-10-20",
-  "expiresAt": "2026-11-02T17:00:00Z",
-  "riskJustification": "The affected chain is restricted to development-only ESLint tooling, is absent from npm --omit=dev, and is absent from locally generated Next.js runtime traces. Glob patterns on this path are repository-controlled ESLint configuration. The exact Railway runtime artifact remains unverified, so the exception fails if local runtime traces contain the chain and does not claim provider-level runtime exclusion.",
-  "evidence": [
-    "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
-    "package-lock.json",
-    ".next/**/*.nft.json",
-    "node_modules/@next/eslint-plugin-next/dist/utils/get-root-dirs.js"
-  ]
+  "exceptions": []
 }

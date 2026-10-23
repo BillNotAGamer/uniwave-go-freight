@@ -102,5 +102,5 @@ if (evaluation.failures.length > 0) {
 }
 
 console.log(
-  "Security audit policy passed: the approved exception is non-expired, exact-provenance, development-only, and absent from production audit and runtime traces.",
+  "Security audit policy passed: no active exceptions; critical, high, moderate, and total vulnerability controls remain enforced.",
 );
