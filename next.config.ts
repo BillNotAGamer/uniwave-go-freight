@@ -43,6 +43,7 @@ const noStoreHeaders = [
 ] as const;
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["@neondatabase/serverless", "ws"],
   poweredByHeader: false,
   async headers() {
     return [
