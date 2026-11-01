@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { getArtifactStorage } from "@/lib/artifact-storage";
+import { getArtifactStorage, isArtifactStorageConfigured } from "@/lib/artifact-storage";
 import { isR2Configured } from "@/lib/artifact-storage/r2";
 import type { ArtifactStorage } from "@/lib/artifact-storage/types";
 import { rejectInactiveOrSoftDeletedUsers } from "@/lib/auth/user-state";
@@ -71,11 +71,12 @@ export type StorageAvailability = {
 export function getStorageAvailability(
   dependencies: DocumentServiceDependencies = {},
 ): StorageAvailability {
-  const r2Configured = dependencies.isR2Available ?? isR2Configured();
+  const storageConfigured = dependencies.isR2Available ?? isArtifactStorageConfigured();
+  const r2Configured = isR2Configured();
 
   return {
-    available: r2Configured,
-    preferredProvider: r2Configured ? "r2" : null,
+    available: storageConfigured,
+    preferredProvider: storageConfigured ? "r2" : null,
     r2Configured,
   };
 }
