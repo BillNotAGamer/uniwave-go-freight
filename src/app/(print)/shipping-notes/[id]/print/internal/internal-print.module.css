@@ -188,7 +188,7 @@
     overflow: visible;
   }
 
-  a[href]::after {
+  .document a[href]::after {
     content: "";
   }
 }
