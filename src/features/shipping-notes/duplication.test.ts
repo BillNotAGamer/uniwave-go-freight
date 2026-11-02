@@ -189,3 +189,53 @@ describe("duplicateShippingNoteInputSchema", () => {
     ).toBe(false);
   });
 });
+
+describe("REQ-02: Mode preservation & list action authorization", () => {
+  it("preserves sea_export mode exactly without mutating to domestic or domestic_truck", () => {
+    const seaExportSource = makeSource("sea_export");
+    expect(seaExportSource.shippingMode).toBe("sea_export");
+
+    const { input } = buildShippingNoteDuplicationDraft(
+      seaExportSource,
+      "QA-FC-DUP-01",
+      partners,
+    );
+
+    expect(input.shippingMode).toBe("sea_export");
+    expect(input.shippingMode).not.toBe("domestic_truck");
+    expect(input.shippingMode).not.toBe("domestic");
+    expect(input.jobsheetNo).toBe("QA-FC-DUP-01");
+    expect(input.portOfLoading).toBe("VNSGN");
+    expect(input.portOfDischarge).toBe("USLAX");
+    expect(input.mblNo).toBe("MBL-1");
+    expect(input.hblNo).toBe("HBL-1");
+    expect(input.vesselName).toBe("Ocean Express");
+    expect(input.voyageNo).toBe("VOY-1");
+    expect(input.exchangeRate).toBeUndefined();
+  });
+
+  it.each([
+    ["admin", "admin-user", "sale-creator", true],
+    ["admin", "admin-user", "ops-creator", true],
+    ["sale", "sale-creator", "sale-creator", true],
+    ["sale", "sale-other", "sale-creator", false],
+    ["ops", "ops-creator", "ops-creator", true],
+    ["ops", "ops-other", "ops-creator", false],
+    ["ops", "ops-user", "sale-creator", false],
+    ["accountant", "accountant-user", "sale-creator", false],
+    ["accountant", "accountant-user", "accountant-user", false],
+  ] as const)(
+    "evaluates list action authorization for role %s with actor %s on note by %s to %s",
+    (role, actorId, noteCreatedById, expected) => {
+      const listItem = {
+        id: "note-123",
+        createdById: noteCreatedById,
+      };
+      const actor = {
+        id: actorId,
+        role,
+      };
+      expect(canDuplicateShippingNote(listItem, actor)).toBe(expected);
+    },
+  );
+});

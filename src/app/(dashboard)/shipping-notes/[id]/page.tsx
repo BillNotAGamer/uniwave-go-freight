@@ -15,7 +15,7 @@ import {
   updateShippingNotePostSubmitAction,
 } from "@/features/shipping-notes/actions";
 import { BuyingChargeForm } from "@/features/shipping-notes/components/buying-charge-form";
-import { BuyingChargesList } from "@/features/shipping-notes/components/buying-charges-list";
+import { UnifiedBuyingWorkspace } from "@/features/shipping-notes/components/unified-buying-workspace";
 import { FinancialSummaryView } from "@/features/shipping-notes/components/financial-summary";
 import { ShippingNoteDraftForm } from "@/features/shipping-notes/components/shipping-note-draft-form";
 import { ShippingNoteSubmitForm } from "@/features/shipping-notes/components/shipping-note-submit-form";
@@ -625,21 +625,15 @@ export default async function ShippingNoteDetailPage({
             ) : null}
 
             {canReadBuyingCharges ? (
-              <BuyingChargesList
+              <UnifiedBuyingWorkspace
                 charges={buyingCharges ?? []}
                 canManageBuyingCharges={canManageBuyingCharges}
-              />
-            ) : null}
-
-            {canReadTaxSummary ? (
-              <AccountingTaxChargeTable
-                title="Buying Charge Tax Classification"
-                section="buying"
+                canReadTaxSummary={canReadTaxSummary}
+                canMutateTax={canMutateTax}
+                taxDetails={buyingTaxDetails}
+                activeTaxRules={activeTaxRules}
                 status={note.status}
                 role={user.role}
-                charges={buyingTaxDetails}
-                activeTaxRules={activeTaxRules}
-                canMutateTax={canMutateTax}
               />
             ) : null}
 

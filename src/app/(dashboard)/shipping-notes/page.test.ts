@@ -1,6 +1,16 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/env", () => ({
+  env: {
+    DATABASE_URL: "postgresql://user:pass@localhost:5432/test",
+    AUTH_SECRET: "secret",
+    AUTH_URL: "http://localhost:3000",
+  },
+}));
+vi.mock("@/lib/db/client", () => ({ db: {} }));
+
 import type { User } from "@/lib/db/schema";
 
 const mocks = vi.hoisted(() => ({
@@ -96,7 +106,7 @@ describe("Shipping Notes CREATED BY column", () => {
     const page = await ShippingNotesPage({ searchParams: Promise.resolve({ jobsheet: "JS" }) });
     expect(elements(page, "th").map(text)).toContain("Created by");
     const rows = elements(elements(page, "tbody")[0], "tr");
-    expect(rows.map((row) => text(elements(row, "td").at(-1)))).toEqual(["Haru Nguyen", "Other Creator", "-", "-"]);
+    expect(rows.map((row) => text(elements(row, "td").at(-2)))).toEqual(["Haru Nguyen", "Other Creator", "-", "-"]);
     expect(rows.map(text).join(" ")).not.toContain("Current Viewer");
     expect(mocks.listShippingNotesForUser).toHaveBeenLastCalledWith(expect.objectContaining({ role: "admin" }), { jobsheet: "JS" });
   });

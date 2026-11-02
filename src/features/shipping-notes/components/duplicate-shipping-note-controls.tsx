@@ -28,9 +28,13 @@ function DuplicateSubmitButton() {
 export function DuplicateShippingNoteControls({
   sourceId,
   sourceJobsheetNo,
+  triggerClassName,
+  triggerText = "Duplicate",
 }: {
   sourceId: string;
   sourceJobsheetNo: string;
+  triggerClassName?: string;
+  triggerText?: string;
 }) {
   const [state, formAction] = useActionState(
     duplicateShippingNoteAction,
@@ -41,10 +45,10 @@ export function DuplicateShippingNoteControls({
     <Dialog.Root>
       <Dialog.Trigger asChild>
         <button
-          className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted"
+          className={triggerClassName ?? "rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted"}
           type="button"
         >
-          Duplicate
+          {triggerText}
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
@@ -52,7 +56,7 @@ export function DuplicateShippingNoteControls({
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-card p-5 shadow-xl">
           <div className="space-y-2">
             <Dialog.Title className="text-base font-semibold text-foreground">
-              Duplicate Shipping Note
+              {triggerText} Shipping Note
             </Dialog.Title>
             <Dialog.Description className="text-sm text-muted-foreground">
               Create a new Draft from {sourceJobsheetNo}. Enter a unique Jobsheet No.

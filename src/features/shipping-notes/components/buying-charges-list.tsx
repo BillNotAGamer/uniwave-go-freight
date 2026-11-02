@@ -19,7 +19,7 @@ type DeleteBuyingChargeButtonProps = {
   chargeId: string;
 };
 
-function DeleteBuyingChargeButton({ chargeId }: DeleteBuyingChargeButtonProps) {
+export function DeleteBuyingChargeButton({ chargeId }: DeleteBuyingChargeButtonProps) {
   const [state, formAction] = useActionState(
     softDeleteBuyingChargeAction,
     actionInitialState,
@@ -46,7 +46,7 @@ type EditBuyingChargeRowProps = {
   onCancel: () => void;
 };
 
-function EditBuyingChargeRow({
+export function EditBuyingChargeRow({
   charge,
   onCancel,
 }: EditBuyingChargeRowProps) {

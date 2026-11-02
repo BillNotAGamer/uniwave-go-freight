@@ -15,7 +15,7 @@ describe("Shipping Note create routing fields", () => {
   it("uses manual text inputs for Domestic From and To", () => {
     expect(ShippingNoteCreateForm).toBeTypeOf("function");
 
-    const source = readFileSync(new URL("./shipping-note-create-form.tsx", import.meta.url), "utf8");
+    const source = readFileSync(new URL("./shipping-note-create-form.tsx", import.meta.url), "utf8").replace(/\r\n/g, "\n");
     expect(source).toContain(`shipmentType === "domestic" ? (
           <TextField key={field.name} label={field.label} name={field.name} required />
         ) : (`);
@@ -24,7 +24,7 @@ describe("Shipping Note create routing fields", () => {
   });
 
   it("keeps Ocean, Air, and Custom routing on LocationSelector", () => {
-    const source = readFileSync(new URL("./shipping-note-create-form.tsx", import.meta.url), "utf8");
+    const source = readFileSync(new URL("./shipping-note-create-form.tsx", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 
     expect(source).toContain('shipmentType === "domestic" ? (');
     expect(source).toContain("<LocationSelector");
@@ -32,7 +32,7 @@ describe("Shipping Note create routing fields", () => {
   });
 
   it("places the one Container Type select in the Ocean cargo controls only", () => {
-    const source = readFileSync(new URL("./shipping-note-create-form.tsx", import.meta.url), "utf8");
+    const source = readFileSync(new URL("./shipping-note-create-form.tsx", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 
     expect(source).toContain('shipmentType === "ocean" ? (');
     expect(source).toContain("<ContainerTypeSelect />");

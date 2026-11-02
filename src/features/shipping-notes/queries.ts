@@ -100,6 +100,7 @@ const shippingNoteListColumns = {
   consigneeText: shippingNotes.consigneeText,
   status: shippingNotes.status,
   createdAt: shippingNotes.createdAt,
+  createdById: shippingNotes.createdById,
 } as const;
 
 const shippingNoteDetailColumns = {

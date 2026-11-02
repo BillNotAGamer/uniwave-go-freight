@@ -57,7 +57,7 @@ function SubmitButton({ label, pendingLabel }: {
   );
 }
 
-function Badge({ children, tone = "slate" }: {
+export function Badge({ children, tone = "slate" }: {
   children: React.ReactNode;
   tone?: "slate" | "emerald" | "amber";
 }) {
@@ -71,7 +71,7 @@ function Badge({ children, tone = "slate" }: {
   return <span className={className}>{children}</span>;
 }
 
-function AssignTaxRulePanel({
+export function AssignTaxRulePanel({
   charge,
   rules,
 }: {
@@ -173,7 +173,7 @@ function AssignTaxRuleForm({
   );
 }
 
-function OverrideVatPanel({ charge }: { charge: ChargeTaxDetail }) {
+export function OverrideVatPanel({ charge }: { charge: ChargeTaxDetail }) {
   const [state, formAction] = useActionState(
     overrideChargeVatPercentAction,
     initialState,

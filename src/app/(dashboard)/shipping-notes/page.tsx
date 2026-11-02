@@ -16,6 +16,8 @@ import { listShippingNotesForUser } from "@/features/shipping-notes/queries";
 import { getShippingModePresentation } from "@/features/shipping-notes/mode-rules";
 
 import { formatAccountName } from "@/features/shipping-notes/presentation";
+import { canDuplicateShippingNote } from "@/features/shipping-notes/duplication";
+import { DuplicateShippingNoteControls } from "@/features/shipping-notes/components/duplicate-shipping-note-controls";
 
 type ShippingNotesPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -124,6 +126,7 @@ export default async function ShippingNotesPage({
                   <th className="border-b border-border px-3 py-3">Status</th>
                   <th className="border-b border-border px-3 py-3">Created</th>
                   <th className="border-b border-border px-3 py-3">Created by</th>
+                  <th className="border-b border-border px-3 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -153,6 +156,17 @@ export default async function ShippingNotesPage({
                     </td>
                     <td className="border-b border-border/60 px-3 py-3 text-muted-foreground break-words">
                       {formatAccountName(note.createdByName) ?? "-"}
+                    </td>
+                    <td className="border-b border-border/60 px-3 py-3 text-right whitespace-nowrap">
+                      {canDuplicateShippingNote(note, user) ? (
+                        <DuplicateShippingNoteControls
+                          sourceId={note.id}
+                          sourceJobsheetNo={note.jobsheetNo}
+                          triggerClassName="inline-flex items-center justify-center rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
                     </td>
                   </tr>
                 ))}

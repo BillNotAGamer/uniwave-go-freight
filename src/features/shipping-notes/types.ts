@@ -16,6 +16,7 @@ export type ShippingNoteListItem = {
   consigneeText: string | null;
   status: ShippingNoteStatus;
   createdAt: Date;
+  createdById: string | null;
   createdByName: string | null;
 };
 
