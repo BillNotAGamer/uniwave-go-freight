@@ -76,6 +76,7 @@ import { ShippingNoteSubmitForm } from "@/features/shipping-notes/components/shi
 import { ShippingNoteHardDeleteControls } from "@/features/shipping-notes/components/shipping-note-hard-delete-controls";
 import { DuplicateShippingNoteControls } from "@/features/shipping-notes/components/duplicate-shipping-note-controls";
 import { BuyingChargeForm } from "@/features/shipping-notes/components/buying-charge-form";
+import { UnifiedBuyingWorkspace } from "@/features/shipping-notes/components/unified-buying-workspace";
 
 // Exercise the real Drizzle mapping without trusting its generic unknown return type.
 function readTimestamp(
@@ -172,6 +173,10 @@ type TargetElement = React.ReactElement<{
   documents?: unknown[];
   canManage?: boolean;
   canManageBuyingCharges?: boolean;
+  canReadTaxSummary?: boolean;
+  canMutateTax?: boolean;
+  taxDetails?: unknown[];
+  activeTaxRules?: unknown[];
   sourceId?: string;
   sourceJobsheetNo?: string;
   children?: unknown;
@@ -1066,5 +1071,150 @@ describe("ShippingNoteDetailPage presentation and null field preservation", () =
     expect(findDefinitionValue(jsx, "Submitted")).toBe("20 Sep 2026, 00:20");
     expect(findDefinitionValue(jsx, "Updated")).toBe("30 Sep 2026, 23:59");
     expect(findDefinitionValue(jsx, "Cancelled")).toBe("01 Oct 2026, 00:00");
+  });
+});
+
+
+describe("ShippingNoteDetailPage UnifiedBuyingWorkspace server-to-client confidentiality (REQ-09)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getSellingChargesAndSummaryForNoteForUser.mockResolvedValue({
+      charges: [],
+      summary: { totalAmountVnd: "0.00" },
+    });
+    mocks.listBuyingChargesForNoteForUser.mockResolvedValue([
+      {
+        id: "buy-1",
+        shippingNoteId: "note-1",
+        chargeName: "Ocean Freight",
+        description: null,
+        quantity: "1.000",
+        unit: "cont",
+        unitPrice: "100.0000",
+        currency: "USD",
+        exchangeRate: "25000.000000",
+        amountOriginal: "100.0000",
+        amountVnd: "2500000.00",
+        serviceCatalogItemId: null,
+        catalogCodeSnapshot: null,
+        catalogNameSnapshot: null,
+        catalogUnitSnapshot: null,
+        catalogVatRateSnapshot: null,
+        vendorOrAgentText: "Carrier A",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    mocks.listChargeTaxDetailsForNoteForUser.mockResolvedValue([
+      {
+        chargeId: "buy-1",
+        shippingNoteId: "note-1",
+        section: "buying",
+        chargeName: "Ocean Freight",
+        amountVnd: "2500000.00",
+        taxRuleId: "rule-1",
+        taxRuleCodeSnapshot: "VAT8",
+        taxRuleNameSnapshot: "Standard VAT 8%",
+        taxTreatmentSnapshot: "taxable",
+        vatPercent: "8.00",
+        vatAmount: "200000.00",
+        lineTotalIncludingVatVnd: "2700000.00",
+        isOverride: false,
+        overrideReason: null,
+        vatOverrideRate: null,
+        taxComplete: true,
+        serviceCatalogItemId: null,
+        catalogCodeSnapshot: null,
+        catalogNameSnapshot: null,
+        catalogUnitSnapshot: null,
+        catalogVatRateSnapshot: null,
+        accountingBaselineVatRate: "8.00",
+        effectiveAccountingVatRate: "8.00",
+      },
+    ]);
+    mocks.listTaxRulesForUser.mockResolvedValue([
+      {
+        id: "rule-1",
+        code: "VAT8",
+        name: "Standard VAT 8%",
+        description: "8% input VAT",
+        chargeSection: "buying",
+        taxTreatment: "taxable",
+        vatPercent: "8.00",
+        isActive: true,
+        createdById: "admin-1",
+        updatedById: "admin-1",
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    mocks.listShippingNoteExportHistoryForUser.mockResolvedValue([]);
+    mocks.listCustomsDeclarationsForNoteForUser.mockResolvedValue([]);
+    mocks.listShippingNoteDocumentsForUser.mockResolvedValue([]);
+    mocks.getFinancialSummaryForNoteForUser.mockResolvedValue({
+      totalSellingVnd: "0.00",
+      totalBuyingVnd: "2500000.00",
+      grossProfitVnd: "-2500000.00",
+    });
+  });
+
+  it("never queries or serializes taxDetails, activeTaxRules, or financialSummary for OPS across the RSC boundary", async () => {
+    const opsUser = makeUser("ops");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: opsUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    // Server queries for tax details, tax rules, and financial summary must not even execute for OPS
+    expect(mocks.listChargeTaxDetailsForNoteForUser).not.toHaveBeenCalled();
+    expect(mocks.listTaxRulesForUser).not.toHaveBeenCalled();
+    expect(mocks.getFinancialSummaryForNoteForUser).not.toHaveBeenCalled();
+
+    // Verify RSC props serialized to UnifiedBuyingWorkspace client boundary contain empty tax arrays
+    const workspace = findComponentInTree(jsx, UnifiedBuyingWorkspace);
+    expect(workspace).not.toBeNull();
+    expect(workspace?.props.canReadTaxSummary).toBe(false);
+    expect(workspace?.props.canMutateTax).toBe(false);
+    expect(workspace?.props.taxDetails).toEqual([]);
+    expect(workspace?.props.activeTaxRules).toEqual([]);
+  });
+
+  it("never queries buying charges, tax details, or financial summary or renders UnifiedBuyingWorkspace for Sale", async () => {
+    const saleUser = makeUser("sale");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(mocks.listBuyingChargesForNoteForUser).not.toHaveBeenCalled();
+    expect(mocks.listChargeTaxDetailsForNoteForUser).not.toHaveBeenCalled();
+    expect(mocks.listTaxRulesForUser).not.toHaveBeenCalled();
+    expect(mocks.getFinancialSummaryForNoteForUser).not.toHaveBeenCalled();
+    expect(findComponentInTree(jsx, UnifiedBuyingWorkspace)).toBeNull();
+  });
+
+  it("passes populated buyingTaxDetails and activeTaxRules to UnifiedBuyingWorkspace for Accountant and Admin", async () => {
+    const accountantUser = makeUser("accountant");
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: accountantUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(mocks.listBuyingChargesForNoteForUser).toHaveBeenCalledTimes(1);
+    expect(mocks.listChargeTaxDetailsForNoteForUser).toHaveBeenCalledTimes(1);
+    expect(mocks.listTaxRulesForUser).toHaveBeenCalledTimes(1);
+
+    const workspace = findComponentInTree(jsx, UnifiedBuyingWorkspace);
+    expect(workspace).not.toBeNull();
+    expect(workspace?.props.canReadTaxSummary).toBe(true);
+    expect(workspace?.props.canMutateTax).toBe(true);
+    expect(workspace?.props.taxDetails).toHaveLength(1);
+    expect(workspace?.props.activeTaxRules).toHaveLength(1);
   });
 });

@@ -629,9 +629,9 @@ export default async function ShippingNoteDetailPage({
                 charges={buyingCharges ?? []}
                 canManageBuyingCharges={canManageBuyingCharges}
                 canReadTaxSummary={canReadTaxSummary}
-                canMutateTax={canMutateTax}
-                taxDetails={buyingTaxDetails}
-                activeTaxRules={activeTaxRules}
+                canMutateTax={canReadTaxSummary && canMutateTax}
+                taxDetails={canReadTaxSummary ? buyingTaxDetails : []}
+                activeTaxRules={canReadTaxSummary ? activeTaxRules : []}
                 status={note.status}
                 role={user.role}
               />

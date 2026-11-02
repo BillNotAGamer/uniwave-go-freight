@@ -111,3 +111,73 @@ describe("Shipping Notes CREATED BY column", () => {
     expect(mocks.listShippingNotesForUser).toHaveBeenLastCalledWith(expect.objectContaining({ role: "admin" }), { jobsheet: "JS" });
   });
 });
+
+
+describe("Shipping Notes list Copy action authorization (REQ-02)", () => {
+  it("renders DuplicateShippingNoteControls (Copy) only for notes the actor is authorized to duplicate", async () => {
+    const notes = [
+      {
+        id: "note-own",
+        jobsheetNo: "JS-OWN",
+        shippingMode: "sea_export" as const,
+        shipperText: "Shipper A",
+        consigneeText: "Consignee B",
+        status: "submitted" as const,
+        createdAt: now,
+        createdById: "sale-1",
+        createdByName: "Sale One",
+      },
+      {
+        id: "note-other",
+        jobsheetNo: "JS-OTHER",
+        shippingMode: "sea_export" as const,
+        shipperText: "Shipper C",
+        consigneeText: "Consignee D",
+        status: "submitted" as const,
+        createdAt: now,
+        createdById: "sale-2",
+        createdByName: "Sale Two",
+      },
+    ];
+    mocks.listShippingNotesForUser.mockResolvedValue(notes);
+
+    // 1. Sale user sees Copy only on their own note (row 0), not on other's note (row 1)
+    mocks.requireAuthenticatedUser.mockResolvedValue({
+      user: { ...user(), id: "sale-1", role: "sale" },
+    });
+    const salePage = await ShippingNotesPage({ searchParams: Promise.resolve({}) });
+    expect(elements(salePage, "th").map(text)).toContain("Actions");
+    const saleRows = elements(elements(salePage, "tbody")[0], "tr");
+    const saleRow0ActionCell = elements(saleRows[0], "td").at(-1);
+    const saleRow1ActionCell = elements(saleRows[1], "td").at(-1);
+    expect((saleRow0ActionCell?.props.children as React.ReactElement)?.props).toMatchObject({
+      sourceId: "note-own",
+      sourceJobsheetNo: "JS-OWN",
+    });
+    expect(text(saleRow1ActionCell)).toBe("-");
+
+    // 2. Admin sees Copy on all notes
+    mocks.requireAuthenticatedUser.mockResolvedValue({
+      user: { ...user(), id: "admin-1", role: "admin" },
+    });
+    const adminPage = await ShippingNotesPage({ searchParams: Promise.resolve({}) });
+    const adminRows = elements(elements(adminPage, "tbody")[0], "tr");
+    expect((elements(adminRows[0], "td").at(-1)?.props.children as React.ReactElement)?.props).toMatchObject({
+      sourceId: "note-own",
+      sourceJobsheetNo: "JS-OWN",
+    });
+    expect((elements(adminRows[1], "td").at(-1)?.props.children as React.ReactElement)?.props).toMatchObject({
+      sourceId: "note-other",
+      sourceJobsheetNo: "JS-OTHER",
+    });
+
+    // 3. Accountant sees Copy on no notes
+    mocks.requireAuthenticatedUser.mockResolvedValue({
+      user: { ...user(), id: "acc-1", role: "accountant" },
+    });
+    const accPage = await ShippingNotesPage({ searchParams: Promise.resolve({}) });
+    const accRows = elements(elements(accPage, "tbody")[0], "tr");
+    expect(text(elements(accRows[0], "td").at(-1))).toBe("-");
+    expect(text(elements(accRows[1], "td").at(-1))).toBe("-");
+  });
+});

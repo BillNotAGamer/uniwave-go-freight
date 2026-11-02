@@ -44,11 +44,13 @@ export function DeleteBuyingChargeButton({ chargeId }: DeleteBuyingChargeButtonP
 type EditBuyingChargeRowProps = {
   charge: BuyingChargeDetail;
   onCancel: () => void;
+  colSpan?: number;
 };
 
 export function EditBuyingChargeRow({
   charge,
   onCancel,
+  colSpan = 11,
 }: EditBuyingChargeRowProps) {
   const [state, formAction] = useActionState(
     updateBuyingChargeAction,
@@ -68,7 +70,7 @@ export function EditBuyingChargeRow({
 
   return (
     <tr className="bg-slate-50 dark:bg-slate-900/60">
-      <td colSpan={11} className="border-b border-slate-200 dark:border-slate-800 px-3 py-3">
+      <td colSpan={colSpan} className="border-b border-slate-200 dark:border-slate-800 px-3 py-3">
         <form action={formAction} className="grid gap-3">
           <input type="hidden" name="id" value={charge.id} />
 
