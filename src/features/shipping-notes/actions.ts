@@ -636,6 +636,9 @@ export async function markShippingNoteCheckedAction(
 
   const parsed = markShippingNoteCheckedInputSchema.safeParse({
     id: readFormString(formData, "id"),
+    sellingVerified: readFormString(formData, "sellingVerified") === "true",
+    buyingVerified: readFormString(formData, "buyingVerified") === "true",
+    taxVerified: readFormString(formData, "taxVerified") === "true",
   });
 
   if (!parsed.success) {

@@ -19,6 +19,7 @@ export const BUYING_CHARGE_MUTABLE_STATUSES = [
 
 export const OPS_BUYING_CHARGE_MUTABLE_STATUSES = [
   "submitted",
+  "accounting_reviewing",
 ] as const satisfies readonly ShippingNoteStatus[];
 
 export const CURRENT_ACCOUNTING_TRANSITIONS = [
@@ -100,9 +101,18 @@ export function canMutateSellingChargeForDraft(
   note: ShippingNotePolicySubject,
   actor: ShippingNotePolicyActor,
 ): boolean {
+  return canAccessDraftMutationSubject(note, actor) &&
+    (actor.role === "admin" || actor.role === "accountant" ||
+      ((actor.role === "sale" || actor.role === "ops") && note.createdById === actor.id));
+}
+
+export function canMutateSellingChargeForAccountingActor(
+  note: ShippingNotePolicySubject,
+  actor: ShippingNotePolicyActor,
+): boolean {
   return (
-    canAccessDraftMutationSubject(note, actor) &&
-    actor.role !== "accountant"
+    (actor.role === "admin" || actor.role === "accountant") &&
+    (note.status === "submitted" || note.status === "accounting_reviewing")
   );
 }
 
@@ -122,6 +132,9 @@ export function canMutateBuyingChargeForActor(
   status: ShippingNoteStatus,
   actor: ShippingNotePolicyActor,
 ): boolean {
+  if (status === "draft") {
+    return actor.role === "admin" || actor.role === "accountant";
+  }
   if (actor.role === "ops") {
     return OPS_BUYING_CHARGE_MUTABLE_STATUSES.some(
       (mutableStatus) => mutableStatus === status,

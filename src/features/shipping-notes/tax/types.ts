@@ -1,4 +1,14 @@
-import type { TaxTreatment } from "../constants";
+import type { ChargeSection, TaxTreatment } from "../constants";
+
+export type ChargeTaxRuleOption = {
+  id: string;
+  code: string;
+  name: string;
+  chargeSection: ChargeSection;
+  taxTreatment: TaxTreatment;
+  vatPercent: string;
+  isActive: boolean;
+};
 
 export type ChargeTaxSnapshot = {
   taxRuleId: string | null;

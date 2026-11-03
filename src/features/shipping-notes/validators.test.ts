@@ -267,6 +267,23 @@ describe("shipping note validation schemas", () => {
     expect(() => submitShippingNoteInputSchema.parse({ id: " " })).toThrow();
     expect(() => startAccountingReviewInputSchema.parse({ id: "" })).toThrow();
     expect(() => markShippingNoteCheckedInputSchema.parse({ id: "" })).toThrow();
+    expect(() => markShippingNoteCheckedInputSchema.parse({
+      id: "note-1",
+      sellingVerified: true,
+      buyingVerified: true,
+      taxVerified: false,
+    })).toThrow("VAT/Tax verification confirmation is required.");
+    expect(markShippingNoteCheckedInputSchema.parse({
+      id: "note-1",
+      sellingVerified: true,
+      buyingVerified: true,
+      taxVerified: true,
+    })).toEqual({
+      id: "note-1",
+      sellingVerified: true,
+      buyingVerified: true,
+      taxVerified: true,
+    });
     expect(() => approveShippingNoteInputSchema.parse({ id: "" })).toThrow();
     expect(() => lockShippingNoteInputSchema.parse({ id: "" })).toThrow();
     expect(() => unlockShippingNoteInputSchema.parse({

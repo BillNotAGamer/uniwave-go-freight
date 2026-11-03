@@ -44,7 +44,7 @@ export async function registerShippingNoteDocumentMetadata(
   const normalized = registerShippingNoteDocumentInputSchema.parse(input);
   const note = await getShippingNoteForUser(normalized.shippingNoteId, user);
 
-  if (!note || !canMutateShippingNoteDocuments(note, user)) {
+  if (!note || !canMutateShippingNoteDocuments(note, user, normalized.documentType)) {
     throw new AuthorizationError();
   }
 
@@ -133,6 +133,10 @@ export async function softDeleteShippingNoteDocument(
       throw new AuthorizationError();
     }
 
+    if (!canMutateShippingNoteDocuments(note, user, existing.documentType)) {
+      throw new AuthorizationError();
+    }
+
     await tx
       .update(shippingNoteDocuments)
       .set({ deletedAt: new Date() })
@@ -203,6 +207,10 @@ export async function hardDeleteShippingNoteDocument(
       .limit(1);
 
     if (!existing) {
+      throw new AuthorizationError();
+    }
+
+    if (!canMutateShippingNoteDocuments(note, user, existing.documentType as import("./constants").ShippingNoteDocumentType)) {
       throw new AuthorizationError();
     }
 

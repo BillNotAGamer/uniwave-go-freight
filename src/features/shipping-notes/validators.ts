@@ -271,6 +271,15 @@ export const startAccountingReviewInputSchema = z.object({
 
 export const markShippingNoteCheckedInputSchema = z.object({
   id: z.string().trim().min(1),
+  sellingVerified: z.literal(true, {
+    error: "Selling verification confirmation is required.",
+  }),
+  buyingVerified: z.literal(true, {
+    error: "Buying verification confirmation is required.",
+  }),
+  taxVerified: z.literal(true, {
+    error: "VAT/Tax verification confirmation is required.",
+  }),
 });
 
 export const approveShippingNoteInputSchema = z.object({

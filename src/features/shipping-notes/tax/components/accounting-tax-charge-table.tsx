@@ -7,8 +7,7 @@ import type {
   ChargeSection,
   ShippingNoteStatus,
 } from "../../constants";
-import type { ChargeTaxDetail } from "../types";
-import type { TaxRuleDetail } from "@/features/tax-rules/types";
+import type { ChargeTaxDetail, ChargeTaxRuleOption } from "../types";
 import {
   assignChargeTaxRuleAction,
   overrideChargeVatPercentAction,
@@ -76,7 +75,7 @@ export function AssignTaxRulePanel({
   rules,
 }: {
   charge: ChargeTaxDetail;
-  rules: TaxRuleDetail[];
+  rules: ChargeTaxRuleOption[];
 }) {
   if (rules.length === 0) {
     return (
@@ -94,7 +93,7 @@ function AssignTaxRuleForm({
   rules,
 }: {
   charge: ChargeTaxDetail;
-  rules: TaxRuleDetail[];
+  rules: ChargeTaxRuleOption[];
 }) {
   const [selectedRuleId, setSelectedRuleId] = useState(rules[0]?.id ?? "");
   const [state, formAction] = useActionState(
@@ -251,7 +250,7 @@ type AccountingTaxChargeTableProps = {
   status: ShippingNoteStatus;
   role: Role;
   charges: ChargeTaxDetail[];
-  activeTaxRules: TaxRuleDetail[];
+  activeTaxRules: ChargeTaxRuleOption[];
   canMutateTax: boolean;
 };
 

@@ -54,11 +54,12 @@ function actor(role: User["role"]): User {
   };
 }
 
-function note(status: "submitted" | "accounting_reviewing") {
+function note(status: "submitted" | "accounting_reviewing" | "checked") {
   return {
     id: "sale-created-note",
     status,
     createdById: "sale-creator",
+    shippingMode: "sea_export",
   } as never;
 }
 
@@ -121,7 +122,17 @@ function mockExistingCharge() {
 }
 
 function mockTransaction() {
+  let transactionNote = note("submitted");
   const tx = {
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => ({
+            for: vi.fn().mockImplementation(async () => [transactionNote]),
+          })),
+        })),
+      })),
+    })),
     insert: vi.fn(() => ({
       values: vi.fn((values) => ({
         returning: vi.fn().mockResolvedValue([{ id: "charge-1", ...values }]),
@@ -140,7 +151,12 @@ function mockTransaction() {
     })),
   };
   mocks.transaction.mockImplementation(async (callback) => callback(tx));
-  return tx;
+  return {
+    ...tx,
+    setNote(next: ReturnType<typeof note>) {
+      transactionNote = next;
+    },
+  };
 }
 
 describe("OPS Buying Charge mutation boundary", () => {
@@ -189,8 +205,17 @@ describe("OPS Buying Charge mutation boundary", () => {
     }));
   });
 
-  it("rejects an OPS stale form once Accounting Review has started before any transaction", async () => {
-    mocks.getShippingNoteForUser.mockResolvedValue(note("accounting_reviewing"));
+  it("allows OPS during Accounting Review and rejects a stale form after the note becomes Checked", async () => {
+    const tx = mockTransaction();
+    tx.setNote(note("accounting_reviewing"));
+
+    await expect(createBuyingChargeForNote(
+      "sale-created-note",
+      createInput(),
+      actor("ops"),
+    )).resolves.toMatchObject({ shippingNoteId: "sale-created-note" });
+
+    tx.setNote(note("checked"));
 
     await expect(createBuyingChargeForNote(
       "sale-created-note",
@@ -198,7 +223,7 @@ describe("OPS Buying Charge mutation boundary", () => {
       actor("ops"),
     )).rejects.toBeInstanceOf(AuthorizationError);
 
-    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.transaction).toHaveBeenCalledTimes(2);
   });
 
   it("keeps Sale outside the OPS Buying Charge mutation capability", async () => {

@@ -11,6 +11,7 @@ import {
   canMutateBuyingChargeAtStatus,
   canMutateBuyingChargeForActor,
   canMutateSellingChargeForDraft,
+  canMutateSellingChargeForAccountingActor,
   canMutateReopenedSellingCharges,
   canIssuePostSubmitEditGrantAtStatus,
   canUsePostSubmitEditGrantAtStatus,
@@ -72,12 +73,24 @@ describe("shipping note status policy", () => {
     expect(canSubmitShippingNoteDraft(note("submitted"), saleOwner)).toBe(false);
   });
 
-  it("keeps selling charge mutations draft-only and denies accountant", () => {
+  it("allows Admin/Accountant draft rates while preserving owner-only Sale/OPS draft rates", () => {
     expect(canMutateSellingChargeForDraft(note("draft"), saleOwner)).toBe(true);
     expect(canMutateSellingChargeForDraft(note("draft"), admin)).toBe(true);
-    expect(canMutateSellingChargeForDraft(note("draft"), accountant)).toBe(false);
+    expect(canMutateSellingChargeForDraft(note("draft"), accountant)).toBe(true);
     expect(canMutateSellingChargeForDraft(note("draft"), saleOther)).toBe(false);
     expect(canMutateSellingChargeForDraft(note("submitted"), admin)).toBe(false);
+  });
+
+  it("allows Admin/Accountant selling corrections during submitted and initial review", () => {
+    for (const status of ["submitted", "accounting_reviewing"] as const) {
+      expect(canMutateSellingChargeForAccountingActor(note(status), admin)).toBe(true);
+      expect(canMutateSellingChargeForAccountingActor(note(status), accountant)).toBe(true);
+      expect(canMutateSellingChargeForAccountingActor(note(status), saleOwner)).toBe(false);
+      expect(canMutateSellingChargeForAccountingActor(note(status), opsOwner)).toBe(false);
+    }
+    expect(canMutateSellingChargeForAccountingActor(note("checked"), admin)).toBe(false);
+    expect(canMutateSellingChargeForAccountingActor(note("approved"), accountant)).toBe(false);
+    expect(canMutateSellingChargeForAccountingActor(note("locked"), admin)).toBe(false);
   });
 
   it("allows only Admin/Accountant to mutate selling charges during an active reopen", () => {
@@ -119,10 +132,14 @@ describe("shipping note status policy", () => {
     }
   });
 
-  it("limits OPS Buying Charge input to submitted notes only", () => {
+  it("limits OPS Buying Charge input to submitted and accounting-reviewing notes", () => {
     for (const status of SHIPPING_NOTE_STATUSES) {
-      expect(canMutateBuyingChargeForActor(status, opsOther)).toBe(status === "submitted");
+      expect(canMutateBuyingChargeForActor(status, opsOther)).toBe(
+        status === "submitted" || status === "accounting_reviewing",
+      );
     }
+    expect(canMutateBuyingChargeForActor("draft", accountant)).toBe(true);
+    expect(canMutateBuyingChargeForActor("draft", admin)).toBe(true);
     expect(canMutateBuyingChargeForActor("accounting_reviewing", accountant)).toBe(true);
     expect(canMutateBuyingChargeForActor("submitted", admin)).toBe(true);
   });

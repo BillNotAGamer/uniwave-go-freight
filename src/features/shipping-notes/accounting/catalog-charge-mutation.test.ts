@@ -38,24 +38,32 @@ const actor: User = {
   deletedAt: null,
 };
 
-function configureTransaction(catalogRows: Array<Record<string, unknown>>) {
+function configureTransaction(
+  catalogRows: Array<Record<string, unknown>>,
+  taxRuleRows: Array<Record<string, unknown>> = [],
+) {
   let inserted: Record<string, unknown> | undefined;
   let selectCall = 0;
   const tx = {
     select: vi.fn(() => {
-      const isNoteLockQuery = selectCall++ === 0;
+      const currentSelect = selectCall++;
+      const isNoteLockQuery = currentSelect === 0;
+      const isTaxRuleQuery = currentSelect >= 2;
       return {
         from: vi.fn(() => ({
-          where: vi.fn(() => ({
-            limit: vi.fn(() => isNoteLockQuery
+          where: vi.fn(() => isTaxRuleQuery
+            ? Promise.resolve(taxRuleRows)
+            : ({
+              limit: vi.fn(() => isNoteLockQuery
               ? { for: vi.fn().mockResolvedValue([{
                   id: "note-1",
                   status: "draft",
                   createdById: "sale-1",
+                  shippingMode: "sea_export",
                   sellingRateReopenedAt: null,
                 }]) }
               : Promise.resolve(catalogRows)),
-          })),
+            })),
         })),
       };
     }),
@@ -117,7 +125,7 @@ describe("catalog-backed charge mutation wiring", () => {
 
     await createSellingChargeForNote(input("catalog-1"), actor);
 
-    expect(configured.tx.select).toHaveBeenCalledTimes(2);
+    expect(configured.tx.select).toHaveBeenCalledTimes(3);
     expect(configured.inserted()).toMatchObject({
       serviceCatalogItemId: "catalog-1",
       catalogCodeSnapshot: "OF",
@@ -139,6 +147,42 @@ describe("catalog-backed charge mutation wiring", () => {
       catalogNameSnapshot: null,
       chargeName: "Client-supplied wrong name",
       unit: "Client unit",
+    });
+  });
+
+  it("applies a unique effective charge-type VAT default through Tax Rule snapshots", async () => {
+    const configured = configureTransaction([{
+      id: "catalog-1",
+      code: "OF-20",
+      name: "Ocean Freight 20ft",
+      primaryUnit: "Container",
+      vatRate: "8.00",
+      isActive: true,
+      deletedAt: null,
+    }], [{
+      id: "rule-zero",
+      code: "FREIGHT-VAT0",
+      name: "Freight zero-rated",
+      shippingMode: "sea_export",
+      chargeSection: "selling",
+      chargeNamePattern: "OF-*",
+      taxTreatment: "zero_rated",
+      vatPercent: "0.00",
+      isActive: true,
+      effectiveFrom: null,
+      effectiveTo: null,
+    }]);
+
+    await createSellingChargeForNote(input("catalog-1"), actor);
+
+    expect(configured.inserted()).toMatchObject({
+      taxRuleId: "rule-zero",
+      taxRuleCodeSnapshot: "FREIGHT-VAT0",
+      taxRuleNameSnapshot: "Freight zero-rated",
+      taxTreatmentSnapshot: "zero_rated",
+      vatPercent: "0.00",
+      vatAmount: "0.00",
+      isOverride: false,
     });
   });
 

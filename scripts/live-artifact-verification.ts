@@ -345,7 +345,7 @@ async function main() {
       actors.accountant,
     );
     return shippingMutations.markShippingNoteChecked(
-      { id: reviewing.id },
+      { id: reviewing.id, sellingVerified: true, buyingVerified: true, taxVerified: true },
       actors.accountant,
     );
   }

@@ -120,6 +120,21 @@ describe("Document Library and Pre-alert UI options", () => {
       canMutateShippingNoteDocuments(
         { status: "submitted", createdById: "sale-1" },
         ops,
+        "pre_alert_hbl",
+      ),
+    ).toBe(true);
+    expect(
+      canMutateShippingNoteDocuments(
+        { status: "submitted", createdById: "sale-1" },
+        ops,
+        "invoice",
+      ),
+    ).toBe(false);
+    expect(
+      canReadShippingNoteDocuments(
+        { status: "submitted", createdById: "sale-1" },
+        ops,
+        "contract",
       ),
     ).toBe(false);
     expect(

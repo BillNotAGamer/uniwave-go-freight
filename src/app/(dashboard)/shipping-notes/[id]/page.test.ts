@@ -45,6 +45,7 @@ vi.mock("@/features/shipping-notes/queries", () => ({
 
 vi.mock("@/features/shipping-notes/tax/queries", () => ({
   listChargeTaxDetailsForNoteForUser: mocks.listChargeTaxDetailsForNoteForUser,
+  listChargeTaxRuleOptionsForNoteForUser: mocks.listTaxRulesForUser,
 }));
 
 vi.mock("@/features/tax-rules/queries", () => ({
@@ -615,7 +616,7 @@ describe("ShippingNoteDetailPage OPS Buying Charge controls", () => {
     mocks.listShippingNoteDocumentsForUser.mockResolvedValue([]);
   });
 
-  it("shows OPS the existing Buying Charge form only while submitted", async () => {
+  it("shows OPS Buying Charge and scoped tax controls while submitted", async () => {
     const opsUser = makeUser("ops");
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: opsUser });
     mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
@@ -626,10 +627,11 @@ describe("ShippingNoteDetailPage OPS Buying Charge controls", () => {
 
     expect(findComponentInTree(jsx, BuyingChargeForm)?.props.canManageBuyingCharges)
       .toBe(true);
-    expect(collectText(jsx)).not.toContain("Buying Charge Tax Classification");
+    expect(findComponentInTree(jsx, UnifiedBuyingWorkspace)?.props.canReadTaxSummary)
+      .toBe(true);
   });
 
-  it("removes OPS Buying Charge mutation controls once Accounting Review starts", async () => {
+  it("keeps OPS Buying Charge mutation controls during Accounting Review", async () => {
     const opsUser = makeUser("ops");
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: opsUser });
     mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("accounting_reviewing"));
@@ -639,7 +641,7 @@ describe("ShippingNoteDetailPage OPS Buying Charge controls", () => {
     });
 
     expect(findComponentInTree(jsx, BuyingChargeForm)?.props.canManageBuyingCharges)
-      .toBe(false);
+      .toBe(true);
   });
 
   it("does not give Sale the OPS Buying Charge interface", async () => {
@@ -1137,15 +1139,10 @@ describe("ShippingNoteDetailPage UnifiedBuyingWorkspace server-to-client confide
         id: "rule-1",
         code: "VAT8",
         name: "Standard VAT 8%",
-        description: "8% input VAT",
         chargeSection: "buying",
         taxTreatment: "taxable",
         vatPercent: "8.00",
         isActive: true,
-        createdById: "admin-1",
-        updatedById: "admin-1",
-        createdAt: now,
-        updatedAt: now,
       },
     ]);
     mocks.listShippingNoteExportHistoryForUser.mockResolvedValue([]);
@@ -1158,7 +1155,7 @@ describe("ShippingNoteDetailPage UnifiedBuyingWorkspace server-to-client confide
     });
   });
 
-  it("never queries or serializes taxDetails, activeTaxRules, or financialSummary for OPS across the RSC boundary", async () => {
+  it("serializes only scoped buying tax data for OPS and never exposes financial summary", async () => {
     const opsUser = makeUser("ops");
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: opsUser });
     mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
@@ -1167,18 +1164,20 @@ describe("ShippingNoteDetailPage UnifiedBuyingWorkspace server-to-client confide
       params: Promise.resolve({ id: "note-1" }),
     });
 
-    // Server queries for tax details, tax rules, and financial summary must not even execute for OPS
-    expect(mocks.listChargeTaxDetailsForNoteForUser).not.toHaveBeenCalled();
-    expect(mocks.listTaxRulesForUser).not.toHaveBeenCalled();
+    expect(mocks.listChargeTaxDetailsForNoteForUser).toHaveBeenCalledTimes(1);
+    expect(mocks.listTaxRulesForUser).toHaveBeenCalledTimes(1);
     expect(mocks.getFinancialSummaryForNoteForUser).not.toHaveBeenCalled();
 
-    // Verify RSC props serialized to UnifiedBuyingWorkspace client boundary contain empty tax arrays
     const workspace = findComponentInTree(jsx, UnifiedBuyingWorkspace);
     expect(workspace).not.toBeNull();
-    expect(workspace?.props.canReadTaxSummary).toBe(false);
-    expect(workspace?.props.canMutateTax).toBe(false);
-    expect(workspace?.props.taxDetails).toEqual([]);
-    expect(workspace?.props.activeTaxRules).toEqual([]);
+    expect(workspace?.props.canReadTaxSummary).toBe(true);
+    expect(workspace?.props.canMutateTax).toBe(true);
+    expect(workspace?.props.taxDetails).toHaveLength(1);
+    expect(workspace?.props.taxDetails?.[0]).toMatchObject({ section: "buying" });
+    expect(workspace?.props.activeTaxRules).toEqual([
+      expect.objectContaining({ id: "rule-1", chargeSection: "buying" }),
+    ]);
+    expect(workspace?.props.activeTaxRules?.[0]).not.toHaveProperty("description");
   });
 
   it("never queries buying charges, tax details, or financial summary or renders UnifiedBuyingWorkspace for Sale", async () => {

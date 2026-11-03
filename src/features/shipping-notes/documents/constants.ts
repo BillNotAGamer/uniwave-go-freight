@@ -9,6 +9,17 @@ export const SHIPPING_NOTE_DOCUMENT_TYPES = [
 export type ShippingNoteDocumentType =
   (typeof SHIPPING_NOTE_DOCUMENT_TYPES)[number];
 
+export const OPERATIONAL_SHIPPING_NOTE_DOCUMENT_TYPES = [
+  "pre_alert_hbl",
+  "pre_alert_mbl",
+  "customs_declaration",
+] as const satisfies readonly ShippingNoteDocumentType[];
+
+export const RESTRICTED_SHIPPING_NOTE_DOCUMENT_TYPES = [
+  "contract",
+  "invoice",
+] as const satisfies readonly ShippingNoteDocumentType[];
+
 export const SHIPPING_NOTE_DOCUMENT_TYPE_LABELS: Record<
   ShippingNoteDocumentType,
   string

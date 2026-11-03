@@ -16,6 +16,7 @@ import {
   shippingNoteEditGrants,
   shippingNotes,
   shippingNoteCharges,
+  taxRules,
   users,
   type User as DbUser,
 } from "@/lib/db/schema";
@@ -69,6 +70,7 @@ import {
   LOCK_SOURCE_STATUSES,
   canMutateBuyingChargeForActor,
   canMutateSellingChargeForDraft,
+  canMutateSellingChargeForAccountingActor,
   canMutateReopenedSellingCharges,
   canReopenShippingNoteForCorrectionStatus,
   canSubmitShippingNoteDraft,
@@ -82,6 +84,8 @@ import {
   TAX_COMPLETENESS_ERROR,
 } from "./tax/completeness";
 import { recomputeVatForCommercialChange } from "./tax/mutations";
+import { buildTaxRuleAccountingVat } from "./accounting/vat";
+import { resolveDefaultTaxRule } from "./tax/default-resolution";
 import {
   getRequestedShippingNotePartnerIds,
   resolveShippingNotePartySnapshots,
@@ -1149,6 +1153,11 @@ export async function markShippingNoteChecked(
           ...updated,
           checkedById: user.id,
           checkedAt,
+          accountingConfirmations: {
+            sellingVerified: input.sellingVerified,
+            buyingVerified: input.buyingVerified,
+            taxVerified: input.taxVerified,
+          },
         },
       });
 
@@ -1641,6 +1650,68 @@ async function loadChargeCatalogPersistence(
   return resolveChargeCatalogPersistence(input, item ?? null);
 }
 
+async function resolveChargeDefaultTaxPersistence(
+  tx: ChargeMutationTransaction,
+  input: {
+    catalog: ChargeCatalogPersistence;
+    shippingMode: ShippingNoteDetail["shippingMode"];
+    section: "selling" | "buying";
+    amountVnd: string;
+  },
+) {
+  if (!input.catalog.catalogCodeSnapshot) {
+    return {};
+  }
+
+  const rules = await tx
+    .select({
+      id: taxRules.id,
+      code: taxRules.code,
+      name: taxRules.name,
+      shippingMode: taxRules.shippingMode,
+      chargeSection: taxRules.chargeSection,
+      chargeNamePattern: taxRules.chargeNamePattern,
+      taxTreatment: taxRules.taxTreatment,
+      vatPercent: taxRules.vatPercent,
+      isActive: taxRules.isActive,
+      effectiveFrom: taxRules.effectiveFrom,
+      effectiveTo: taxRules.effectiveTo,
+    })
+    .from(taxRules)
+    .where(
+      and(
+        eq(taxRules.shippingMode, input.shippingMode),
+        eq(taxRules.chargeSection, input.section),
+        eq(taxRules.isActive, true),
+      ),
+    );
+
+  const rule = resolveDefaultTaxRule({
+    catalogCode: input.catalog.catalogCodeSnapshot,
+    catalogVatRate: input.catalog.catalogVatRateSnapshot,
+    shippingMode: input.shippingMode,
+    chargeSection: input.section,
+    rules,
+    at: new Date(),
+  });
+
+  if (!rule) {
+    return {};
+  }
+
+  return {
+    taxRuleId: rule.id,
+    taxRuleCodeSnapshot: rule.code,
+    taxRuleNameSnapshot: rule.name,
+    taxTreatmentSnapshot: rule.taxTreatment,
+    ...buildTaxRuleAccountingVat({
+      amountVnd: input.amountVnd,
+      taxTreatment: rule.taxTreatment,
+      taxRuleVatRate: rule.vatPercent,
+    }),
+  };
+}
+
 const buyingChargeReturnColumns = {
   ...chargeReturnColumns,
   vendorOrAgentText: shippingNoteCharges.vendorOrAgentText,
@@ -1657,6 +1728,7 @@ function ensureChargeMutationAccess(note: ShippingNoteDetail | null, user: DbUse
 
   if (
     !canMutateSellingChargeForDraft(note, user) &&
+    !canMutateSellingChargeForAccountingActor(note, user) &&
     !canMutateReopenedSellingCharges(note, user)
   ) {
     throw new AuthorizationError();
@@ -1706,6 +1778,12 @@ export async function createSellingChargeForNote(
         .for("update");
       const note = ensureChargeMutationAccess(noteRow ?? null, user);
       const catalog = await loadChargeCatalogPersistence(tx, input);
+      const defaultTax = await resolveChargeDefaultTaxPersistence(tx, {
+        catalog,
+        shippingMode: note.shippingMode,
+        section: "selling",
+        amountVnd: amounts.amountVnd,
+      });
       const [created] = await tx
         .insert(shippingNoteCharges)
         .values({
@@ -1724,6 +1802,7 @@ export async function createSellingChargeForNote(
           vendorOrAgentText: null,
           isOverride: false,
           overrideReason: null,
+          ...defaultTax,
           createdById: user.id,
         })
         .returning(chargeReturnColumns);
@@ -1814,6 +1893,43 @@ export async function updateSellingCharge(
         .limit(1)
         .for("update");
       ensureChargeMutationAccess(noteRow ?? null, user);
+      const [lockedCharge] = await tx
+        .select({
+          id: shippingNoteCharges.id,
+          shippingNoteId: shippingNoteCharges.shippingNoteId,
+          section: shippingNoteCharges.section,
+          chargeName: shippingNoteCharges.chargeName,
+          description: shippingNoteCharges.description,
+          quantity: shippingNoteCharges.quantity,
+          unit: shippingNoteCharges.unit,
+          unitPrice: shippingNoteCharges.unitPrice,
+          currency: shippingNoteCharges.currency,
+          exchangeRate: shippingNoteCharges.exchangeRate,
+          amountOriginal: shippingNoteCharges.amountOriginal,
+          amountVnd: shippingNoteCharges.amountVnd,
+          vatPercent: shippingNoteCharges.vatPercent,
+          taxTreatmentSnapshot: shippingNoteCharges.taxTreatmentSnapshot,
+          serviceCatalogItemId: shippingNoteCharges.serviceCatalogItemId,
+          catalogCodeSnapshot: shippingNoteCharges.catalogCodeSnapshot,
+          catalogNameSnapshot: shippingNoteCharges.catalogNameSnapshot,
+          catalogUnitSnapshot: shippingNoteCharges.catalogUnitSnapshot,
+          catalogVatRateSnapshot: shippingNoteCharges.catalogVatRateSnapshot,
+          vatOverrideRate: shippingNoteCharges.vatOverrideRate,
+        })
+        .from(shippingNoteCharges)
+        .where(
+          and(
+            eq(shippingNoteCharges.id, input.id),
+            eq(shippingNoteCharges.shippingNoteId, existingCharge.shippingNoteId),
+            eq(shippingNoteCharges.section, "selling"),
+            isNull(shippingNoteCharges.deletedAt),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (!lockedCharge) {
+        throw new AuthorizationError();
+      }
       const catalog = await loadChargeCatalogPersistence(tx, input);
       const [updated] = await tx
         .update(shippingNoteCharges)
@@ -1828,8 +1944,8 @@ export async function updateSellingCharge(
           amountVnd: amounts.amountVnd,
           vatAmount: recomputeVatForCommercialChange({
             amountVnd: amounts.amountVnd,
-            vatPercent: existingCharge.vatPercent,
-            taxTreatmentSnapshot: existingCharge.taxTreatmentSnapshot,
+            vatPercent: lockedCharge.vatPercent,
+            taxTreatmentSnapshot: lockedCharge.taxTreatmentSnapshot,
           }),
         })
         .where(
@@ -1850,7 +1966,7 @@ export async function updateSellingCharge(
         action: "shipping_note_charge.update",
         entityType: "shipping_note_charge",
         entityId: updated.id,
-        before: existingCharge,
+        before: lockedCharge,
         after: updated,
       });
 
@@ -1950,11 +2066,6 @@ export async function createBuyingChargeForNote(
     PERMISSIONS.BUYING_CHARGES_OPS_INPUT,
   ]);
 
-  const note = ensureBuyingChargeMutationAccess(
-    await getShippingNoteForUser(noteId, user),
-    user,
-  );
-
   const amounts = calculateChargeAmounts({
     quantity: input.quantity,
     unitPrice: input.unitPrice,
@@ -1964,7 +2075,20 @@ export async function createBuyingChargeForNote(
 
   try {
     return await db.transaction(async (tx) => {
+      const [noteRow] = await tx
+        .select(shippingNoteDetailSelect)
+        .from(shippingNotes)
+        .where(and(eq(shippingNotes.id, noteId), isNull(shippingNotes.deletedAt)))
+        .limit(1)
+        .for("update");
+      const note = ensureBuyingChargeMutationAccess(noteRow ?? null, user);
       const catalog = await loadChargeCatalogPersistence(tx, input);
+      const defaultTax = await resolveChargeDefaultTaxPersistence(tx, {
+        catalog,
+        shippingMode: note.shippingMode,
+        section: "buying",
+        amountVnd: amounts.amountVnd,
+      });
       const [created] = await tx
         .insert(shippingNoteCharges)
         .values({
@@ -1983,6 +2107,7 @@ export async function createBuyingChargeForNote(
           vendorOrAgentText: normalizeOptionalText(input.vendorOrAgentText),
           isOverride: false,
           overrideReason: null,
+          ...defaultTax,
           createdById: user.id,
         })
         .returning(buyingChargeReturnColumns);
@@ -2058,11 +2183,6 @@ export async function updateBuyingCharge(
     throw new AuthorizationError();
   }
 
-  ensureBuyingChargeMutationAccess(
-    await getShippingNoteForUser(existingCharge.shippingNoteId, user),
-    user,
-  );
-
   const amounts = calculateChargeAmounts({
     quantity: input.quantity,
     unitPrice: input.unitPrice,
@@ -2072,6 +2192,56 @@ export async function updateBuyingCharge(
 
   try {
     return await db.transaction(async (tx) => {
+      const [noteRow] = await tx
+        .select(shippingNoteDetailSelect)
+        .from(shippingNotes)
+        .where(
+          and(
+            eq(shippingNotes.id, existingCharge.shippingNoteId),
+            isNull(shippingNotes.deletedAt),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      ensureBuyingChargeMutationAccess(noteRow ?? null, user);
+      const [lockedCharge] = await tx
+        .select({
+          id: shippingNoteCharges.id,
+          shippingNoteId: shippingNoteCharges.shippingNoteId,
+          section: shippingNoteCharges.section,
+          chargeName: shippingNoteCharges.chargeName,
+          description: shippingNoteCharges.description,
+          quantity: shippingNoteCharges.quantity,
+          unit: shippingNoteCharges.unit,
+          unitPrice: shippingNoteCharges.unitPrice,
+          currency: shippingNoteCharges.currency,
+          exchangeRate: shippingNoteCharges.exchangeRate,
+          amountOriginal: shippingNoteCharges.amountOriginal,
+          amountVnd: shippingNoteCharges.amountVnd,
+          vendorOrAgentText: shippingNoteCharges.vendorOrAgentText,
+          vatPercent: shippingNoteCharges.vatPercent,
+          taxTreatmentSnapshot: shippingNoteCharges.taxTreatmentSnapshot,
+          serviceCatalogItemId: shippingNoteCharges.serviceCatalogItemId,
+          catalogCodeSnapshot: shippingNoteCharges.catalogCodeSnapshot,
+          catalogNameSnapshot: shippingNoteCharges.catalogNameSnapshot,
+          catalogUnitSnapshot: shippingNoteCharges.catalogUnitSnapshot,
+          catalogVatRateSnapshot: shippingNoteCharges.catalogVatRateSnapshot,
+          vatOverrideRate: shippingNoteCharges.vatOverrideRate,
+        })
+        .from(shippingNoteCharges)
+        .where(
+          and(
+            eq(shippingNoteCharges.id, chargeId),
+            eq(shippingNoteCharges.shippingNoteId, existingCharge.shippingNoteId),
+            eq(shippingNoteCharges.section, "buying"),
+            isNull(shippingNoteCharges.deletedAt),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (!lockedCharge) {
+        throw new AuthorizationError();
+      }
       const catalog = await loadChargeCatalogPersistence(tx, input);
       const [updated] = await tx
         .update(shippingNoteCharges)
@@ -2087,8 +2257,8 @@ export async function updateBuyingCharge(
           vendorOrAgentText: normalizeOptionalText(input.vendorOrAgentText),
           vatAmount: recomputeVatForCommercialChange({
             amountVnd: amounts.amountVnd,
-            vatPercent: existingCharge.vatPercent,
-            taxTreatmentSnapshot: existingCharge.taxTreatmentSnapshot,
+            vatPercent: lockedCharge.vatPercent,
+            taxTreatmentSnapshot: lockedCharge.taxTreatmentSnapshot,
           }),
         })
         .where(
@@ -2109,7 +2279,7 @@ export async function updateBuyingCharge(
         action: "shipping_note_charge.buying.update",
         entityType: "shipping_note_charge",
         entityId: updated.id,
-        before: existingCharge,
+        before: lockedCharge,
         after: updated,
       });
 
@@ -2155,13 +2325,20 @@ export async function softDeleteBuyingCharge(
     throw new AuthorizationError();
   }
 
-  ensureBuyingChargeMutationAccess(
-    await getShippingNoteForUser(existingCharge.shippingNoteId, user),
-    user,
-  );
-
   try {
     await db.transaction(async (tx) => {
+      const [noteRow] = await tx
+        .select(shippingNoteDetailSelect)
+        .from(shippingNotes)
+        .where(
+          and(
+            eq(shippingNotes.id, existingCharge.shippingNoteId),
+            isNull(shippingNotes.deletedAt),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      ensureBuyingChargeMutationAccess(noteRow ?? null, user);
       const [deleted] = await tx
         .update(shippingNoteCharges)
         .set({ deletedAt: new Date() })

@@ -4,15 +4,17 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { shippingNoteCharges, shippingNotes, type User as DbUser } from "@/lib/db/schema";
-import { PERMISSIONS } from "@/lib/permissions/permissions";
-import { requirePermission } from "@/lib/permissions/require-permission";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions/permissions";
+import { AuthorizationError, requirePermission } from "@/lib/permissions/require-permission";
+import { taxRules } from "@/lib/db/schema";
 import { summarizeFinancialCharges } from "@/lib/calculations/shipping-note";
 
 import { calculateLineTotalIncludingVat } from "./calculations";
 import { isChargeTaxComplete, summarizeTaxCompleteness } from "./completeness";
-import type { ChargeTaxDetail, TaxCompletenessResult } from "./types";
+import type { ChargeTaxDetail, ChargeTaxRuleOption, TaxCompletenessResult } from "./types";
 import type { FinancialSummary, FinancialSummaryChargeRow } from "../types";
 import { getPersistedChargeAccountingVat } from "../accounting/vat";
+import { getShippingNoteForUser } from "../queries";
 
 const chargeTaxColumns = {
   chargeId: shippingNoteCharges.id,
@@ -40,7 +42,18 @@ export async function listChargeTaxDetailsForNoteForUser(
   noteId: string,
   user: DbUser,
 ): Promise<ChargeTaxDetail[]> {
-  requirePermission(user.role, PERMISSIONS.TAX_SUMMARY_READ);
+  const canReadFullTax = hasPermission(user.role, PERMISSIONS.TAX_SUMMARY_READ);
+  const canReadScopedTax = hasPermission(
+    user.role,
+    PERMISSIONS.CHARGE_TAX_CLASSIFY_SCOPED,
+  );
+  if (!canReadFullTax && !canReadScopedTax) {
+    throw new AuthorizationError();
+  }
+
+  if (!await getShippingNoteForUser(noteId, user)) {
+    throw new AuthorizationError();
+  }
 
   const noteConditions = [eq(shippingNotes.id, noteId), isNull(shippingNotes.deletedAt)];
 
@@ -51,6 +64,9 @@ export async function listChargeTaxDetailsForNoteForUser(
     .where(
       and(
         ...noteConditions,
+        ...(canReadFullTax
+          ? []
+          : [eq(shippingNoteCharges.section, "buying" as const)]),
         isNull(shippingNoteCharges.deletedAt),
       ),
     )
@@ -68,6 +84,65 @@ export async function listChargeTaxDetailsForNoteForUser(
       taxComplete: isChargeTaxComplete(row),
     };
   });
+}
+
+export async function listChargeTaxRuleOptionsForNoteForUser(
+  noteId: string,
+  user: DbUser,
+): Promise<ChargeTaxRuleOption[]> {
+  const canReadFullTax = hasPermission(user.role, PERMISSIONS.TAX_SUMMARY_READ);
+  const canReadScopedTax = hasPermission(
+    user.role,
+    PERMISSIONS.CHARGE_TAX_CLASSIFY_SCOPED,
+  );
+  if (!canReadFullTax && !canReadScopedTax) {
+    throw new AuthorizationError();
+  }
+
+  const note = await getShippingNoteForUser(noteId, user);
+  if (!note) {
+    throw new AuthorizationError();
+  }
+
+  const now = new Date();
+  const rows = await db
+    .select({
+      id: taxRules.id,
+      code: taxRules.code,
+      name: taxRules.name,
+      chargeSection: taxRules.chargeSection,
+      taxTreatment: taxRules.taxTreatment,
+      vatPercent: taxRules.vatPercent,
+      isActive: taxRules.isActive,
+      effectiveFrom: taxRules.effectiveFrom,
+      effectiveTo: taxRules.effectiveTo,
+    })
+    .from(taxRules)
+    .where(
+      and(
+        eq(taxRules.shippingMode, note.shippingMode),
+        eq(taxRules.isActive, true),
+        ...(canReadFullTax
+          ? []
+          : [eq(taxRules.chargeSection, "buying" as const)]),
+      ),
+    )
+    .orderBy(asc(taxRules.chargeSection), asc(taxRules.code));
+
+  return rows
+    .filter((rule) =>
+      (!rule.effectiveFrom || rule.effectiveFrom <= now) &&
+      (!rule.effectiveTo || rule.effectiveTo >= now),
+    )
+    .map((rule) => ({
+      id: rule.id,
+      code: rule.code,
+      name: rule.name,
+      chargeSection: rule.chargeSection,
+      taxTreatment: rule.taxTreatment,
+      vatPercent: rule.vatPercent,
+      isActive: rule.isActive,
+    }));
 }
 
 export async function getTaxCompletenessForNoteForUser(

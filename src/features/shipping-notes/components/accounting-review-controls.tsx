@@ -118,8 +118,30 @@ export function AccountingReviewControls({
       )}
 
       {showMarkChecked && (
-        <form action={markCheckedAction} className="mt-4 flex flex-col gap-2">
+        <form action={markCheckedAction} className="mt-4 flex flex-col gap-3 rounded-md border border-border bg-background p-4">
           <input type="hidden" name="id" value={noteId} />
+          <div>
+            <h4 className="text-sm font-semibold text-foreground">Accounting confirmations</h4>
+            <p className="text-xs text-muted-foreground">
+              Confirm the current financial and tax data before marking this note checked.
+            </p>
+          </div>
+          {[
+            ["sellingVerified", "Selling charges verified"],
+            ["buyingVerified", "Buying charges verified"],
+            ["taxVerified", "VAT/Tax classification verified"],
+          ].map(([name, label]) => (
+            <label key={name} className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                className="h-4 w-4 rounded border-input"
+                name={name}
+                required
+                type="checkbox"
+                value="true"
+              />
+              {label}
+            </label>
+          ))}
           <SubmitButton
             disabled={markCheckedDisabled}
             describedBy={markCheckedDisabled ? "mark-checked-disabled-reason" : undefined}

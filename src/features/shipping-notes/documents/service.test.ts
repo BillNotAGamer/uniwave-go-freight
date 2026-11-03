@@ -334,6 +334,7 @@ describe("Document upload orchestration", () => {
   let fakeDrive: FakeDriveArtifactUploader;
   const adminUser = makeMockUser({ id: "admin-1", role: "admin" });
   const saleUser = makeMockUser({ id: "sale-1", role: "sale" });
+  const opsUser = makeMockUser({ id: "ops-1", role: "ops" });
   const fixedDate = new Date("2026-09-10T10:00:00Z");
 
   beforeEach(() => {
@@ -343,8 +344,8 @@ describe("Document upload orchestration", () => {
     fakeDrive = new FakeDriveArtifactUploader();
   });
 
-  it("uploads to R2 with deterministic Year/Month path and registers metadata", async () => {
-    const note = makeMockNote({ id: "note-1", status: "submitted" });
+  it("allows OPS to upload an operational document to a Sale-created authorized note", async () => {
+    const note = makeMockNote({ id: "note-1", status: "submitted", createdById: "sale-1" });
     mocks.getShippingNoteForUser.mockResolvedValue(note);
 
     const fakeRow: ShippingNoteDocumentListItem = {
@@ -355,7 +356,7 @@ describe("Document upload orchestration", () => {
       storageProvider: "r2",
       mimeType: "application/pdf",
       sizeBytes: 1024,
-      uploadedById: adminUser.id,
+      uploadedById: opsUser.id,
       createdAt: fixedDate,
     };
 
@@ -388,7 +389,7 @@ describe("Document upload orchestration", () => {
           bytes: Buffer.from("%PDF-1.4 mock pdf content"),
         },
       },
-      adminUser,
+      opsUser,
       {
         r2Storage: fakeR2,
         isR2Available: true,
@@ -408,6 +409,28 @@ describe("Document upload orchestration", () => {
         entityId: "note-1",
       }),
     );
+  });
+
+  it("rejects an OPS upload for a restricted financial document category", async () => {
+    mocks.getShippingNoteForUser.mockResolvedValue(
+      makeMockNote({ id: "note-1", status: "submitted", createdById: "sale-1" }),
+    );
+
+    await expect(uploadShippingNoteDocument({
+      shippingNoteId: "note-1",
+      documentType: "invoice",
+      file: {
+        name: "invoice.pdf",
+        size: 128,
+        type: "application/pdf",
+        bytes: Buffer.from("%PDF-1.4 restricted"),
+      },
+    }, opsUser, {
+      r2Storage: fakeR2,
+      isR2Available: true,
+    })).rejects.toBeInstanceOf(AuthorizationError);
+
+    expect(mocks.db.transaction).not.toHaveBeenCalled();
   });
 
   it("does not upload to Google Drive when R2 is unconfigured", async () => {

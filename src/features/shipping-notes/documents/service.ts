@@ -113,7 +113,7 @@ export async function uploadShippingNoteDocument(
 
   // 1. Resolve note and enforce document mutation authorization & status guards
   const note = await getShippingNoteForUser(input.shippingNoteId, user);
-  if (!note || !canMutateShippingNoteDocuments(note, user)) {
+  if (!note || !canMutateShippingNoteDocuments(note, user, input.documentType)) {
     throw new AuthorizationError(
       "You do not have permission to upload documents to this shipping note, or the note is locked/cancelled.",
     );
@@ -261,7 +261,7 @@ export async function downloadShippingNoteDocument(
 
   // 2. Resolve shipping note and verify read authorization
   const note = await getShippingNoteForUser(document.shippingNoteId, user);
-  if (!note || !canReadShippingNoteDocuments(note, user)) {
+  if (!note || !canReadShippingNoteDocuments(note, user, document.documentType)) {
     throw new AuthorizationError("You do not have permission to download this document.");
   }
 

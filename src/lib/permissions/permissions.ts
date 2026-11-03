@@ -26,6 +26,7 @@ export const PERMISSIONS = {
   TAX_RULES_MANAGE: "tax-rules:manage",
   CHARGE_TAX_ASSIGN: "charge-tax:assign",
   CHARGE_TAX_OVERRIDE: "charge-tax:override",
+  CHARGE_TAX_CLASSIFY_SCOPED: "charge-tax:classify-scoped",
   TAX_SUMMARY_READ: "tax-summary:read",
   AUDIT_LOGS_READ: "audit-logs:read",
   USERS_MANAGE: "users:manage",
@@ -53,6 +54,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     PERMISSIONS.SHIPPING_NOTES_CANCEL,
     PERMISSIONS.BUYING_CHARGES_READ,
     PERMISSIONS.BUYING_CHARGES_OPS_INPUT,
+    PERMISSIONS.CHARGE_TAX_CLASSIFY_SCOPED,
   ],
   accountant: [
     PERMISSIONS.DASHBOARD_ACCOUNTING_ACCESS,

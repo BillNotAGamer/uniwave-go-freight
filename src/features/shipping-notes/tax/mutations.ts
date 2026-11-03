@@ -11,13 +11,13 @@ import {
   type User as DbUser,
 } from "@/lib/db/schema";
 import { rejectInactiveOrSoftDeletedUsers } from "@/lib/auth/user-state";
-import { PERMISSIONS } from "@/lib/permissions/permissions";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions/permissions";
 import {
   AuthorizationError,
-  requirePermission,
+  requireAnyPermission,
 } from "@/lib/permissions/require-permission";
 
-import type { TaxTreatment } from "../constants";
+import type { ShippingMode, TaxTreatment } from "../constants";
 import type { ChargeTaxDetail, ChargeTaxSnapshot } from "./types";
 import {
   calculateLineTotalIncludingVat,
@@ -101,6 +101,7 @@ type JoinedCharge = {
   catalogUnitSnapshot: string | null;
   catalogVatRateSnapshot: string | null;
   noteStatus: string;
+  noteShippingMode: ShippingMode;
 };
 
 type TaxMutationTransaction = Parameters<
@@ -188,7 +189,7 @@ async function loadActiveChargeForTax(
   }
 
   const [note] = await tx
-    .select({ status: shippingNotes.status })
+    .select({ status: shippingNotes.status, shippingMode: shippingNotes.shippingMode })
     .from(shippingNotes)
     .where(
       and(
@@ -220,7 +221,21 @@ async function loadActiveChargeForTax(
     throw new AuthorizationError();
   }
 
-  return { ...charge, noteStatus: note.status } as JoinedCharge;
+  return {
+    ...charge,
+    noteStatus: note.status,
+    noteShippingMode: note.shippingMode,
+  } as JoinedCharge;
+}
+
+function assertScopedTaxMutationAccess(charge: JoinedCharge, user: DbUser): void {
+  if (
+    hasPermission(user.role, PERMISSIONS.CHARGE_TAX_CLASSIFY_SCOPED) &&
+    !hasPermission(user.role, PERMISSIONS.CHARGE_TAX_ASSIGN) &&
+    charge.section !== "buying"
+  ) {
+    throw new AuthorizationError();
+  }
 }
 
 export async function assignChargeTaxRule(
@@ -228,11 +243,15 @@ export async function assignChargeTaxRule(
   user: DbUser,
 ): Promise<ChargeTaxDetail> {
   requireActiveActor(user);
-  requirePermission(user.role, PERMISSIONS.CHARGE_TAX_ASSIGN);
+  requireAnyPermission(user.role, [
+    PERMISSIONS.CHARGE_TAX_ASSIGN,
+    PERMISSIONS.CHARGE_TAX_CLASSIFY_SCOPED,
+  ]);
 
   return db.transaction(async (tx) => {
     const charge = await loadActiveChargeForTax(tx, input.chargeId);
     assertTaxMutableStatus(charge.noteStatus);
+    assertScopedTaxMutationAccess(charge, user);
 
     const [rule] = await tx
       .select({
@@ -240,14 +259,25 @@ export async function assignChargeTaxRule(
         code: taxRules.code,
         name: taxRules.name,
         chargeSection: taxRules.chargeSection,
+        shippingMode: taxRules.shippingMode,
+        chargeNamePattern: taxRules.chargeNamePattern,
         taxTreatment: taxRules.taxTreatment,
         vatPercent: taxRules.vatPercent,
+        effectiveFrom: taxRules.effectiveFrom,
+        effectiveTo: taxRules.effectiveTo,
       })
       .from(taxRules)
       .where(and(eq(taxRules.id, input.taxRuleId), eq(taxRules.isActive, true)))
       .limit(1);
 
-    if (!rule || rule.chargeSection !== charge.section) {
+    const now = new Date();
+    if (
+      !rule ||
+      rule.chargeSection !== charge.section ||
+      rule.shippingMode !== charge.noteShippingMode ||
+      (rule.effectiveFrom && rule.effectiveFrom > now) ||
+      (rule.effectiveTo && rule.effectiveTo < now)
+    ) {
       throw new AuthorizationError();
     }
 
@@ -301,11 +331,15 @@ export async function overrideChargeVatPercent(
   user: DbUser,
 ): Promise<ChargeTaxDetail> {
   requireActiveActor(user);
-  requirePermission(user.role, PERMISSIONS.CHARGE_TAX_OVERRIDE);
+  requireAnyPermission(user.role, [
+    PERMISSIONS.CHARGE_TAX_OVERRIDE,
+    PERMISSIONS.CHARGE_TAX_CLASSIFY_SCOPED,
+  ]);
 
   return db.transaction(async (tx) => {
     const charge = await loadActiveChargeForTax(tx, input.chargeId);
     assertTaxMutableStatus(charge.noteStatus);
+    assertScopedTaxMutationAccess(charge, user);
 
     if (
       !charge.taxRuleId ||

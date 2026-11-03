@@ -39,7 +39,10 @@ import {
   listBuyingChargesForNoteForUser,
   getSellingChargesAndSummaryForNoteForUser,
 } from "@/features/shipping-notes/queries";
-import { listChargeTaxDetailsForNoteForUser } from "@/features/shipping-notes/tax/queries";
+import {
+  listChargeTaxDetailsForNoteForUser,
+  listChargeTaxRuleOptionsForNoteForUser,
+} from "@/features/shipping-notes/tax/queries";
 import { listShippingNoteExportHistoryForUser } from "@/features/shipping-notes/export/history";
 import {
   canShowTaxMutationControls,
@@ -50,7 +53,9 @@ import {
   canCancelFinalizedShippingNoteStatus,
   canCancelShippingNoteStatus,
   canMutateBuyingChargeForActor,
+  canMutateSellingChargeForDraft,
   canMutateReopenedSellingCharges,
+  canMutateSellingChargeForAccountingActor,
   canIssuePostSubmitEditGrantAtStatus,
   canSubmitShippingNoteDraft,
   canReopenShippingNoteForCorrectionStatus,
@@ -61,11 +66,11 @@ import {
   listEligibleEditGrantRecipients,
   listShippingNoteEditGrantHistory,
 } from "@/features/shipping-notes/edit-grants";
-import { listTaxRulesForUser } from "@/features/tax-rules/queries";
 import { ShippingNoteDocumentsPanel } from "@/features/shipping-notes/documents/components/shipping-note-documents-panel";
 import {
   canMutateShippingNoteDocuments,
   canReadShippingNoteDocuments,
+  getShippingNoteDocumentTypesForActor,
 } from "@/features/shipping-notes/documents/policy";
 import { listShippingNoteDocumentsForUser } from "@/features/shipping-notes/documents/queries";
 import { getStorageAvailability } from "@/features/shipping-notes/documents/service";
@@ -104,7 +109,8 @@ export default async function ShippingNoteDetailPage({
     canSubmitShippingNoteDraft(note, user);
 
   const canMutateCharges =
-    (canEditDraft && user.role !== "accountant") ||
+    canMutateSellingChargeForDraft(note, user) ||
+    canMutateSellingChargeForAccountingActor(note, user) ||
     canMutateReopenedSellingCharges(note, user);
   const canReadBuyingCharges = hasPermission(
     user.role,
@@ -118,6 +124,11 @@ export default async function ShippingNoteDetailPage({
     user.role,
     PERMISSIONS.TAX_SUMMARY_READ,
   );
+  const canReadScopedChargeTax = hasPermission(
+    user.role,
+    PERMISSIONS.CHARGE_TAX_CLASSIFY_SCOPED,
+  );
+  const canReadBuyingChargeTax = canReadTaxSummary || canReadScopedChargeTax;
   const canOpenInternalExports =
     isInternalXlsxExportEligibleStatus(note.status) &&
     hasPermission(user.role, PERMISSIONS.SHIPPING_NOTES_EXPORT_INTERNAL);
@@ -224,11 +235,11 @@ export default async function ShippingNoteDetailPage({
   const buyingCharges = canReadBuyingCharges
     ? await listBuyingChargesForNoteForUser(id, user)
     : null;
-  const taxDetails = canReadTaxSummary
+  const taxDetails = canReadBuyingChargeTax
     ? await listChargeTaxDetailsForNoteForUser(id, user)
     : [];
-  const activeTaxRules = canReadTaxSummary
-    ? await listTaxRulesForUser(user)
+  const activeTaxRules = canReadBuyingChargeTax
+    ? await listChargeTaxRuleOptionsForNoteForUser(id, user)
     : [];
   const taxCounts = getTaxCompletenessCounts(taxDetails);
   const markCheckedDisabledReason = canReadTaxSummary
@@ -628,10 +639,10 @@ export default async function ShippingNoteDetailPage({
               <UnifiedBuyingWorkspace
                 charges={buyingCharges ?? []}
                 canManageBuyingCharges={canManageBuyingCharges}
-                canReadTaxSummary={canReadTaxSummary}
-                canMutateTax={canReadTaxSummary && canMutateTax}
-                taxDetails={canReadTaxSummary ? buyingTaxDetails : []}
-                activeTaxRules={canReadTaxSummary ? activeTaxRules : []}
+                canReadTaxSummary={canReadBuyingChargeTax}
+                canMutateTax={canReadBuyingChargeTax && canMutateTax}
+                taxDetails={canReadBuyingChargeTax ? buyingTaxDetails : []}
+                activeTaxRules={canReadBuyingChargeTax ? activeTaxRules : []}
                 status={note.status}
                 role={user.role}
               />
@@ -658,6 +669,7 @@ export default async function ShippingNoteDetailPage({
             documents={documents}
             canMutate={canMutateDocs}
             storageAvailable={storageAvailability.available}
+            allowedDocumentTypes={getShippingNoteDocumentTypesForActor(user)}
           />
         ) : null}
 

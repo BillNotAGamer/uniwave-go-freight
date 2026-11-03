@@ -16,6 +16,7 @@ type ShippingNoteDocumentsPanelProps = {
   documents: ShippingNoteDocumentListItem[];
   canMutate: boolean;
   storageAvailable: boolean;
+  allowedDocumentTypes?: readonly ShippingNoteDocumentType[];
 };
 
 const ALLOWED_EXTENSIONS = new Set(["pdf", "jpg", "jpeg", "png", "webp"]);
@@ -31,6 +32,7 @@ export function ShippingNoteDocumentsPanel({
   documents,
   canMutate,
   storageAvailable,
+  allowedDocumentTypes = SHIPPING_NOTE_DOCUMENT_TYPES,
 }: ShippingNoteDocumentsPanelProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -38,7 +40,7 @@ export function ShippingNoteDocumentsPanel({
 
   const [documentType, setDocumentType] =
     useState<ShippingNoteDocumentType>(
-      SHIPPING_NOTE_DOCUMENT_TYPES[0],
+      allowedDocumentTypes[0] ?? SHIPPING_NOTE_DOCUMENT_TYPES[0],
     );
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -299,7 +301,7 @@ export function ShippingNoteDocumentsPanel({
                   disabled={isUploading}
                   className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 >
-                  {SHIPPING_NOTE_DOCUMENT_TYPES.map((type) => (
+                  {allowedDocumentTypes.map((type) => (
                     <option key={type} value={type}>
                       {SHIPPING_NOTE_DOCUMENT_TYPE_LABELS[type]}
                     </option>

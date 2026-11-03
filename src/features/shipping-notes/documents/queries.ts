@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, ilike, isNull, notInArray } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, notInArray } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import {
@@ -15,7 +15,10 @@ import {
   escapeShippingNoteJobsheetLikePattern,
   getShippingNoteForUser,
 } from "../queries";
-import type { ShippingNoteDocumentType } from "./constants";
+import {
+  OPERATIONAL_SHIPPING_NOTE_DOCUMENT_TYPES,
+  type ShippingNoteDocumentType,
+} from "./constants";
 import { canReadShippingNoteDocuments } from "./policy";
 import type {
   DocumentLibraryItem,
@@ -62,6 +65,13 @@ export async function listShippingNoteDocumentsForUser(
     eq(shippingNoteDocuments.shippingNoteId, shippingNoteId),
     isNull(shippingNoteDocuments.deletedAt),
   ];
+
+  if (user.role === "ops") {
+    conditions.push(inArray(
+      shippingNoteDocuments.documentType,
+      [...OPERATIONAL_SHIPPING_NOTE_DOCUMENT_TYPES],
+    ));
+  }
 
   if (options.documentType) {
     conditions.push(eq(shippingNoteDocuments.documentType, options.documentType));
@@ -110,7 +120,7 @@ export async function getShippingNoteDocumentByIdForUser(
   }
 
   const note = await getShippingNoteForUser(document.shippingNoteId, user);
-  if (!note || !canReadShippingNoteDocuments(note, user)) {
+  if (!note || !canReadShippingNoteDocuments(note, user, document.documentType)) {
     return null;
   }
 
@@ -136,9 +146,13 @@ export async function searchShippingNoteDocumentsForUser(
     isNull(shippingNotes.deletedAt),
   ];
 
-  // Operational actors can only see documents for their own shipping notes.
-  if (user.role === "sale" || user.role === "ops") {
+  if (user.role === "sale") {
     conditions.push(eq(shippingNotes.createdById, user.id));
+  } else if (user.role === "ops") {
+    conditions.push(inArray(
+      shippingNoteDocuments.documentType,
+      [...OPERATIONAL_SHIPPING_NOTE_DOCUMENT_TYPES],
+    ));
   } else if (user.role !== "admin" && user.role !== "accountant") {
     return [];
   }

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   updateShippingNotePostSubmit: vi.fn(),
   issueShippingNoteEditGrant: vi.fn(),
   revokeShippingNoteEditGrant: vi.fn(),
+  markShippingNoteChecked: vi.fn(),
   quickCreatePartner: vi.fn(),
   quickCreateRoutingLocation: vi.fn(),
 }));
@@ -54,7 +55,7 @@ vi.mock("./mutations", () => ({
   createShippingNoteDraft: mocks.createShippingNoteDraft,
   duplicateShippingNote: mocks.duplicateShippingNote,
   lockShippingNote: vi.fn(),
-  markShippingNoteChecked: vi.fn(),
+  markShippingNoteChecked: mocks.markShippingNoteChecked,
   reopenShippingNoteForCorrection: vi.fn(),
   softDeleteBuyingCharge: vi.fn(),
   softDeleteSellingCharge: vi.fn(),
@@ -85,9 +86,49 @@ import {
   searchShippingNoteLocationsAction,
   searchShippingNoteServiceCatalogAction,
   updateShippingNoteDraftAction,
+  markShippingNoteCheckedAction,
 } from "./actions";
 import { AuthorizationError } from "@/lib/permissions/require-permission";
 import { RoutingLocationConflictError } from "@/features/locations/mutations";
+
+describe("markShippingNoteCheckedAction confirmations", () => {
+  const actor = { id: "accountant-1", role: "accountant" as const };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: actor });
+    mocks.markShippingNoteChecked.mockResolvedValue({ id: "note-1" });
+  });
+
+  it("rejects direct action invocation unless all three confirmations are true", async () => {
+    const formData = new FormData();
+    formData.set("id", "note-1");
+    formData.set("sellingVerified", "true");
+    formData.set("buyingVerified", "true");
+
+    await expect(markShippingNoteCheckedAction({ ok: true }, formData)).resolves.toEqual({
+      ok: false,
+      error: "VAT/Tax verification confirmation is required.",
+    });
+    expect(mocks.markShippingNoteChecked).not.toHaveBeenCalled();
+  });
+
+  it("passes the exact confirmations to the authoritative mutation", async () => {
+    const formData = new FormData();
+    formData.set("id", "note-1");
+    formData.set("sellingVerified", "true");
+    formData.set("buyingVerified", "true");
+    formData.set("taxVerified", "true");
+
+    await expect(markShippingNoteCheckedAction({ ok: true }, formData)).resolves.toEqual({ ok: true });
+    expect(mocks.markShippingNoteChecked).toHaveBeenCalledWith({
+      id: "note-1",
+      sellingVerified: true,
+      buyingVerified: true,
+      taxVerified: true,
+    }, actor);
+  });
+});
 
 describe("duplicateShippingNoteAction", () => {
   const actor = { id: "sale-1", role: "sale" as const };

@@ -363,7 +363,7 @@ describe("hosted tax domain services", () => {
       actors.accountant,
     );
     await startAccountingReview({ id: note.id }, actors.accountant);
-    await markShippingNoteChecked({ id: note.id }, actors.accountant);
+    await markShippingNoteChecked({ id: note.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.accountant);
 
     await expect(
       overrideChargeVatPercent(
@@ -403,7 +403,7 @@ describe("hosted tax domain services", () => {
     await startAccountingReview({ id: note.id }, actors.accountant);
 
     await expect(
-      markShippingNoteChecked({ id: note.id }, actors.accountant),
+      markShippingNoteChecked({ id: note.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.accountant),
     ).rejects.toThrow(/tax classification/);
 
     await assignChargeTaxRule(
@@ -415,7 +415,7 @@ describe("hosted tax domain services", () => {
     );
 
     expect((await markShippingNoteChecked(
-      { id: note.id },
+      { id: note.id, sellingVerified: true, buyingVerified: true, taxVerified: true },
       actors.accountant,
     )).status).toBe("checked");
   });

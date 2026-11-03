@@ -312,6 +312,14 @@ describe("Shipping Note Documents Domain — Phase C10A", () => {
       expect(canMutateShippingNoteDocuments(mutableNote, otherSale)).toBe(false);
     });
 
+    it("allows OPS operational documents on Sale-created notes but denies financial categories", () => {
+      const ops = { ...activeSale, id: "ops-1", role: "ops" as const };
+      expect(canReadShippingNoteDocuments(mutableNote, ops, "pre_alert_mbl")).toBe(true);
+      expect(canMutateShippingNoteDocuments(mutableNote, ops, "customs_declaration")).toBe(true);
+      expect(canReadShippingNoteDocuments(mutableNote, ops, "invoice")).toBe(false);
+      expect(canMutateShippingNoteDocuments(mutableNote, ops, "contract")).toBe(false);
+    });
+
     it("denies all roles from mutating documents on locked and cancelled notes", () => {
       for (const actor of [activeAdmin, activeAccountant, activeSale]) {
         expect(canMutateShippingNoteDocuments(lockedNote, actor)).toBe(false);

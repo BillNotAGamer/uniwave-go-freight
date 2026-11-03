@@ -7,7 +7,7 @@ const root = process.cwd();
 const drizzleDir = path.join(root, "drizzle");
 
 function readMigration(name: string): string {
-  return readFileSync(path.join(drizzleDir, name), "utf8");
+  return readFileSync(path.join(drizzleDir, name), "utf8").replaceAll("\r\n", "\n");
 }
 
 describe("static migration readiness", () => {

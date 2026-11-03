@@ -183,7 +183,12 @@ describe("Phase 3 selling-rate reopen", () => {
     };
     mocks.transaction.mockImplementationOnce(async (callback) => callback(tx));
 
-    await markShippingNoteChecked({ id: "note-1" }, user("accountant"));
+    await markShippingNoteChecked({
+      id: "note-1",
+      sellingVerified: true,
+      buyingVerified: true,
+      taxVerified: true,
+    }, user("accountant"));
 
     expect(noteLockQuery.for).toHaveBeenCalledWith("update");
     expect(noteLockQuery.for.mock.invocationCallOrder[0]).toBeLessThan(

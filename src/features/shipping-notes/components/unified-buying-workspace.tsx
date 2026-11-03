@@ -8,8 +8,7 @@ import { summarizeBuyingCharges } from "@/lib/calculations/shipping-note";
 import type { ShippingNoteStatus } from "../constants";
 import { formatFinancialDecimal } from "../presentation";
 import type { BuyingChargeDetail, SellingChargeSummary } from "../types";
-import type { ChargeTaxDetail } from "../tax/types";
-import type { TaxRuleDetail } from "@/features/tax-rules/types";
+import type { ChargeTaxDetail, ChargeTaxRuleOption } from "../tax/types";
 import {
   canOverrideChargeTax,
   filterTaxRulesForChargeSection,
@@ -91,7 +90,7 @@ export type UnifiedBuyingWorkspaceProps = {
   canReadTaxSummary: boolean;
   canMutateTax: boolean;
   taxDetails: ChargeTaxDetail[];
-  activeTaxRules: TaxRuleDetail[];
+  activeTaxRules: ChargeTaxRuleOption[];
   status: ShippingNoteStatus;
   role: Role;
   initialEditingId?: string | null;

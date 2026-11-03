@@ -209,7 +209,7 @@ async function setup() {
     accountant,
   );
   const checked = await shippingMutations.markShippingNoteChecked(
-    { id: reviewing.id },
+    { id: reviewing.id, sellingVerified: true, buyingVerified: true, taxVerified: true },
     accountant,
   );
   const approved = await shippingMutations.approveShippingNote(

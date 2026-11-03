@@ -3,8 +3,7 @@ import type {
   ShippingNoteStatus,
   TaxTreatment,
 } from "../constants";
-import type { ChargeTaxDetail } from "./types";
-import type { TaxRuleDetail } from "@/features/tax-rules/types";
+import type { ChargeTaxDetail, ChargeTaxRuleOption } from "./types";
 import type { Role } from "@/lib/permissions/roles";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions/permissions";
 
@@ -22,10 +21,17 @@ export type TaxCapability = {
 };
 
 export function getTaxCapability(role: Role): TaxCapability {
+  const hasScopedClassification = hasPermission(
+    role,
+    PERMISSIONS.CHARGE_TAX_CLASSIFY_SCOPED,
+  );
   return {
-    canReadTax: hasPermission(role, PERMISSIONS.TAX_SUMMARY_READ),
-    canAssignTax: hasPermission(role, PERMISSIONS.CHARGE_TAX_ASSIGN),
-    canOverrideTax: hasPermission(role, PERMISSIONS.CHARGE_TAX_OVERRIDE),
+    canReadTax:
+      hasPermission(role, PERMISSIONS.TAX_SUMMARY_READ) || hasScopedClassification,
+    canAssignTax:
+      hasPermission(role, PERMISSIONS.CHARGE_TAX_ASSIGN) || hasScopedClassification,
+    canOverrideTax:
+      hasPermission(role, PERMISSIONS.CHARGE_TAX_OVERRIDE) || hasScopedClassification,
     canManageTaxRules: hasPermission(role, PERMISSIONS.TAX_RULES_MANAGE),
   };
 }
@@ -137,14 +143,14 @@ export function getMarkCheckedDisabledReason(input: {
   return null;
 }
 
-export function formatTaxRuleOption(rule: TaxRuleDetail): string {
+export function formatTaxRuleOption(rule: ChargeTaxRuleOption): string {
   return `${rule.code} - ${rule.name} (${getTaxTreatmentLabel(rule.taxTreatment)}, ${rule.vatPercent}%)`;
 }
 
 export function filterTaxRulesForChargeSection(
-  rules: readonly TaxRuleDetail[],
+  rules: readonly ChargeTaxRuleOption[],
   section: ChargeSection,
-): TaxRuleDetail[] {
+): ChargeTaxRuleOption[] {
   return rules.filter((rule) => rule.isActive && rule.chargeSection === section);
 }
 

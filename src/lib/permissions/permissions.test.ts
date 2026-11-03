@@ -87,7 +87,7 @@ describe("role and permission matrix", () => {
     expect(hasPermission("accountant", PERMISSIONS.EXPORTS_UPLOAD)).toBe(false);
   });
 
-  it("gives OPS Sale operational parity with only submitted Buying Charge input", () => {
+  it("gives OPS note-scoped buying and tax-classification operations without global accounting powers", () => {
     expect(hasPermission("ops", PERMISSIONS.SHIPPING_NOTES_CREATE_OWN)).toBe(true);
     expect(hasPermission("ops", PERMISSIONS.SHIPPING_NOTES_EDIT_OWN)).toBe(true);
     expect(hasPermission("ops", PERMISSIONS.SHIPPING_NOTES_CANCEL)).toBe(true);
@@ -102,6 +102,9 @@ describe("role and permission matrix", () => {
     expect(hasPermission("ops", PERMISSIONS.TAX_RULES_READ)).toBe(false);
     expect(hasPermission("ops", PERMISSIONS.CHARGE_TAX_ASSIGN)).toBe(false);
     expect(hasPermission("ops", PERMISSIONS.CHARGE_TAX_OVERRIDE)).toBe(false);
+    expect(hasPermission("ops", PERMISSIONS.CHARGE_TAX_CLASSIFY_SCOPED)).toBe(true);
+    expect(hasPermission("ops", PERMISSIONS.TAX_SUMMARY_READ)).toBe(false);
+    expect(hasPermission("ops", PERMISSIONS.TAX_RULES_MANAGE)).toBe(false);
     expect(hasPermission("ops", PERMISSIONS.USERS_MANAGE)).toBe(false);
     expect(hasPermission("ops", PERMISSIONS.AUDIT_LOGS_READ)).toBe(false);
   });

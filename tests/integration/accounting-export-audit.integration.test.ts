@@ -128,7 +128,7 @@ async function createCheckedNote(label: string) {
     buyingTaxRuleId,
   });
   await startAccountingReview({ id: submitted.id }, actors.accountant);
-  return markShippingNoteChecked({ id: submitted.id }, actors.accountant);
+  return markShippingNoteChecked({ id: submitted.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.accountant);
 }
 
 async function createApprovedNote(label: string) {
@@ -366,7 +366,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       actors.accountant,
     );
     const checked = await markShippingNoteChecked(
-      { id: submitted.id },
+      { id: submitted.id, sellingVerified: true, buyingVerified: true, taxVerified: true },
       actors.accountant,
     );
 
@@ -392,6 +392,11 @@ describe("accounting review transitions, export eligibility, and audits", () => 
     )?.after).toMatchObject({
       status: "checked",
       checkedById: actors.accountant.id,
+      accountingConfirmations: {
+        sellingVerified: true,
+        buyingVerified: true,
+        taxVerified: true,
+      },
     });
     expect(
       auditRows.find(
@@ -412,20 +417,20 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       startAccountingReview({ id: draft.id }, actors.accountant),
     ).rejects.toBeInstanceOf(AuthorizationError);
     await expect(
-      markShippingNoteChecked({ id: submitted.id }, actors.accountant),
+      markShippingNoteChecked({ id: submitted.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.accountant),
     ).rejects.toBeInstanceOf(AuthorizationError);
     await expect(
       startAccountingReview({ id: checked.id }, actors.accountant),
     ).rejects.toBeInstanceOf(AuthorizationError);
     await expect(
-      markShippingNoteChecked({ id: checked.id }, actors.accountant),
+      markShippingNoteChecked({ id: checked.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.accountant),
     ).rejects.toBeInstanceOf(AuthorizationError);
   });
 
   it("allows admin to perform current accounting transitions", async () => {
     const submitted = await createSubmittedNote("TRANSITION-ADMIN");
     const reviewing = await startAccountingReview({ id: submitted.id }, actors.admin);
-    const checked = await markShippingNoteChecked({ id: submitted.id }, actors.admin);
+    const checked = await markShippingNoteChecked({ id: submitted.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.admin);
 
     expect(reviewing.status).toBe("accounting_reviewing");
     expect(checked.status).toBe("checked");
@@ -476,7 +481,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       buyingTaxRuleId,
     });
     await startAccountingReview({ id: submitted.id }, actors.admin);
-    const checked = await markShippingNoteChecked({ id: submitted.id }, actors.admin);
+    const checked = await markShippingNoteChecked({ id: submitted.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.admin);
     const approved = await approveShippingNote({ id: checked.id }, actors.admin);
 
     const checkedMetadata = await getCheckedTransitionMetadata(checked.id);
@@ -1420,7 +1425,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       actors.accountant,
     );
     const checkedAgain = await markShippingNoteChecked(
-      { id: approved.id },
+      { id: approved.id, sellingVerified: true, buyingVerified: true, taxVerified: true },
       actors.accountant,
     );
     const recheckedMetadata = await getCheckedTransitionMetadata(approved.id);
@@ -1748,7 +1753,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       actors.accountant,
     );
     await expect(
-      markShippingNoteChecked({ id: cancelledReviewing.id }, actors.accountant),
+      markShippingNoteChecked({ id: cancelledReviewing.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.accountant),
     ).rejects.toBeInstanceOf(AuthorizationError);
 
     const cancelledChecked = await createCheckedNote("CANCEL-TERMINAL-CHECKED");
