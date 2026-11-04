@@ -26,6 +26,7 @@ import {
   cancelShippingNoteInputSchema,
   duplicateShippingNoteInputSchema,
   lockShippingNoteInputSchema,
+  markShippingNoteCheckedInputSchema,
   reopenShippingNoteForCorrectionInputSchema,
   unlockShippingNoteInputSchema,
 } from "./validators";
@@ -105,8 +106,11 @@ import {
   buildShippingNoteDuplicationDraft,
   canDuplicateShippingNote,
 } from "./duplication";
+import { deriveFinancialReviewRevision } from "./financial-review-revision";
 
 const CANCELLATION_REASON_REQUIRED = "Cancellation reason is required.";
+export const FINANCIAL_REVIEW_STALE_ERROR =
+  "Financial or tax data changed after this review was opened. Refresh, review the current values, and confirm again.";
 
 function normalizeOptionalDate(value: Date | undefined): Date | null {
   return value ?? null;
@@ -850,13 +854,7 @@ export async function updateShippingNotePostSubmit(
   try {
     return await db.transaction(async (tx) => {
       const [current] = await tx
-        .select({
-          ...shippingNoteDetailSelect,
-          checkedById: shippingNotes.checkedById,
-          checkedAt: shippingNotes.checkedAt,
-          approvedById: shippingNotes.approvedById,
-          approvedAt: shippingNotes.approvedAt,
-        })
+        .select(shippingNoteDetailSelect)
         .from(shippingNotes)
         .where(and(eq(shippingNotes.id, parsedInput.id), isNull(shippingNotes.deletedAt)))
         .limit(1)
@@ -903,22 +901,11 @@ export async function updateShippingNotePostSubmit(
         return current;
       }
 
-      const invalidatesCurrentSignoff =
-        current.status === "checked" || current.status === "approved";
       const updatedAt = new Date();
       const [updated] = await tx
         .update(shippingNotes)
         .set({
           ...operationalValues,
-          ...(invalidatesCurrentSignoff
-            ? {
-                status: "accounting_reviewing" as const,
-                checkedById: null,
-                checkedAt: null,
-                approvedById: null,
-                approvedAt: null,
-              }
-            : {}),
           updatedAt,
         })
         .where(
@@ -945,7 +932,6 @@ export async function updateShippingNotePostSubmit(
           amendment: {
             changedFields,
             previousStatus: current.status,
-            currentSignoffInvalidated: invalidatesCurrentSignoff,
           },
         },
         after: {
@@ -953,7 +939,6 @@ export async function updateShippingNotePostSubmit(
           amendment: {
             changedFields,
             newStatus: updated.status,
-            currentSignoffInvalidated: invalidatesCurrentSignoff,
           },
         },
       });
@@ -1070,9 +1055,10 @@ export async function markShippingNoteChecked(
   user: DbUser,
 ): Promise<ShippingNoteDetail> {
   requireShippingNoteAccess(user, PERMISSIONS.SHIPPING_NOTES_MARK_CHECKED);
+  const parsedInput = markShippingNoteCheckedInputSchema.parse(input);
 
   ensureAccountingTransitionAccess(
-    await getShippingNoteForUser(input.id, user),
+    await getShippingNoteForUser(parsedInput.id, user),
     "accounting_reviewing",
   );
 
@@ -1083,7 +1069,7 @@ export async function markShippingNoteChecked(
         .from(shippingNotes)
         .where(
           and(
-            eq(shippingNotes.id, input.id),
+            eq(shippingNotes.id, parsedInput.id),
             eq(shippingNotes.status, "accounting_reviewing"),
             isNull(shippingNotes.deletedAt),
           ),
@@ -1112,13 +1098,21 @@ export async function markShippingNoteChecked(
         .from(shippingNoteCharges)
         .where(
           and(
-            eq(shippingNoteCharges.shippingNoteId, input.id),
+            eq(shippingNoteCharges.shippingNoteId, parsedInput.id),
             isNull(shippingNoteCharges.deletedAt),
           ),
         );
 
       if (!summarizeTaxCompleteness(chargeTaxRows).taxComplete) {
         throw new Error(TAX_COMPLETENESS_ERROR);
+      }
+
+      const currentFinancialRevision = await deriveFinancialReviewRevision(
+        tx,
+        lockedCurrent,
+      );
+      if (currentFinancialRevision !== parsedInput.expectedFinancialRevision) {
+        throw new Error(FINANCIAL_REVIEW_STALE_ERROR);
       }
 
       const [updated] = await tx
@@ -1133,7 +1127,7 @@ export async function markShippingNoteChecked(
         })
         .where(
           and(
-            eq(shippingNotes.id, input.id),
+            eq(shippingNotes.id, parsedInput.id),
             eq(shippingNotes.status, "accounting_reviewing"),
           ),
         )
@@ -1154,9 +1148,10 @@ export async function markShippingNoteChecked(
           checkedById: user.id,
           checkedAt,
           accountingConfirmations: {
-            sellingVerified: input.sellingVerified,
-            buyingVerified: input.buyingVerified,
-            taxVerified: input.taxVerified,
+            sellingVerified: parsedInput.sellingVerified,
+            buyingVerified: parsedInput.buyingVerified,
+            taxVerified: parsedInput.taxVerified,
+            verifiedFinancialRevision: currentFinancialRevision,
           },
         },
       });
@@ -1169,6 +1164,10 @@ export async function markShippingNoteChecked(
     }
 
     if (error instanceof Error && error.message === TAX_COMPLETENESS_ERROR) {
+      throw error;
+    }
+
+    if (error instanceof Error && error.message === FINANCIAL_REVIEW_STALE_ERROR) {
       throw error;
     }
 
@@ -1562,6 +1561,7 @@ export async function reopenShippingNoteForCorrection(
           sellingRateReopenedById: null,
           sellingRateReopenedAt: null,
           sellingRateReopenReason: null,
+          correctionScope: "operational_and_financial",
         },
         after: {
           id: updated.id,
@@ -1573,6 +1573,7 @@ export async function reopenShippingNoteForCorrection(
           sellingRateReopenedById: user.id,
           sellingRateReopenedAt: reopenTime,
           sellingRateReopenReason: parsedInput.reason,
+          correctionScope: "operational_and_financial",
         },
         reason: parsedInput.reason,
       });

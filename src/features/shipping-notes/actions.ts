@@ -636,6 +636,10 @@ export async function markShippingNoteCheckedAction(
 
   const parsed = markShippingNoteCheckedInputSchema.safeParse({
     id: readFormString(formData, "id"),
+    expectedFinancialRevision: readFormString(
+      formData,
+      "expectedFinancialRevision",
+    ),
     sellingVerified: readFormString(formData, "sellingVerified") === "true",
     buyingVerified: readFormString(formData, "buyingVerified") === "true",
     taxVerified: readFormString(formData, "taxVerified") === "true",

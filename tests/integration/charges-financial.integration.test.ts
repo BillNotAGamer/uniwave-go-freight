@@ -119,7 +119,7 @@ describe("persisted charges and financial summaries", () => {
     );
   });
 
-  it("denies selling charge mutations for other sale, submitted notes, and accountant", async () => {
+  it("denies Sale cross-owner/submitted mutations while allowing Accountant draft correction", async () => {
     const ownNote = await createDraftFor(actors.saleA, runId, "SELLING-DENIED-OWN");
     const otherNote = await createDraftFor(actors.saleB, runId, "SELLING-DENIED-OTHER");
     await submitShippingNote({ id: ownNote.id }, actors.saleA);
@@ -130,9 +130,10 @@ describe("persisted charges and financial summaries", () => {
     await expect(
       createSellingChargeForNote(sellingInput(ownNote.id, "SUBMITTED"), actors.saleA),
     ).rejects.toBeInstanceOf(AuthorizationError);
-    await expect(
-      createSellingChargeForNote(sellingInput(otherNote.id, "ACCOUNTANT"), actors.accountant),
-    ).rejects.toBeInstanceOf(AuthorizationError);
+    await expect(createSellingChargeForNote(
+      sellingInput(otherNote.id, "ACCOUNTANT"),
+      actors.accountant,
+    )).resolves.toMatchObject({ shippingNoteId: otherNote.id });
   });
 
   it("validates selling charge quantity, unit price, currency, and exchange rate", async () => {
@@ -142,13 +143,13 @@ describe("persisted charges and financial summaries", () => {
       ...sellingInput(note.id, "INVALID-QTY"),
       quantity: "0.000",
     })).toThrow(/must be positive/);
-    expect(() => createSellingChargeInputSchema.parse({
+    expect(createSellingChargeInputSchema.parse({
       ...sellingInput(note.id, "INVALID-PRICE"),
       unitPrice: "-1.0000",
-    })).toThrow(/Negative decimal values are not allowed/);
+    }).unitPrice).toBe("-1.0000");
     expect(() => createSellingChargeInputSchema.parse({
       ...sellingInput(note.id, "INVALID-CURRENCY"),
-      currency: "EUR",
+      currency: "GBP",
     })).toThrow();
     expect(() => createSellingChargeInputSchema.parse({
       ...sellingInput(note.id, "USD-MISSING-RATE"),
@@ -215,7 +216,7 @@ describe("persisted charges and financial summaries", () => {
     );
   });
 
-  it("denies sale buying access and rejects buying mutations in ineligible statuses", async () => {
+  it("denies Sale buying access while allowing Accountant draft correction", async () => {
     const draft = await createDraftFor(actors.saleA, runId, "BUYING-DENIED-DRAFT");
     const submitted = await createDraftFor(actors.saleA, runId, "BUYING-DENIED-SALE");
     await submitShippingNote({ id: submitted.id }, actors.saleA);
@@ -226,9 +227,11 @@ describe("persisted charges and financial summaries", () => {
     await expect(
       createBuyingChargeForNote(submitted.id, buyingInput(submitted.id, "SALE"), actors.saleA),
     ).rejects.toBeInstanceOf(AuthorizationError);
-    await expect(
-      createBuyingChargeForNote(draft.id, buyingInput(draft.id, "DRAFT"), actors.accountant),
-    ).rejects.toBeInstanceOf(AuthorizationError);
+    await expect(createBuyingChargeForNote(
+      draft.id,
+      buyingInput(draft.id, "DRAFT"),
+      actors.accountant,
+    )).resolves.toMatchObject({ shippingNoteId: draft.id });
   });
 
   it("computes zero and negative profit from active persisted rows exactly", async () => {

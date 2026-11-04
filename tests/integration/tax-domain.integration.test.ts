@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { AuthorizationError } from "@/lib/permissions/require-permission";
+import type { User } from "@/lib/db/schema";
+import { getFinancialReviewRevisionForNote } from "@/features/shipping-notes/financial-review-revision";
 import {
   createBuyingChargeForNote,
   createSellingChargeForNote,
@@ -48,6 +50,21 @@ let actors: IntegrationActors;
 let sellingTaxRuleId: string;
 let buyingTaxRuleId: string;
 let buyingZeroRuleId: string;
+
+async function markCurrentFinancialStateChecked(noteId: string, actor: User) {
+  const expectedFinancialRevision = await getFinancialReviewRevisionForNote(noteId);
+  if (!expectedFinancialRevision) {
+    throw new Error("Financial review revision was unavailable for the integration fixture.");
+  }
+
+  return markShippingNoteChecked({
+    id: noteId,
+    expectedFinancialRevision,
+    sellingVerified: true,
+    buyingVerified: true,
+    taxVerified: true,
+  }, actor);
+}
 
 function sellingInput(noteId: string, label: string, unitPrice = "100.0000") {
   return createSellingChargeInputSchema.parse({
@@ -363,7 +380,7 @@ describe("hosted tax domain services", () => {
       actors.accountant,
     );
     await startAccountingReview({ id: note.id }, actors.accountant);
-    await markShippingNoteChecked({ id: note.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.accountant);
+    await markCurrentFinancialStateChecked(note.id, actors.accountant);
 
     await expect(
       overrideChargeVatPercent(
@@ -403,7 +420,7 @@ describe("hosted tax domain services", () => {
     await startAccountingReview({ id: note.id }, actors.accountant);
 
     await expect(
-      markShippingNoteChecked({ id: note.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.accountant),
+      markCurrentFinancialStateChecked(note.id, actors.accountant),
     ).rejects.toThrow(/tax classification/);
 
     await assignChargeTaxRule(
@@ -414,8 +431,8 @@ describe("hosted tax domain services", () => {
       actors.accountant,
     );
 
-    expect((await markShippingNoteChecked(
-      { id: note.id, sellingVerified: true, buyingVerified: true, taxVerified: true },
+    expect((await markCurrentFinancialStateChecked(
+      note.id,
       actors.accountant,
     )).status).toBe("checked");
   });

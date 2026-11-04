@@ -7,12 +7,16 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   logAuditEvent: vi.fn(),
   getShippingNoteForUser: vi.fn(),
+  deriveFinancialReviewRevision: vi.fn(),
 }));
 
 vi.mock("@/lib/db/client", () => ({
   db: { select: mocks.select, transaction: mocks.transaction },
 }));
 vi.mock("@/lib/audit/log", () => ({ logAuditEvent: mocks.logAuditEvent }));
+vi.mock("./financial-review-revision", () => ({
+  deriveFinancialReviewRevision: mocks.deriveFinancialReviewRevision,
+}));
 vi.mock("./queries", () => ({
   getShippingNoteById: vi.fn(),
   getShippingNoteForUser: mocks.getShippingNoteForUser,
@@ -29,6 +33,7 @@ import {
 } from "./mutations";
 
 const now = new Date("2026-10-21T00:00:00.000Z");
+const financialRevision = "a".repeat(64);
 
 function user(role: User["role"]): User {
   return {
@@ -68,6 +73,7 @@ describe("Phase 3 selling-rate reopen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.logAuditEvent.mockResolvedValue(undefined);
+    mocks.deriveFinancialReviewRevision.mockResolvedValue(financialRevision);
   });
 
   it.each(["admin", "accountant"] as const)("allows %s to reopen and atomically supersede current signoff", async (role) => {
@@ -100,8 +106,14 @@ describe("Phase 3 selling-rate reopen", () => {
       action: "shipping_note.selling_rate_reopened",
       entityId: "note-1",
       reason: "Correct rate",
-      before: expect.objectContaining({ approvedById: "admin-old" }),
-      after: expect.objectContaining({ approvedById: null }),
+      before: expect.objectContaining({
+        approvedById: "admin-old",
+        correctionScope: "operational_and_financial",
+      }),
+      after: expect.objectContaining({
+        approvedById: null,
+        correctionScope: "operational_and_financial",
+      }),
     }));
   });
 
@@ -185,6 +197,7 @@ describe("Phase 3 selling-rate reopen", () => {
 
     await markShippingNoteChecked({
       id: "note-1",
+      expectedFinancialRevision: financialRevision,
       sellingVerified: true,
       buyingVerified: true,
       taxVerified: true,
@@ -198,7 +211,45 @@ describe("Phase 3 selling-rate reopen", () => {
     expect(mocks.logAuditEvent).toHaveBeenCalledWith(tx, expect.objectContaining({
       action: "shipping_note.accounting_review.checked",
       before: current,
+      after: expect.objectContaining({
+        accountingConfirmations: expect.objectContaining({
+          verifiedFinancialRevision: financialRevision,
+        }),
+      }),
     }));
+  });
+
+  it("rejects stale financial confirmations without publishing a signoff", async () => {
+    const current = {
+      id: "note-1",
+      status: "accounting_reviewing",
+      shippingMode: "sea_export",
+      exchangeRate: "25000.000000",
+      updatedAt: now,
+      createdById: "sale-1",
+    };
+    mocks.getShippingNoteForUser.mockResolvedValueOnce(current);
+    const noteLockQuery = queryChain([current]);
+    const chargeQuery = queryChain([]);
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(noteLockQuery)
+        .mockReturnValueOnce(chargeQuery),
+      update: vi.fn(),
+    };
+    mocks.transaction.mockImplementationOnce(async (callback) => callback(tx));
+    mocks.deriveFinancialReviewRevision.mockResolvedValueOnce("b".repeat(64));
+
+    await expect(markShippingNoteChecked({
+      id: "note-1",
+      expectedFinancialRevision: financialRevision,
+      sellingVerified: true,
+      buyingVerified: true,
+      taxVerified: true,
+    }, user("accountant"))).rejects.toThrow(/Financial or tax data changed/);
+
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(mocks.logAuditEvent).not.toHaveBeenCalled();
   });
 });
 
@@ -206,6 +257,7 @@ describe("Phase 3 delegated operational mutation boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.logAuditEvent.mockResolvedValue(undefined);
+    mocks.deriveFinancialReviewRevision.mockResolvedValue(financialRevision);
   });
 
   const operationalInput = {
@@ -281,8 +333,13 @@ describe("Phase 3 delegated operational mutation boundary", () => {
 
   it("updates only the operational surface for the owner with a live grant", async () => {
     const current = {
-      id: "note-1", jobsheetNo: "JS-IMMUTABLE", exchangeRate: "25000.000000",
-      status: "submitted", createdById: "sale-1", updatedAt: now,
+      ...unchangedOperationalNote("checked"),
+      status: "submitted" as const,
+      domesticDestination: "HAN",
+      checkedById: null,
+      checkedAt: null,
+      approvedById: null,
+      approvedAt: null,
     };
     const responses = [[current], [{ id: "grant-1" }]];
     let updateValues: Record<string, unknown> | undefined;
@@ -315,60 +372,34 @@ describe("Phase 3 delegated operational mutation boundary", () => {
   });
 
   it.each(["checked", "approved"] as const)(
-    "atomically invalidates current signoff after a material %s-note amendment",
+    "rejects direct delegated edits against a %s note until explicit reopen",
     async (status) => {
       const current = unchangedOperationalNote(status);
-      const responses = [[current], [{ id: "grant-1" }]];
-      let updateValues: Record<string, unknown> | undefined;
       const tx = {
-        select: vi.fn(() => queryChain(responses.shift() ?? [])),
-        update: vi.fn(() => ({
-          set: vi.fn((values: Record<string, unknown>) => {
-            updateValues = values;
-            return {
-              where: vi.fn(() => ({
-                returning: vi.fn().mockResolvedValue([{ ...current, ...values }]),
-              })),
-            };
-          }),
-        })),
+        select: vi.fn(() => queryChain([current])),
+        update: vi.fn(),
       };
       mocks.transaction.mockImplementationOnce(async (callback) => callback(tx));
 
-      await updateShippingNotePostSubmit(
+      await expect(updateShippingNotePostSubmit(
         { ...operationalInput, domesticDestination: "HAN" },
         user("sale"),
-      );
-
-      expect(updateValues).toMatchObject({
-        domesticDestination: "HAN",
-        status: "accounting_reviewing",
-        checkedById: null,
-        checkedAt: null,
-        approvedById: null,
-        approvedAt: null,
-      });
-      expect(mocks.logAuditEvent).toHaveBeenCalledWith(tx, expect.objectContaining({
-        action: "shipping_note.update_post_submit",
-        before: expect.objectContaining({
-          amendment: expect.objectContaining({
-            changedFields: ["domesticDestination"],
-            previousStatus: status,
-            currentSignoffInvalidated: true,
-          }),
-        }),
-        after: expect.objectContaining({
-          amendment: expect.objectContaining({
-            newStatus: "accounting_reviewing",
-            currentSignoffInvalidated: true,
-          }),
-        }),
-      }));
+      )).rejects.toBeInstanceOf(AuthorizationError);
+      expect(tx.update).not.toHaveBeenCalled();
+      expect(mocks.logAuditEvent).not.toHaveBeenCalled();
     },
   );
 
-  it("preserves current approval and emits no content audit event for a normalized no-op", async () => {
-    const current = unchangedOperationalNote("approved");
+  it("allows a normalized no-op only after the explicit reopen returned the note to review", async () => {
+    const current = {
+      ...unchangedOperationalNote("approved"),
+      status: "accounting_reviewing" as const,
+      checkedById: null,
+      checkedAt: null,
+      approvedById: null,
+      approvedAt: null,
+      sellingRateReopenedAt: now,
+    };
     const responses = [[current], [{ id: "grant-1" }]];
     const tx = {
       select: vi.fn(() => queryChain(responses.shift() ?? [])),
@@ -383,7 +414,16 @@ describe("Phase 3 delegated operational mutation boundary", () => {
   });
 
   it("treats equivalent numeric formatting as a no-op", async () => {
-    const current = { ...unchangedOperationalNote("approved"), volumeValue: "2.500" };
+    const current = {
+      ...unchangedOperationalNote("approved"),
+      status: "accounting_reviewing" as const,
+      checkedById: null,
+      checkedAt: null,
+      approvedById: null,
+      approvedAt: null,
+      sellingRateReopenedAt: now,
+      volumeValue: "2.500",
+    };
     const responses = [[current], [{ id: "grant-1" }]];
     const tx = {
       select: vi.fn(() => queryChain(responses.shift() ?? [])),

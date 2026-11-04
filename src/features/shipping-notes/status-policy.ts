@@ -72,6 +72,11 @@ export const POST_SUBMIT_EDIT_GRANT_STATUSES = [
   "approved",
 ] as const satisfies readonly ShippingNoteStatus[];
 
+const POST_SUBMIT_EDIT_GRANT_USE_STATUSES = [
+  "submitted",
+  "accounting_reviewing",
+] as const satisfies readonly ShippingNoteStatus[];
+
 export const NORMAL_BUSINESS_WORKFLOW_TARGET_STATUSES = [
   "submitted",
   "accounting_reviewing",
@@ -218,7 +223,7 @@ export function canIssuePostSubmitEditGrantAtStatus(
 export function canUsePostSubmitEditGrantAtStatus(
   status: ShippingNoteStatus,
 ): boolean {
-  return canIssuePostSubmitEditGrantAtStatus(status);
+  return statusInList(status, POST_SUBMIT_EDIT_GRANT_USE_STATUSES);
 }
 
 export function canMutateReopenedSellingCharges(

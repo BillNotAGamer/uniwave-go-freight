@@ -23,6 +23,7 @@ type AccountingReviewControlsProps = {
   canApprove: boolean;
   canLock: boolean;
   canUnlock: boolean;
+  financialReviewRevision?: string | null;
   markCheckedDisabledReason?: string | null;
 };
 
@@ -59,6 +60,7 @@ export function AccountingReviewControls({
   canApprove,
   canLock,
   canUnlock,
+  financialReviewRevision,
   markCheckedDisabledReason,
 }: AccountingReviewControlsProps) {
   const [startReviewState, startReviewAction] = useActionState(
@@ -94,7 +96,8 @@ export function AccountingReviewControls({
   const showApprove = status === "checked" && canApprove;
   const showClose = (status === "checked" || status === "approved") && canLock;
   const showUnlock = status === "locked" && canUnlock;
-  const markCheckedDisabled = Boolean(markCheckedDisabledReason);
+  const markCheckedDisabled =
+    Boolean(markCheckedDisabledReason) || !financialReviewRevision;
 
   return (
     <div className="rounded-md border border-border bg-muted/40 p-4">
@@ -120,6 +123,11 @@ export function AccountingReviewControls({
       {showMarkChecked && (
         <form action={markCheckedAction} className="mt-4 flex flex-col gap-3 rounded-md border border-border bg-background p-4">
           <input type="hidden" name="id" value={noteId} />
+          <input
+            type="hidden"
+            name="expectedFinancialRevision"
+            value={financialReviewRevision ?? ""}
+          />
           <div>
             <h4 className="text-sm font-semibold text-foreground">Accounting confirmations</h4>
             <p className="text-xs text-muted-foreground">
@@ -149,12 +157,13 @@ export function AccountingReviewControls({
           >
             Mark Checked
           </SubmitButton>
-          {markCheckedDisabledReason ? (
+          {markCheckedDisabledReason || !financialReviewRevision ? (
             <p
               id="mark-checked-disabled-reason"
               className="text-sm text-amber-800 dark:text-amber-300"
             >
-              {markCheckedDisabledReason}
+              {markCheckedDisabledReason ??
+                "The current financial review state could not be verified. Refresh before marking Checked."}
             </p>
           ) : null}
           {!markCheckedState.ok && (

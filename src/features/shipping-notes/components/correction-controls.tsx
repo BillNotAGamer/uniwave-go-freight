@@ -25,7 +25,7 @@ function ReopenSubmitButton() {
       disabled={pending}
       type="submit"
     >
-      {pending ? "Reopening..." : "Reopen Selling Rates"}
+      {pending ? "Reopening..." : "Reopen for Correction"}
     </button>
   );
 }
@@ -43,16 +43,16 @@ export function CorrectionControls({
     <section className="grid gap-4 border-t border-amber-100 pt-6 dark:border-amber-950/60">
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400">
-          Financial Correction
+          Controlled Correction
         </p>
         <h2 className="text-lg font-semibold tracking-tight text-foreground">
-          Reopen Selling Rates
+          Reopen Shipping Note for Correction
         </h2>
         <p className="text-sm text-slate-600 dark:text-slate-300">
-          Reopening moves this Shipping Note back to Accounting Reviewing and
-          permits Admin/Accountant selling-rate correction. Current Checked or
-          Approved finalization will be cleared. Historical exports and audit
-          history will be preserved.
+          Reopening moves this Shipping Note back to Accounting Reviewing before
+          any operational or financial correction. Current Checked or Approved
+          sign-off will be superseded; fresh accounting confirmations are
+          required. Historical exports and audit history remain preserved.
         </p>
       </div>
 
@@ -63,7 +63,7 @@ export function CorrectionControls({
           className="flex flex-col gap-1 text-sm font-medium text-slate-700 dark:text-slate-200"
           htmlFor="reopenReason"
         >
-          Selling-rate correction reason
+          Correction reason
           <textarea
             className="min-h-24 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 shadow-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-amber-500 dark:focus:ring-amber-500/20"
             id="reopenReason"

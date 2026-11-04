@@ -5,8 +5,10 @@ import {
   shippingNoteCharges,
   shippingNoteExports,
   shippingNotes,
+  type User,
 } from "@/lib/db/schema";
 import { AuthorizationError } from "@/lib/permissions/require-permission";
+import { getFinancialReviewRevisionForNote } from "@/features/shipping-notes/financial-review-revision";
 import {
   approveShippingNote,
   cancelFinalizedShippingNote,
@@ -78,6 +80,21 @@ let actors: IntegrationActors;
 let sellingTaxRuleId: string;
 let buyingTaxRuleId: string;
 
+async function markCurrentFinancialStateChecked(noteId: string, actor: User) {
+  const expectedFinancialRevision = await getFinancialReviewRevisionForNote(noteId);
+  if (!expectedFinancialRevision) {
+    throw new Error("Financial review revision was unavailable for the integration fixture.");
+  }
+
+  return markShippingNoteChecked({
+    id: noteId,
+    expectedFinancialRevision,
+    sellingVerified: true,
+    buyingVerified: true,
+    taxVerified: true,
+  }, actor);
+}
+
 function sellingInput(noteId: string, label: string) {
   return createSellingChargeInputSchema.parse({
     shippingNoteId: noteId,
@@ -128,7 +145,7 @@ async function createCheckedNote(label: string) {
     buyingTaxRuleId,
   });
   await startAccountingReview({ id: submitted.id }, actors.accountant);
-  return markShippingNoteChecked({ id: submitted.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.accountant);
+  return markCurrentFinancialStateChecked(submitted.id, actors.accountant);
 }
 
 async function createApprovedNote(label: string) {
@@ -365,8 +382,8 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       { id: submitted.id },
       actors.accountant,
     );
-    const checked = await markShippingNoteChecked(
-      { id: submitted.id, sellingVerified: true, buyingVerified: true, taxVerified: true },
+    const checked = await markCurrentFinancialStateChecked(
+      submitted.id,
       actors.accountant,
     );
 
@@ -417,20 +434,20 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       startAccountingReview({ id: draft.id }, actors.accountant),
     ).rejects.toBeInstanceOf(AuthorizationError);
     await expect(
-      markShippingNoteChecked({ id: submitted.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.accountant),
+      markCurrentFinancialStateChecked(submitted.id, actors.accountant),
     ).rejects.toBeInstanceOf(AuthorizationError);
     await expect(
       startAccountingReview({ id: checked.id }, actors.accountant),
     ).rejects.toBeInstanceOf(AuthorizationError);
     await expect(
-      markShippingNoteChecked({ id: checked.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.accountant),
+      markCurrentFinancialStateChecked(checked.id, actors.accountant),
     ).rejects.toBeInstanceOf(AuthorizationError);
   });
 
   it("allows admin to perform current accounting transitions", async () => {
     const submitted = await createSubmittedNote("TRANSITION-ADMIN");
     const reviewing = await startAccountingReview({ id: submitted.id }, actors.admin);
-    const checked = await markShippingNoteChecked({ id: submitted.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.admin);
+    const checked = await markCurrentFinancialStateChecked(submitted.id, actors.admin);
 
     expect(reviewing.status).toBe("accounting_reviewing");
     expect(checked.status).toBe("checked");
@@ -481,7 +498,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       buyingTaxRuleId,
     });
     await startAccountingReview({ id: submitted.id }, actors.admin);
-    const checked = await markShippingNoteChecked({ id: submitted.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.admin);
+    const checked = await markCurrentFinancialStateChecked(submitted.id, actors.admin);
     const approved = await approveShippingNote({ id: checked.id }, actors.admin);
 
     const checkedMetadata = await getCheckedTransitionMetadata(checked.id);
@@ -652,21 +669,17 @@ describe("accounting review transitions, export eligibility, and audits", () => 
     )).toHaveLength(0);
   });
 
-  it("rejects checked to locked to avoid implicit approval", async () => {
-    const checked = await createCheckedNote("LOCK-CHECKED-DENIED");
+  it("allows the approved Admin close transition from checked", async () => {
+    const checked = await createCheckedNote("LOCK-CHECKED");
 
-    await expect(
-      lockShippingNote({ id: checked.id }, actors.admin),
-    ).rejects.toBeInstanceOf(AuthorizationError);
+    await lockShippingNote({ id: checked.id }, actors.admin);
 
-    expect(await getLockTransitionMetadata(checked.id)).toStrictEqual({
-      status: "checked",
-      lockedById: null,
-      lockedAt: null,
-      lockReason: null,
+    expect(await getLockTransitionMetadata(checked.id)).toMatchObject({
+      status: "locked",
+      lockedById: actors.admin.id,
     });
     const auditRows = await listAuditLogsForEntity("shipping_note", checked.id);
-    expect(auditRows.some((row) => row.action === "shipping_note.lock")).toBe(false);
+    expect(auditRows.some((row) => row.action === "shipping_note.lock")).toBe(true);
   });
 
   it("rejects stale lock and unlock transitions without false audit rows", async () => {
@@ -725,7 +738,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       overrideChargeVatPercent(
         overrideChargeVatPercentInputSchema.parse({
           chargeId: buyingChargeId,
-          vatPercent: "12.00",
+          vatPercent: "8.00",
           reason: "Should not mutate locked charge",
         }),
         actors.accountant,
@@ -1131,7 +1144,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
     )).toBeNull();
   });
 
-  it("allows admin to reopen checked notes and clears current finalization metadata", async () => {
+  it("allows accountant to reopen checked notes and clears current finalization metadata", async () => {
     const checked = await createCheckedNote("REOPEN-CHECKED");
     const beforeMetadata = await getCancellationTransitionMetadata(checked.id);
 
@@ -1141,30 +1154,13 @@ describe("accounting review transitions, export eligibility, and audits", () => 
         actors.saleA,
       ),
     ).rejects.toBeInstanceOf(AuthorizationError);
-    await expect(
-      reopenShippingNoteForCorrection(
-        { id: checked.id, expectedStatus: "checked", reason: "Accountant denied reopen" },
-        actors.accountant,
-      ),
-    ).rejects.toBeInstanceOf(AuthorizationError);
-    expect(await getCancellationTransitionMetadata(checked.id)).toMatchObject({
-      status: "checked",
-      checkedById: beforeMetadata.checkedById,
-      checkedAt: beforeMetadata.checkedAt,
-      approvedById: null,
-      approvedAt: null,
-    });
-    expect((await listAuditLogsForEntity("shipping_note", checked.id)).some(
-      (row) => row.action === "shipping_note.reopen_for_correction",
-    )).toBe(false);
-
     const reopened = await reopenShippingNoteForCorrection(
       {
         id: checked.id,
         expectedStatus: "checked",
         reason: "  Correct vendor-side accounting  ",
       },
-      actors.admin,
+      actors.accountant,
     );
     const afterMetadata = await getCancellationTransitionMetadata(checked.id);
 
@@ -1180,9 +1176,9 @@ describe("accounting review transitions, export eligibility, and audits", () => 
 
     const auditRows = await listAuditLogsForEntity("shipping_note", checked.id);
     const reopenAudit = auditRows.find(
-      (row) => row.action === "shipping_note.reopen_for_correction",
+      (row) => row.action === "shipping_note.selling_rate_reopened",
     );
-    expect(reopenAudit?.actorUserId).toBe(actors.admin.id);
+    expect(reopenAudit?.actorUserId).toBe(actors.accountant.id);
     expect(reopenAudit?.reason).toBe("Correct vendor-side accounting");
     expect(reopenAudit?.before).toMatchObject({
       status: "checked",
@@ -1223,7 +1219,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
 
     const auditRows = await listAuditLogsForEntity("shipping_note", approved.id);
     const reopenAudit = auditRows.find(
-      (row) => row.action === "shipping_note.reopen_for_correction",
+      (row) => row.action === "shipping_note.selling_rate_reopened",
     );
     expect(reopenAudit?.before).toMatchObject({
       status: "approved",
@@ -1255,7 +1251,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       lockReason: "Locked close",
     });
     expect((await listAuditLogsForEntity("shipping_note", locked.id)).some(
-      (row) => row.action === "shipping_note.reopen_for_correction",
+      (row) => row.action === "shipping_note.selling_rate_reopened",
     )).toBe(false);
 
     const cancelled = await createApprovedNote("REOPEN-CANCELLED");
@@ -1275,7 +1271,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       cancelReason: "Cancelled terminal",
     });
     expect((await listAuditLogsForEntity("shipping_note", cancelled.id)).some(
-      (row) => row.action === "shipping_note.reopen_for_correction",
+      (row) => row.action === "shipping_note.selling_rate_reopened",
     )).toBe(false);
 
     const staleChecked = await createCheckedNote("REOPEN-STALE-CHECKED");
@@ -1307,11 +1303,11 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       approvedById: actors.admin.id,
     });
     expect((await listAuditLogsForEntity("shipping_note", staleApproved.id)).some(
-      (row) => row.action === "shipping_note.reopen_for_correction",
+      (row) => row.action === "shipping_note.selling_rate_reopened",
     )).toBe(false);
   });
 
-  it("restores accounting mutability after reopen while selling remains draft-only", async () => {
+  it("restores Admin/Accountant financial mutability after reopen", async () => {
     const approved = await createApprovedNote("REOPEN-MUTABILITY");
     const buyingChargeId = await getActiveBuyingChargeId(approved.id);
 
@@ -1356,12 +1352,10 @@ describe("accounting review transitions, export eligibility, and audits", () => 
     );
     expect(correctedTax.vatPercent).toBe("8.00");
 
-    await expect(
-      createSellingChargeForNote(
-        sellingInput(approved.id, "REOPENED-SELL-DENIED"),
-        actors.admin,
-      ),
-    ).rejects.toBeInstanceOf(AuthorizationError);
+    await expect(createSellingChargeForNote(
+      sellingInput(approved.id, "REOPENED-SELL"),
+      actors.admin,
+    )).resolves.toMatchObject({ shippingNoteId: approved.id });
   });
 
   it("preserves exports, blocks export while reopened, and restores export after recheck", async () => {
@@ -1424,8 +1418,8 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       }),
       actors.accountant,
     );
-    const checkedAgain = await markShippingNoteChecked(
-      { id: approved.id, sellingVerified: true, buyingVerified: true, taxVerified: true },
+    const checkedAgain = await markCurrentFinancialStateChecked(
+      approved.id,
       actors.accountant,
     );
     const recheckedMetadata = await getCheckedTransitionMetadata(approved.id);
@@ -1753,7 +1747,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       actors.accountant,
     );
     await expect(
-      markShippingNoteChecked({ id: cancelledReviewing.id, sellingVerified: true, buyingVerified: true, taxVerified: true }, actors.accountant),
+      markCurrentFinancialStateChecked(cancelledReviewing.id, actors.accountant),
     ).rejects.toBeInstanceOf(AuthorizationError);
 
     const cancelledChecked = await createCheckedNote("CANCEL-TERMINAL-CHECKED");
@@ -1824,7 +1818,7 @@ describe("accounting review transitions, export eligibility, and audits", () => 
       overrideChargeVatPercent(
         overrideChargeVatPercentInputSchema.parse({
           chargeId: buyingChargeId,
-          vatPercent: "12.00",
+          vatPercent: "8.00",
           reason: "Should not mutate cancelled charge",
         }),
         actors.accountant,

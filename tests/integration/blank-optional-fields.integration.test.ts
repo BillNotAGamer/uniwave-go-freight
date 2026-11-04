@@ -32,8 +32,15 @@ describe("blank optional-field production path", () => {
     formData.set("consigneeText", "");
     formData.set("customerText", "   ");
     formData.set("agentText", "Agent With Spaces");
-    formData.set("aol", "SGN");
-    formData.set("aod", "   ");
+    formData.set("portOfLoading", "VNSGN");
+    formData.set("portOfDischarge", "USLAX");
+    formData.set("finalDestination", "Los Angeles");
+    formData.set("mblNo", `${runId}-MBL-BLANKS`);
+    formData.set("hblNo", `${runId}-HBL-BLANKS`);
+    formData.set("vesselName", "Synthetic Vessel");
+    formData.set("voyageNo", `${runId}-V-BLANKS`);
+    formData.set("etd", "2026-11-10T02:00:00.000Z");
+    formData.set("eta", "2026-11-25T02:00:00.000Z");
     formData.set("volumeValue", "");
     formData.set("exchangeRate", "0");
 
@@ -45,8 +52,15 @@ describe("blank optional-field production path", () => {
       consigneeText: readFormString(formData, "consigneeText"),
       customerText: readFormString(formData, "customerText"),
       agentText: readFormString(formData, "agentText"),
-      aol: readFormString(formData, "aol"),
-      aod: readFormString(formData, "aod"),
+      portOfLoading: readFormString(formData, "portOfLoading"),
+      portOfDischarge: readFormString(formData, "portOfDischarge"),
+      finalDestination: readFormString(formData, "finalDestination"),
+      mblNo: readFormString(formData, "mblNo"),
+      hblNo: readFormString(formData, "hblNo"),
+      vesselName: readFormString(formData, "vesselName"),
+      voyageNo: readFormString(formData, "voyageNo"),
+      etd: readFormString(formData, "etd"),
+      eta: readFormString(formData, "eta"),
       volumeValue: readFormString(formData, "volumeValue"),
     });
 

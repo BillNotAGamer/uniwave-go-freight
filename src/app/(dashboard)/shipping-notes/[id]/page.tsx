@@ -57,6 +57,7 @@ import {
   canMutateReopenedSellingCharges,
   canMutateSellingChargeForAccountingActor,
   canIssuePostSubmitEditGrantAtStatus,
+  canUsePostSubmitEditGrantAtStatus,
   canSubmitShippingNoteDraft,
   canReopenShippingNoteForCorrectionStatus,
   isInternalXlsxExportEligibleStatus,
@@ -82,6 +83,7 @@ import {
   formatMawbHawb,
 } from "@/features/shipping-notes/presentation";
 import { canDuplicateShippingNote } from "@/features/shipping-notes/duplication";
+import { getFinancialReviewRevisionForNote } from "@/features/shipping-notes/financial-review-revision";
 
 function formatCreator(createdBy: { name: string; email: string } | null): string {
   return createdBy?.name.trim() || createdBy?.email || "Unknown user";
@@ -172,6 +174,8 @@ export default async function ShippingNoteDetailPage({
   const canManageEditGrants =
     canViewEditGrants && canIssuePostSubmitEditGrantAtStatus(note.status);
   const hasDelegatedEditAccess = await hasActivePostSubmitEditGrant(note.id, user);
+  const canUseDelegatedEditAccess =
+    hasDelegatedEditAccess && canUsePostSubmitEditGrantAtStatus(note.status);
   const editGrantRecipients = canManageEditGrants
     ? await listEligibleEditGrantRecipients(note.id, user)
     : [];
@@ -249,6 +253,10 @@ export default async function ShippingNoteDetailPage({
       taxComplete: taxCounts.taxComplete,
     })
     : null;
+  const financialReviewRevision =
+    canMarkChecked && note.status === "accounting_reviewing"
+      ? await getFinancialReviewRevisionForNote(note.id)
+      : null;
   const sellingTaxDetails = taxDetails.filter(
     (charge) => charge.section === "selling",
   );
@@ -627,6 +635,7 @@ export default async function ShippingNoteDetailPage({
                 canApprove={canApprove}
                 canLock={canLock}
                 canUnlock={canUnlock}
+                financialReviewRevision={financialReviewRevision}
                 markCheckedDisabledReason={markCheckedDisabledReason}
               />
             ) : null}
@@ -706,11 +715,23 @@ export default async function ShippingNoteDetailPage({
           />
         ) : null}
 
-        {hasDelegatedEditAccess ? (
+        {canUseDelegatedEditAccess ? (
           <section className="grid gap-2 border-t border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
             <h2 className="font-semibold text-foreground">Delegated operational editing is active</h2>
             <p className="text-sm text-muted-foreground">
               This access does not include charges, accounting actions, approval, Close, or creator attribution.
+            </p>
+          </section>
+        ) : null}
+
+        {hasDelegatedEditAccess && !canUseDelegatedEditAccess &&
+        (note.status === "checked" || note.status === "approved") ? (
+          <section className="grid gap-2 border-t border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900 dark:bg-amber-950/20">
+            <h2 className="font-semibold text-foreground">Reopen required before correction</h2>
+            <p className="text-sm text-muted-foreground">
+              This grant remains recorded, but signed-off data is read-only. An
+              Admin or Accountant must reopen the Shipping Note with a reason
+              before delegated operational editing becomes available.
             </p>
           </section>
         ) : null}
@@ -763,7 +784,7 @@ export default async function ShippingNoteDetailPage({
               />
             ) : null}
           </section>
-        ) : hasDelegatedEditAccess ? (
+        ) : canUseDelegatedEditAccess ? (
           <section className="grid gap-6 border-t border-border pt-6">
             <div className="space-y-2">
               <h2 className="text-lg font-semibold tracking-tight text-foreground">Edit operational details</h2>

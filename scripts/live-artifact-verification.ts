@@ -99,6 +99,7 @@ async function main() {
     taxFixtures,
     shippingMutations,
     shippingValidators,
+    financialReview,
     exportQueries,
     exportGenerator,
     exportMutations,
@@ -120,6 +121,7 @@ async function main() {
     import("../tests/integration/fixtures/tax-rules"),
     import("../src/features/shipping-notes/mutations"),
     import("../src/features/shipping-notes/validators"),
+    import("../src/features/shipping-notes/financial-review-revision"),
     import("../src/features/shipping-notes/export/queries"),
     import("../src/features/shipping-notes/export/generator"),
     import("../src/features/shipping-notes/export/mutations"),
@@ -344,8 +346,20 @@ async function main() {
       { id: submitted.id },
       actors.accountant,
     );
+    const expectedFinancialRevision = await financialReview.getFinancialReviewRevisionForNote(
+      reviewing.id,
+    );
+    if (!expectedFinancialRevision) {
+      throw new Error("Financial review revision was unavailable for live verification.");
+    }
     return shippingMutations.markShippingNoteChecked(
-      { id: reviewing.id, sellingVerified: true, buyingVerified: true, taxVerified: true },
+      {
+        id: reviewing.id,
+        expectedFinancialRevision,
+        sellingVerified: true,
+        buyingVerified: true,
+        taxVerified: true,
+      },
       actors.accountant,
     );
   }

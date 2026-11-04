@@ -104,7 +104,7 @@ describe("shipping note status policy", () => {
     expect(canMutateReopenedSellingCharges({ ...reopened, status: "checked" }, admin)).toBe(false);
   });
 
-  it("keeps delegated operational grants post-submit and ineffective at Draft/Exported/Closed/Cancelled", () => {
+  it("records grants for signed notes but requires explicit reopen before delegated use", () => {
     expect(SHIPPING_NOTE_STATUSES.filter(canIssuePostSubmitEditGrantAtStatus)).toStrictEqual([
       "submitted",
       "accounting_reviewing",
@@ -114,8 +114,6 @@ describe("shipping note status policy", () => {
     expect(SHIPPING_NOTE_STATUSES.filter(canUsePostSubmitEditGrantAtStatus)).toStrictEqual([
       "submitted",
       "accounting_reviewing",
-      "checked",
-      "approved",
     ]);
   });
 

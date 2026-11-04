@@ -117,6 +117,24 @@ function makeMockNote(overrides: Partial<ShippingNoteDetail>): ShippingNoteDetai
   };
 }
 
+function transactionQuery(response: unknown[]) {
+  const chain = {
+    from: vi.fn(),
+    where: vi.fn(),
+    limit: vi.fn(),
+    for: vi.fn(),
+    then: <TResult1 = unknown[], TResult2 = never>(
+      onfulfilled?: ((value: unknown[]) => TResult1 | PromiseLike<TResult1>) | null,
+      onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+    ) => Promise.resolve(response).then(onfulfilled, onrejected),
+  };
+  chain.from.mockReturnValue(chain);
+  chain.where.mockReturnValue(chain);
+  chain.limit.mockReturnValue(chain);
+  chain.for.mockResolvedValue(response);
+  return chain;
+}
+
 describe("Shipping Note Documents Domain — Phase C10A", () => {
   const activeAdmin = makeMockUser({ id: "admin-1", role: "admin" });
   const activeAccountant = makeMockUser({ id: "acc-1", role: "accountant" });
@@ -443,8 +461,6 @@ describe("Shipping Note Documents Domain — Phase C10A", () => {
     };
 
     it("registers document metadata on mutable note and logs truthful audit", async () => {
-      mocks.getShippingNoteForUser.mockResolvedValue(mutableNote);
-
       const createdDoc = {
         id: "doc-new",
         ...validRegistrationInput,
@@ -452,14 +468,9 @@ describe("Shipping Note Documents Domain — Phase C10A", () => {
         createdAt: new Date(),
       };
 
+      const selectResponses = [[mutableNote], []];
       const txMock = {
-        select: vi.fn().mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([]),
-            }),
-          }),
-        }),
+        select: vi.fn(() => transactionQuery(selectResponses.shift() ?? [])),
         insert: vi.fn().mockReturnValue({
           values: vi.fn().mockReturnValue({
             returning: vi.fn().mockResolvedValue([createdDoc]),
@@ -493,48 +504,59 @@ describe("Shipping Note Documents Domain — Phase C10A", () => {
     });
 
     it("rejects registration on locked shipping note with 0 writes", async () => {
-      mocks.getShippingNoteForUser.mockResolvedValue(lockedNote);
+      const txMock = {
+        select: vi.fn(() => transactionQuery([lockedNote])),
+        insert: vi.fn(),
+      };
+      mocks.db.transaction.mockImplementation(
+        async <T>(cb: (tx: typeof txMock) => Promise<T>) => cb(txMock),
+      );
 
       await expect(
         registerShippingNoteDocumentMetadata(validRegistrationInput, activeAdmin),
       ).rejects.toBeInstanceOf(AuthorizationError);
 
-      expect(mocks.db.transaction).not.toHaveBeenCalled();
+      expect(txMock.insert).not.toHaveBeenCalled();
       expect(mocks.logAuditEvent).not.toHaveBeenCalled();
     });
 
     it("rejects registration on cancelled shipping note with 0 writes", async () => {
-      mocks.getShippingNoteForUser.mockResolvedValue(cancelledNote);
+      const txMock = {
+        select: vi.fn(() => transactionQuery([cancelledNote])),
+        insert: vi.fn(),
+      };
+      mocks.db.transaction.mockImplementation(
+        async <T>(cb: (tx: typeof txMock) => Promise<T>) => cb(txMock),
+      );
 
       await expect(
         registerShippingNoteDocumentMetadata(validRegistrationInput, activeAdmin),
       ).rejects.toBeInstanceOf(AuthorizationError);
 
-      expect(mocks.db.transaction).not.toHaveBeenCalled();
+      expect(txMock.insert).not.toHaveBeenCalled();
       expect(mocks.logAuditEvent).not.toHaveBeenCalled();
     });
 
     it("rejects registration by unauthorized actor (other sale)", async () => {
-      mocks.getShippingNoteForUser.mockResolvedValue(mutableNote);
+      const txMock = {
+        select: vi.fn(() => transactionQuery([mutableNote])),
+        insert: vi.fn(),
+      };
+      mocks.db.transaction.mockImplementation(
+        async <T>(cb: (tx: typeof txMock) => Promise<T>) => cb(txMock),
+      );
 
       await expect(
         registerShippingNoteDocumentMetadata(validRegistrationInput, otherSale),
       ).rejects.toBeInstanceOf(AuthorizationError);
 
-      expect(mocks.db.transaction).not.toHaveBeenCalled();
+      expect(txMock.insert).not.toHaveBeenCalled();
     });
 
     it("rejects active duplicate (storageProvider + storageKey)", async () => {
-      mocks.getShippingNoteForUser.mockResolvedValue(mutableNote);
-
+      const selectResponses = [[mutableNote], [{ id: "existing-doc" }]];
       const txMock = {
-        select: vi.fn().mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([{ id: "existing-doc" }]),
-            }),
-          }),
-        }),
+        select: vi.fn(() => transactionQuery(selectResponses.shift() ?? [])),
       };
 
       mocks.db.transaction.mockImplementation(
@@ -549,8 +571,6 @@ describe("Shipping Note Documents Domain — Phase C10A", () => {
     });
 
     it("permits multiple documents of the same category on one note", async () => {
-      mocks.getShippingNoteForUser.mockResolvedValue(mutableNote);
-
       const doc1 = {
         id: "doc-inv-1",
         ...validRegistrationInput,
@@ -559,14 +579,9 @@ describe("Shipping Note Documents Domain — Phase C10A", () => {
         createdAt: new Date(),
       };
 
+      const selectResponses = [[mutableNote], []];
       const txMock = {
-        select: vi.fn().mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([]),
-            }),
-          }),
-        }),
+        select: vi.fn(() => transactionQuery(selectResponses.shift() ?? [])),
         insert: vi.fn().mockReturnValue({
           values: vi.fn().mockReturnValue({
             returning: vi.fn().mockResolvedValue([doc1]),
@@ -594,26 +609,20 @@ describe("Shipping Note Documents Domain — Phase C10A", () => {
     };
 
     it("soft deletes document and writes truthful audit", async () => {
-      mocks.getShippingNoteForUser.mockResolvedValue(mutableNote);
-
+      const existingDocument = {
+        id: "doc-to-remove",
+        documentType: "contract",
+        originalFileName: "contract.pdf",
+        storageProvider: "r2",
+      };
+      const selectResponses = [[mutableNote], [existingDocument]];
       const txMock = {
-        select: vi.fn().mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([
-                {
-                  id: "doc-to-remove",
-                  documentType: "contract",
-                  originalFileName: "contract.pdf",
-                  storageProvider: "r2",
-                },
-              ]),
-            }),
-          }),
-        }),
+        select: vi.fn(() => transactionQuery(selectResponses.shift() ?? [])),
         update: vi.fn().mockReturnValue({
           set: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue([]),
+            where: vi.fn().mockReturnValue({
+              returning: vi.fn().mockResolvedValue([{ id: "doc-to-remove" }]),
+            }),
           }),
         }),
       };
@@ -640,7 +649,13 @@ describe("Shipping Note Documents Domain — Phase C10A", () => {
     });
 
     it("rejects soft delete on locked note with 0 writes", async () => {
-      mocks.getShippingNoteForUser.mockResolvedValue(lockedNote);
+      const txMock = {
+        select: vi.fn(() => transactionQuery([lockedNote])),
+        update: vi.fn(),
+      };
+      mocks.db.transaction.mockImplementation(
+        async <T>(cb: (tx: typeof txMock) => Promise<T>) => cb(txMock),
+      );
 
       await expect(
         softDeleteShippingNoteDocument(
@@ -649,20 +664,13 @@ describe("Shipping Note Documents Domain — Phase C10A", () => {
         ),
       ).rejects.toBeInstanceOf(AuthorizationError);
 
-      expect(mocks.db.transaction).not.toHaveBeenCalled();
+      expect(txMock.update).not.toHaveBeenCalled();
     });
 
     it("rejects cross-note document removal (document does not belong to note)", async () => {
-      mocks.getShippingNoteForUser.mockResolvedValue(mutableNote);
-
+      const selectResponses = [[mutableNote], []];
       const txMock = {
-        select: vi.fn().mockReturnValue({
-          from: vi.fn().mockReturnValue({
-            where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([]),
-            }),
-          }),
-        }),
+        select: vi.fn(() => transactionQuery(selectResponses.shift() ?? [])),
       };
 
       mocks.db.transaction.mockImplementation(

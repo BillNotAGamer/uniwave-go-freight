@@ -271,6 +271,9 @@ export const startAccountingReviewInputSchema = z.object({
 
 export const markShippingNoteCheckedInputSchema = z.object({
   id: z.string().trim().min(1),
+  expectedFinancialRevision: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/, "Financial review revision is invalid."),
   sellingVerified: z.literal(true, {
     error: "Selling verification confirmation is required.",
   }),

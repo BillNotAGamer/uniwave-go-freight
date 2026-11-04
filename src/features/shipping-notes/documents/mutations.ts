@@ -7,12 +7,13 @@ import { rejectInactiveOrSoftDeletedUsers } from "@/lib/auth/user-state";
 import { db } from "@/lib/db/client";
 import {
   shippingNoteDocuments,
+  shippingNotes,
   type User as DbUser,
 } from "@/lib/db/schema";
 import { AuthorizationError } from "@/lib/permissions/require-permission";
 
-import { getShippingNoteForUser } from "../queries";
 import { canMutateShippingNoteDocuments } from "./policy";
+import type { ShippingNoteDocumentType } from "./constants";
 import type { ShippingNoteDocumentListItem } from "./types";
 import {
   registerShippingNoteDocumentInputSchema,
@@ -33,6 +34,39 @@ const documentListColumns = {
   createdAt: shippingNoteDocuments.createdAt,
 } as const;
 
+type DocumentMutationTransaction = Parameters<
+  Parameters<typeof db.transaction>[0]
+>[0];
+
+async function lockMutableDocumentNote(
+  tx: DocumentMutationTransaction,
+  shippingNoteId: string,
+  user: DbUser,
+  documentType?: ShippingNoteDocumentType,
+) {
+  const [note] = await tx
+    .select({
+      id: shippingNotes.id,
+      status: shippingNotes.status,
+      createdById: shippingNotes.createdById,
+    })
+    .from(shippingNotes)
+    .where(
+      and(
+        eq(shippingNotes.id, shippingNoteId),
+        isNull(shippingNotes.deletedAt),
+      ),
+    )
+    .limit(1)
+    .for("update");
+
+  if (!note || !canMutateShippingNoteDocuments(note, user, documentType)) {
+    throw new AuthorizationError();
+  }
+
+  return note;
+}
+
 export async function registerShippingNoteDocumentMetadata(
   input: RegisterShippingNoteDocumentInput,
   user: DbUser,
@@ -42,13 +76,15 @@ export async function registerShippingNoteDocumentMetadata(
   }
 
   const normalized = registerShippingNoteDocumentInputSchema.parse(input);
-  const note = await getShippingNoteForUser(normalized.shippingNoteId, user);
-
-  if (!note || !canMutateShippingNoteDocuments(note, user, normalized.documentType)) {
-    throw new AuthorizationError();
-  }
 
   return db.transaction(async (tx) => {
+    await lockMutableDocumentNote(
+      tx,
+      normalized.shippingNoteId,
+      user,
+      normalized.documentType,
+    );
+
     const [duplicate] = await tx
       .select({ id: shippingNoteDocuments.id })
       .from(shippingNoteDocuments)
@@ -105,13 +141,14 @@ export async function softDeleteShippingNoteDocument(
   }
 
   const normalized = removeShippingNoteDocumentInputSchema.parse(input);
-  const note = await getShippingNoteForUser(normalized.shippingNoteId, user);
-
-  if (!note || !canMutateShippingNoteDocuments(note, user)) {
-    throw new AuthorizationError();
-  }
 
   await db.transaction(async (tx) => {
+    const note = await lockMutableDocumentNote(
+      tx,
+      normalized.shippingNoteId,
+      user,
+    );
+
     const [existing] = await tx
       .select({
         id: shippingNoteDocuments.id,
@@ -127,7 +164,8 @@ export async function softDeleteShippingNoteDocument(
           isNull(shippingNoteDocuments.deletedAt),
         ),
       )
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     if (!existing) {
       throw new AuthorizationError();
@@ -137,7 +175,7 @@ export async function softDeleteShippingNoteDocument(
       throw new AuthorizationError();
     }
 
-    await tx
+    const [deleted] = await tx
       .update(shippingNoteDocuments)
       .set({ deletedAt: new Date() })
       .where(
@@ -145,7 +183,12 @@ export async function softDeleteShippingNoteDocument(
           eq(shippingNoteDocuments.id, normalized.id),
           isNull(shippingNoteDocuments.deletedAt),
         ),
-      );
+      )
+      .returning({ id: shippingNoteDocuments.id });
+
+    if (!deleted) {
+      throw new AuthorizationError();
+    }
 
     await logAuditEvent(tx, {
       actorUserId: user.id,
@@ -180,13 +223,14 @@ export async function hardDeleteShippingNoteDocument(
   }
 
   const normalized = removeShippingNoteDocumentInputSchema.parse(input);
-  const note = await getShippingNoteForUser(normalized.shippingNoteId, user);
-
-  if (!note || !canMutateShippingNoteDocuments(note, user)) {
-    throw new AuthorizationError();
-  }
 
   return db.transaction(async (tx) => {
+    const note = await lockMutableDocumentNote(
+      tx,
+      normalized.shippingNoteId,
+      user,
+    );
+
     const [existing] = await tx
       .select({
         id: shippingNoteDocuments.id,
@@ -204,13 +248,14 @@ export async function hardDeleteShippingNoteDocument(
           isNull(shippingNoteDocuments.deletedAt),
         ),
       )
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     if (!existing) {
       throw new AuthorizationError();
     }
 
-    if (!canMutateShippingNoteDocuments(note, user, existing.documentType as import("./constants").ShippingNoteDocumentType)) {
+    if (!canMutateShippingNoteDocuments(note, user, existing.documentType as ShippingNoteDocumentType)) {
       throw new AuthorizationError();
     }
 

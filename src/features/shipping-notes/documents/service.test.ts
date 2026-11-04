@@ -361,11 +361,15 @@ describe("Document upload orchestration", () => {
     };
 
     mocks.db.transaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => {
+      const noteLock = vi.fn().mockResolvedValue([note]);
       const tx = {
         select: vi.fn().mockReturnValue({
           from: vi.fn().mockReturnValue({
             where: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([]),
+              limit: vi
+                .fn()
+                .mockReturnValueOnce({ for: noteLock })
+                .mockResolvedValueOnce([]),
             }),
           }),
         }),
@@ -609,11 +613,18 @@ describe("Document hard-delete orchestration", () => {
   });
 
   function configureHardDeleteTransaction(docDetail: ShippingNoteDocumentDetail) {
+    const note = makeMockNote({
+      id: docDetail.shippingNoteId,
+      status: "checked",
+    });
+    const lockResults = [[note], [docDetail]];
     const tx = {
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue([docDetail]),
+            limit: vi.fn().mockImplementation(() => ({
+              for: vi.fn().mockResolvedValue(lockResults.shift() ?? []),
+            })),
           }),
         }),
       }),

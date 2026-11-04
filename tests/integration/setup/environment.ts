@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { neonConfig } from "@neondatabase/serverless";
 
 import { assertAuthorizedIntegrationDatabaseTarget } from "./database-authorization";
 
@@ -50,6 +51,37 @@ function loadDotEnvLocal(): void {
 }
 
 loadDotEnvLocal();
+
+function configureExplicitLoopbackWebSocketProxy(): void {
+  const proxyAddress = process.env.INTEGRATION_TEST_NEON_WS_PROXY?.trim();
+  if (!proxyAddress) {
+    return;
+  }
+
+  const databaseUrl = new URL(process.env.DATABASE_URL ?? "");
+  const databasePort = databaseUrl.port || "5432";
+  const [proxyHost, proxyPort] = proxyAddress.split(":");
+  const isLoopback = (value: string) => value === "127.0.0.1" || value === "localhost";
+
+  if (
+    !isLoopback(databaseUrl.hostname) ||
+    databasePort === "54329" ||
+    !proxyHost ||
+    !isLoopback(proxyHost) ||
+    !proxyPort ||
+    !/^\d+$/.test(proxyPort)
+  ) {
+    throw new Error(
+      "The integration WebSocket proxy is restricted to an unprotected loopback PostgreSQL target.",
+    );
+  }
+
+  neonConfig.wsProxy = () => proxyAddress;
+  neonConfig.useSecureWebSocket = false;
+  neonConfig.pipelineConnect = false;
+}
+
+configureExplicitLoopbackWebSocketProxy();
 
 const missingKeys = REQUIRED_ENV_KEYS.filter((key) => !process.env[key]);
 

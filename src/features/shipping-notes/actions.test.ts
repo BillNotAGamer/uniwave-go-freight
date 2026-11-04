@@ -93,6 +93,7 @@ import { RoutingLocationConflictError } from "@/features/locations/mutations";
 
 describe("markShippingNoteCheckedAction confirmations", () => {
   const actor = { id: "accountant-1", role: "accountant" as const };
+  const revision = "a".repeat(64);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -103,6 +104,7 @@ describe("markShippingNoteCheckedAction confirmations", () => {
   it("rejects direct action invocation unless all three confirmations are true", async () => {
     const formData = new FormData();
     formData.set("id", "note-1");
+    formData.set("expectedFinancialRevision", revision);
     formData.set("sellingVerified", "true");
     formData.set("buyingVerified", "true");
 
@@ -116,6 +118,7 @@ describe("markShippingNoteCheckedAction confirmations", () => {
   it("passes the exact confirmations to the authoritative mutation", async () => {
     const formData = new FormData();
     formData.set("id", "note-1");
+    formData.set("expectedFinancialRevision", revision);
     formData.set("sellingVerified", "true");
     formData.set("buyingVerified", "true");
     formData.set("taxVerified", "true");
@@ -123,6 +126,7 @@ describe("markShippingNoteCheckedAction confirmations", () => {
     await expect(markShippingNoteCheckedAction({ ok: true }, formData)).resolves.toEqual({ ok: true });
     expect(mocks.markShippingNoteChecked).toHaveBeenCalledWith({
       id: "note-1",
+      expectedFinancialRevision: revision,
       sellingVerified: true,
       buyingVerified: true,
       taxVerified: true,

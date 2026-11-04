@@ -259,6 +259,7 @@ describe("shipping note validation schemas", () => {
   });
 
   it("requires non-blank identifiers for update and transition actions", () => {
+    const revision = "a".repeat(64);
     expect(() => updateShippingNoteDraftInputSchema.parse({
       id: " ",
       jobsheetNo: "JS-1",
@@ -269,17 +270,20 @@ describe("shipping note validation schemas", () => {
     expect(() => markShippingNoteCheckedInputSchema.parse({ id: "" })).toThrow();
     expect(() => markShippingNoteCheckedInputSchema.parse({
       id: "note-1",
+      expectedFinancialRevision: revision,
       sellingVerified: true,
       buyingVerified: true,
       taxVerified: false,
     })).toThrow("VAT/Tax verification confirmation is required.");
     expect(markShippingNoteCheckedInputSchema.parse({
       id: "note-1",
+      expectedFinancialRevision: revision,
       sellingVerified: true,
       buyingVerified: true,
       taxVerified: true,
     })).toEqual({
       id: "note-1",
+      expectedFinancialRevision: revision,
       sellingVerified: true,
       buyingVerified: true,
       taxVerified: true,

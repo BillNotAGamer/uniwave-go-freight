@@ -32,13 +32,14 @@ async function setup() {
   const adminPassword = requiredEnv("AUTH_E2E_ADMIN_PASSWORD");
   const token = toEmailToken(runId);
 
-  const [{ eq, sql }, schema, credentials, shippingMutations, shippingValidators, taxFixtures, cleanup, database] =
+  const [{ eq, sql }, schema, credentials, shippingMutations, shippingValidators, financialReview, taxFixtures, cleanup, database] =
     await Promise.all([
       import("drizzle-orm"),
       import("../src/lib/db/schema"),
       import("../src/lib/auth/credentials"),
       import("../src/features/shipping-notes/mutations"),
       import("../src/features/shipping-notes/validators"),
+      import("../src/features/shipping-notes/financial-review-revision"),
       import("../tests/integration/fixtures/tax-rules"),
       import("../tests/integration/setup/cleanup"),
       import("../tests/integration/setup/database"),
@@ -208,8 +209,20 @@ async function setup() {
     { id: lockedBaseNote.id },
     accountant,
   );
+  const expectedFinancialRevision = await financialReview.getFinancialReviewRevisionForNote(
+    reviewing.id,
+  );
+  if (!expectedFinancialRevision) {
+    throw new Error("Financial review revision was unavailable for the auth fixture.");
+  }
   const checked = await shippingMutations.markShippingNoteChecked(
-    { id: reviewing.id, sellingVerified: true, buyingVerified: true, taxVerified: true },
+    {
+      id: reviewing.id,
+      expectedFinancialRevision,
+      sellingVerified: true,
+      buyingVerified: true,
+      taxVerified: true,
+    },
     accountant,
   );
   const approved = await shippingMutations.approveShippingNote(

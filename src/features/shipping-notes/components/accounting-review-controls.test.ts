@@ -22,11 +22,14 @@ describe("AccountingReviewControls", () => {
       canApprove: false,
       canLock: false,
       canUnlock: false,
+      financialReviewRevision: "a".repeat(64),
     }));
 
     expect(html).toContain('name="sellingVerified"');
     expect(html).toContain('name="buyingVerified"');
     expect(html).toContain('name="taxVerified"');
+    expect(html).toContain('name="expectedFinancialRevision"');
+    expect(html).toContain(`value="${"a".repeat(64)}"`);
     expect(html.match(/required=""/g)).toHaveLength(3);
     expect(html).toContain("Selling charges verified");
     expect(html).toContain("Buying charges verified");
