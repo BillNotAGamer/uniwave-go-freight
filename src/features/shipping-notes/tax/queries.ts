@@ -15,6 +15,10 @@ import type { ChargeTaxDetail, ChargeTaxRuleOption, TaxCompletenessResult } from
 import type { FinancialSummary, FinancialSummaryChargeRow } from "../types";
 import { getPersistedChargeAccountingVat } from "../accounting/vat";
 import { getShippingNoteForUser } from "../queries";
+import {
+  doesTaxRulePatternMatch,
+  getChargeTaxRuleMatchValue,
+} from "./default-resolution";
 
 const chargeTaxColumns = {
   chargeId: shippingNoteCharges.id,
@@ -114,6 +118,7 @@ export async function listChargeTaxRuleOptionsForNoteForUser(
       taxTreatment: taxRules.taxTreatment,
       vatPercent: taxRules.vatPercent,
       isActive: taxRules.isActive,
+      chargeNamePattern: taxRules.chargeNamePattern,
       effectiveFrom: taxRules.effectiveFrom,
       effectiveTo: taxRules.effectiveTo,
     })
@@ -129,20 +134,53 @@ export async function listChargeTaxRuleOptionsForNoteForUser(
     )
     .orderBy(asc(taxRules.chargeSection), asc(taxRules.code));
 
+  const activeCharges = await db
+    .select({
+      id: shippingNoteCharges.id,
+      section: shippingNoteCharges.section,
+      chargeName: shippingNoteCharges.chargeName,
+      catalogCodeSnapshot: shippingNoteCharges.catalogCodeSnapshot,
+    })
+    .from(shippingNoteCharges)
+    .where(
+      and(
+        eq(shippingNoteCharges.shippingNoteId, noteId),
+        isNull(shippingNoteCharges.deletedAt),
+        ...(canReadFullTax
+          ? []
+          : [eq(shippingNoteCharges.section, "buying" as const)]),
+      ),
+    );
+
   return rows
     .filter((rule) =>
       (!rule.effectiveFrom || rule.effectiveFrom <= now) &&
       (!rule.effectiveTo || rule.effectiveTo >= now),
     )
-    .map((rule) => ({
-      id: rule.id,
-      code: rule.code,
-      name: rule.name,
-      chargeSection: rule.chargeSection,
-      taxTreatment: rule.taxTreatment,
-      vatPercent: rule.vatPercent,
-      isActive: rule.isActive,
-    }));
+    .map((rule) => {
+      const applicableChargeIds = activeCharges
+        .filter(
+          (charge) =>
+            charge.section === rule.chargeSection &&
+            doesTaxRulePatternMatch(
+              rule.chargeNamePattern,
+              getChargeTaxRuleMatchValue(charge),
+            ),
+        )
+        .map((charge) => charge.id);
+
+      return {
+        id: rule.id,
+        code: rule.code,
+        name: rule.name,
+        chargeSection: rule.chargeSection,
+        taxTreatment: rule.taxTreatment,
+        vatPercent: rule.vatPercent,
+        isActive: rule.isActive,
+        applicableChargeIds,
+      };
+    })
+    .filter((rule) => rule.applicableChargeIds.length > 0);
 }
 
 export async function getTaxCompletenessForNoteForUser(

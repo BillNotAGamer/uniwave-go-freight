@@ -13,8 +13,7 @@ import {
   getTaxRuleDeactivateConfirmationText,
   getTaxTreatmentLabel,
 } from "./ui-policy";
-import type { ChargeTaxDetail } from "./types";
-import type { TaxRuleDetail } from "@/features/tax-rules/types";
+import type { ChargeTaxDetail, ChargeTaxRuleOption } from "./types";
 
 const taxableCharge: ChargeTaxDetail = {
   chargeId: "charge-1",
@@ -42,21 +41,15 @@ const taxableCharge: ChargeTaxDetail = {
   taxComplete: true,
 };
 
-const rule: TaxRuleDetail = {
+const rule: ChargeTaxRuleOption = {
   id: "rule-1",
   code: "SELL-VAT",
   name: "Selling VAT",
-  description: null,
-  shippingMode: "sea_export",
   chargeSection: "selling",
-  chargeNamePattern: "*",
   taxTreatment: "taxable",
   vatPercent: "10.00",
   isActive: true,
-  effectiveFrom: null,
-  effectiveTo: null,
-  createdAt: new Date("2026-01-01T00:00:00.000Z"),
-  updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+  applicableChargeIds: ["charge-1"],
 };
 
 describe("tax UI policy helpers", () => {
@@ -168,6 +161,10 @@ describe("tax UI policy helpers", () => {
       { ...rule, id: "rule-2", chargeSection: "buying" },
       { ...rule, id: "rule-3", isActive: false },
     ], "selling")).toHaveLength(1);
+    expect(filterTaxRulesForChargeSection([rule], "selling", "charge-1"))
+      .toHaveLength(1);
+    expect(filterTaxRulesForChargeSection([rule], "selling", "charge-2"))
+      .toHaveLength(0);
   });
 
   it("keeps deactivation confirmation wording historically accurate", () => {

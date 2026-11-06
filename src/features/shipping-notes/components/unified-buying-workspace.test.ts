@@ -30,7 +30,7 @@ import {
 } from "./unified-buying-workspace";
 import type { BuyingChargeDetail } from "../types";
 import type { ChargeTaxDetail } from "../tax/types";
-import type { TaxRuleDetail } from "@/features/tax-rules/types";
+import type { ChargeTaxRuleOption } from "../tax/types";
 
 const now = new Date("2026-09-01T00:00:00.000Z");
 
@@ -92,22 +92,18 @@ function makeTaxDetail(
   };
 }
 
-function makeTaxRule(overrides: Partial<TaxRuleDetail> = {}): TaxRuleDetail {
+function makeTaxRule(
+  overrides: Partial<ChargeTaxRuleOption> = {},
+): ChargeTaxRuleOption {
   return {
     id: "rule-1",
     code: "VAT8",
     name: "Standard VAT 8%",
-    description: "8% input VAT",
-    shippingMode: "sea_export",
     chargeSection: "buying",
-    chargeNamePattern: ".*",
     taxTreatment: "taxable",
     vatPercent: "8.00",
     isActive: true,
-    effectiveFrom: null,
-    effectiveTo: null,
-    createdAt: now,
-    updatedAt: now,
+    applicableChargeIds: ["chg-1"],
     ...overrides,
   };
 }

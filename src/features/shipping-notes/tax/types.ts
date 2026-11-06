@@ -8,6 +8,7 @@ export type ChargeTaxRuleOption = {
   taxTreatment: TaxTreatment;
   vatPercent: string;
   isActive: boolean;
+  applicableChargeIds: string[];
 };
 
 export type ChargeTaxSnapshot = {

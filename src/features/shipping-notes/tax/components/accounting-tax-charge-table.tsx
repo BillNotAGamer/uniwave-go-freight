@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useActionState } from "react";
+import { useState, useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
 import type {
@@ -263,11 +263,6 @@ export function AccountingTaxChargeTable({
   activeTaxRules,
   canMutateTax,
 }: AccountingTaxChargeTableProps) {
-  const sectionRules = useMemo(
-    () => filterTaxRulesForChargeSection(activeTaxRules, section),
-    [activeTaxRules, section],
-  );
-
   if (charges.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border bg-card p-4 text-sm text-muted-foreground">
@@ -312,6 +307,11 @@ export function AccountingTaxChargeTable({
             {charges.map((charge) => {
               const badges = getChargeTaxBadges(charge);
               const canOverride = canOverrideChargeTax({ role, status, charge });
+              const applicableRules = filterTaxRulesForChargeSection(
+                activeTaxRules,
+                section,
+                charge.chargeId,
+              );
 
               return (
                 <tr key={charge.chargeId} className="align-top hover:bg-muted/40">
@@ -371,7 +371,7 @@ export function AccountingTaxChargeTable({
                   {canMutateTax ? (
                     <td className="border-b border-border/60 px-3 py-2">
                       <div className="grid min-w-60 gap-2">
-                        <AssignTaxRulePanel charge={charge} rules={sectionRules} />
+                        <AssignTaxRulePanel charge={charge} rules={applicableRules} />
                         {canOverride ? <OverrideVatPanel charge={charge} /> : null}
                       </div>
                     </td>

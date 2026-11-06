@@ -150,8 +150,14 @@ export function formatTaxRuleOption(rule: ChargeTaxRuleOption): string {
 export function filterTaxRulesForChargeSection(
   rules: readonly ChargeTaxRuleOption[],
   section: ChargeSection,
+  chargeId?: string,
 ): ChargeTaxRuleOption[] {
-  return rules.filter((rule) => rule.isActive && rule.chargeSection === section);
+  return rules.filter(
+    (rule) =>
+      rule.isActive &&
+      rule.chargeSection === section &&
+      (!chargeId || rule.applicableChargeIds.includes(chargeId)),
+  );
 }
 
 export function getTaxRuleDeactivateConfirmationText(): string {

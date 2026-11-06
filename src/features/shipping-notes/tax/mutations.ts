@@ -33,6 +33,10 @@ import {
   buildTaxRuleAccountingVat,
   getPersistedChargeAccountingVat,
 } from "../accounting/vat";
+import {
+  doesTaxRulePatternMatch,
+  getChargeTaxRuleMatchValue,
+} from "./default-resolution";
 
 const TAX_MUTABLE_STATUSES = ["submitted", "accounting_reviewing"] as const;
 
@@ -276,7 +280,11 @@ export async function assignChargeTaxRule(
       rule.chargeSection !== charge.section ||
       rule.shippingMode !== charge.noteShippingMode ||
       (rule.effectiveFrom && rule.effectiveFrom > now) ||
-      (rule.effectiveTo && rule.effectiveTo < now)
+      (rule.effectiveTo && rule.effectiveTo < now) ||
+      !doesTaxRulePatternMatch(
+        rule.chargeNamePattern,
+        getChargeTaxRuleMatchValue(charge),
+      )
     ) {
       throw new AuthorizationError();
     }

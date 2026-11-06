@@ -18,6 +18,7 @@ export async function createTaxRuleFixture(input: {
   chargeSection: ChargeSection;
   taxTreatment?: TaxTreatment;
   vatPercent?: string;
+  chargeNamePattern?: string;
 }): Promise<TaxRuleDetail> {
   assertAuthorizedIntegrationDatabaseTarget();
 
@@ -28,7 +29,7 @@ export async function createTaxRuleFixture(input: {
       description: `${input.runId} tax rule fixture ${input.label}`,
       shippingMode: "sea_export",
       chargeSection: input.chargeSection,
-      chargeNamePattern: "*",
+      chargeNamePattern: input.chargeNamePattern ?? "*",
       taxTreatment: input.taxTreatment ?? "taxable",
       vatPercent: input.vatPercent ?? "10.00",
     }),

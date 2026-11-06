@@ -6,6 +6,8 @@ import { getFinancialReviewRevisionForNote } from "@/features/shipping-notes/fin
 import {
   createBuyingChargeForNote,
   createSellingChargeForNote,
+  approveShippingNote,
+  lockShippingNote,
   markShippingNoteChecked,
   startAccountingReview,
   submitShippingNote,
@@ -29,6 +31,7 @@ import {
   getTaxCompletenessForNoteForUser,
   getTaxSummaryForNoteForUser,
   listChargeTaxDetailsForNoteForUser,
+  listChargeTaxRuleOptionsForNoteForUser,
 } from "@/features/shipping-notes/tax/queries";
 import {
   createTaxRule,
@@ -262,6 +265,82 @@ describe("hosted tax domain services", () => {
     });
   });
 
+  it("offers and applies eligible 0%, 8%, and 10% rules per charge pattern", async () => {
+    const { note, charge: zeroCharge } = await createSubmittedSellingNote("RATE-ZERO");
+    const eightCharge = await createSellingChargeForNote(
+      sellingInput(note.id, "RATE-EIGHT"),
+      actors.accountant,
+    );
+    const tenCharge = await createSellingChargeForNote(
+      sellingInput(note.id, "RATE-TEN"),
+      actors.accountant,
+    );
+    const [zeroRule, eightRule, tenRule, mismatchedRule] = await Promise.all([
+      createTaxRuleFixture({
+        runId,
+        label: "RATE-0",
+        actor: actors.admin,
+        chargeSection: "selling",
+        chargeNamePattern: "*RATE-ZERO",
+        taxTreatment: "zero_rated",
+        vatPercent: "0",
+      }),
+      createTaxRuleFixture({
+        runId,
+        label: "RATE-8",
+        actor: actors.admin,
+        chargeSection: "selling",
+        chargeNamePattern: "*RATE-EIGHT",
+        vatPercent: "8",
+      }),
+      createTaxRuleFixture({
+        runId,
+        label: "RATE-10",
+        actor: actors.admin,
+        chargeSection: "selling",
+        chargeNamePattern: "*RATE-TEN",
+        vatPercent: "10",
+      }),
+      createTaxRuleFixture({
+        runId,
+        label: "RATE-X",
+        actor: actors.admin,
+        chargeSection: "selling",
+        chargeNamePattern: "NEVER-MATCH-*",
+        vatPercent: "10",
+      }),
+    ]);
+
+    const options = await listChargeTaxRuleOptionsForNoteForUser(
+      note.id,
+      actors.accountant,
+    );
+    expect(options.find((option) => option.id === zeroRule.id))
+      .toMatchObject({ vatPercent: "0.00", applicableChargeIds: [zeroCharge.id] });
+    expect(options.find((option) => option.id === eightRule.id))
+      .toMatchObject({ vatPercent: "8.00", applicableChargeIds: [eightCharge.id] });
+    expect(options.find((option) => option.id === tenRule.id))
+      .toMatchObject({ vatPercent: "10.00", applicableChargeIds: [tenCharge.id] });
+    expect(options.some((option) => option.id === mismatchedRule.id)).toBe(false);
+
+    await expect(assignChargeTaxRule({
+      chargeId: zeroCharge.id,
+      taxRuleId: mismatchedRule.id,
+    }, actors.accountant)).rejects.toBeInstanceOf(AuthorizationError);
+
+    const assigned = await Promise.all([
+      assignChargeTaxRule({ chargeId: zeroCharge.id, taxRuleId: zeroRule.id }, actors.accountant),
+      assignChargeTaxRule({ chargeId: eightCharge.id, taxRuleId: eightRule.id }, actors.accountant),
+      assignChargeTaxRule({ chargeId: tenCharge.id, taxRuleId: tenRule.id }, actors.accountant),
+    ]);
+    expect(assigned.map((charge) => charge.vatPercent)).toStrictEqual([
+      "0.00",
+      "8.00",
+      "10.00",
+    ]);
+    expect(assigned.every((charge) => charge.taxComplete)).toBe(true);
+  });
+
   it("denies assigning mismatched charge-section tax rules", async () => {
     const { charge } = await createSubmittedSellingNote("MISMATCH");
 
@@ -435,6 +514,60 @@ describe("hosted tax domain services", () => {
       note.id,
       actors.accountant,
     )).status).toBe("checked");
+  });
+
+  it("completes Accounting Reviewing through Checked, Approved, and Locked with Selling and Buying tax evidence", async () => {
+    const { note, charge: sellingCharge } = await createSubmittedSellingNote("FULL-CLOSE");
+    const buyingCharge = await createBuyingChargeForNote(
+      note.id,
+      buyingInput(note.id, "FULL-CLOSE"),
+      actors.accountant,
+    );
+    const [sellingEightRule, buyingTenRule] = await Promise.all([
+      createTaxRuleFixture({
+        runId,
+        label: "CLOSE-S8",
+        actor: actors.admin,
+        chargeSection: "selling",
+        vatPercent: "8",
+      }),
+      createTaxRuleFixture({
+        runId,
+        label: "CLOSE-B10",
+        actor: actors.admin,
+        chargeSection: "buying",
+        vatPercent: "10",
+      }),
+    ]);
+
+    await assignChargeTaxRule(
+      { chargeId: sellingCharge.id, taxRuleId: sellingEightRule.id },
+      actors.accountant,
+    );
+    await assignChargeTaxRule(
+      { chargeId: buyingCharge.id, taxRuleId: buyingTenRule.id },
+      actors.accountant,
+    );
+    expect(await getTaxCompletenessForNoteForUser(note.id, actors.accountant))
+      .toStrictEqual({ taxComplete: true, unclassifiedChargeCount: 0 });
+
+    expect((await startAccountingReview({ id: note.id }, actors.accountant)).status)
+      .toBe("accounting_reviewing");
+    expect((await markCurrentFinancialStateChecked(note.id, actors.accountant)).status)
+      .toBe("checked");
+    expect((await approveShippingNote({ id: note.id }, actors.admin)).status)
+      .toBe("approved");
+    expect((await lockShippingNote({ id: note.id }, actors.admin)).status)
+      .toBe("locked");
+
+    const auditActions = (await listAuditLogsForEntity("shipping_note", note.id))
+      .map((row) => row.action);
+    expect(auditActions).toEqual(expect.arrayContaining([
+      "shipping_note.accounting_review.start",
+      "shipping_note.accounting_review.checked",
+      "shipping_note.approve",
+      "shipping_note.lock",
+    ]));
   });
 
   it("recomputes VAT after buying charge commercial edits while preserving tax snapshots", async () => {

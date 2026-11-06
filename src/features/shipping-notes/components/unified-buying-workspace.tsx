@@ -114,14 +114,6 @@ export function UnifiedBuyingWorkspace({
     [canReadTaxSummary, taxDetails],
   );
 
-  const sectionRules = useMemo(
-    () =>
-      canReadTaxSummary
-        ? filterTaxRulesForChargeSection(activeTaxRules, "buying")
-        : [],
-    [canReadTaxSummary, activeTaxRules],
-  );
-
   if (charges.length === 0) {
     return (
       <div className="space-y-1" data-testid="unified-buying-workspace-empty">
@@ -513,7 +505,11 @@ export function UnifiedBuyingWorkspace({
                           <div className="grid min-w-60 gap-2 text-left">
                             <AssignTaxRulePanel
                               charge={taxDetail}
-                              rules={sectionRules}
+                              rules={filterTaxRulesForChargeSection(
+                                activeTaxRules,
+                                "buying",
+                                charge.id,
+                              )}
                             />
                             {canOverride ? (
                               <OverrideVatPanel charge={taxDetail} />

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { DefaultTaxRuleCandidate } from "./default-resolution";
-import { classifyChargeTaxDefault, resolveDefaultTaxRule } from "./default-resolution";
+import {
+  classifyChargeTaxDefault,
+  doesTaxRulePatternMatch,
+  getChargeTaxRuleMatchValue,
+  resolveDefaultTaxRule,
+} from "./default-resolution";
 
 const now = new Date("2026-10-20T00:00:00.000Z");
 
@@ -23,6 +28,19 @@ function rule(overrides: Partial<DefaultTaxRuleCandidate> = {}): DefaultTaxRuleC
 }
 
 describe("charge-type VAT default resolution", () => {
+  it("matches rule patterns case-insensitively against catalog codes or charge names", () => {
+    expect(doesTaxRulePatternMatch("OF-*", "of-20")).toBe(true);
+    expect(doesTaxRulePatternMatch("*FREIGHT", "Ocean Freight")).toBe(true);
+    expect(getChargeTaxRuleMatchValue({
+      catalogCodeSnapshot: " OF-20 ",
+      chargeName: "Ocean Freight",
+    })).toBe("OF-20");
+    expect(getChargeTaxRuleMatchValue({
+      catalogCodeSnapshot: null,
+      chargeName: " Ocean Freight ",
+    })).toBe("Ocean Freight");
+  });
+
   it.each(["OF", "OF-20", "AIR-FREIGHT", "AF-EXPORT"])(
     "classifies stable freight code %s for zero rating",
     (catalogCode) => {

@@ -57,12 +57,22 @@ export function classifyChargeTaxDefault(input: {
 
 export function doesTaxRulePatternMatch(pattern: string, stableCode: string): boolean {
   const normalizedPattern = pattern.trim().toUpperCase();
+  const normalizedStableCode = stableCode.trim().toUpperCase();
   if (normalizedPattern === "*") {
     return true;
   }
 
   const escaped = normalizedPattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`^${escaped.replaceAll("*", ".*")}$`, "u").test(stableCode);
+  return new RegExp(`^${escaped.replaceAll("*", ".*")}$`, "u").test(
+    normalizedStableCode,
+  );
+}
+
+export function getChargeTaxRuleMatchValue(input: {
+  catalogCodeSnapshot: string | null;
+  chargeName: string;
+}): string {
+  return input.catalogCodeSnapshot?.trim() || input.chargeName.trim();
 }
 
 function isEffective(rule: DefaultTaxRuleCandidate, at: Date): boolean {
