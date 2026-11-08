@@ -1,4 +1,9 @@
-import type { ChargeSection, TaxTreatment } from "../constants";
+import type {
+  ChargeSection,
+  InputVatInvoiceStatus,
+  TaxDecisionSource,
+  TaxTreatment,
+} from "../constants";
 
 export type ChargeTaxRuleOption = {
   id: string;
@@ -16,6 +21,13 @@ export type ChargeTaxSnapshot = {
   taxRuleCodeSnapshot: string | null;
   taxRuleNameSnapshot: string | null;
   taxTreatmentSnapshot: TaxTreatment | null;
+  taxDecisionSource: TaxDecisionSource | null;
+  taxDecisionReason: string | null;
+  taxDecisionById: string | null;
+  taxDecisionAt: Date | null;
+  inputVatInvoiceStatus: InputVatInvoiceStatus | null;
+  inputVatInvoiceReference: string | null;
+  inputVatDeductible: boolean | null;
   vatPercent: string;
   vatAmount: string;
   isOverride: boolean;
@@ -31,6 +43,7 @@ export type ChargeTaxDetail = ChargeTaxSnapshot & {
   amountVnd: string;
   lineTotalIncludingVatVnd: string;
   taxComplete: boolean;
+  incompleteReason: string | null;
   vatOverrideRate: string | null;
   serviceCatalogItemId: string | null;
   catalogCodeSnapshot: string | null;

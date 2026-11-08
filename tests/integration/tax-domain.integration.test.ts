@@ -21,10 +21,12 @@ import {
 } from "@/features/shipping-notes/validators";
 import {
   assignChargeTaxRule,
+  classifyChargeTaxManually,
   overrideChargeVatPercent,
 } from "@/features/shipping-notes/tax/mutations";
 import {
   assignChargeTaxRuleInputSchema,
+  manualChargeTaxDecisionInputSchema,
   overrideChargeVatPercentInputSchema,
 } from "@/features/shipping-notes/tax/validators";
 import {
@@ -40,7 +42,11 @@ import {
 import { listTaxRulesForUser } from "@/features/tax-rules/queries";
 import { createTaxRuleInputSchema } from "@/features/tax-rules/validators";
 
-import { createIntegrationActors, type IntegrationActors } from "./fixtures/users";
+import {
+  createIntegrationActors,
+  createIntegrationUser,
+  type IntegrationActors,
+} from "./fixtures/users";
 import { createDraftFor } from "./fixtures/shipping-notes";
 import { createTaxRuleFixture } from "./fixtures/tax-rules";
 import { listAuditLogsForEntity } from "./helpers/audit";
@@ -50,6 +56,7 @@ import { ensureDatabaseReady } from "./setup/database";
 
 const runId = createIntegrationRunId("TAX");
 let actors: IntegrationActors;
+let opsActor: User;
 let sellingTaxRuleId: string;
 let buyingTaxRuleId: string;
 let buyingZeroRuleId: string;
@@ -109,6 +116,11 @@ describe("hosted tax domain services", () => {
   beforeAll(async () => {
     await ensureDatabaseReady();
     actors = await createIntegrationActors(runId);
+    opsActor = await createIntegrationUser({
+      runId,
+      label: "ops",
+      role: "ops",
+    });
     const [sellingTaxRule, buyingTaxRule, buyingZeroRule] = await Promise.all([
       createTaxRuleFixture({
         runId,
@@ -545,7 +557,13 @@ describe("hosted tax domain services", () => {
       actors.accountant,
     );
     await assignChargeTaxRule(
-      { chargeId: buyingCharge.id, taxRuleId: buyingTenRule.id },
+      {
+        chargeId: buyingCharge.id,
+        taxRuleId: buyingTenRule.id,
+        inputVatInvoiceStatus: "available",
+        inputVatInvoiceReference: `${runId}-INV-CLOSE`,
+        inputVatDeductible: true,
+      },
       actors.accountant,
     );
     expect(await getTaxCompletenessForNoteForUser(note.id, actors.accountant))
@@ -581,6 +599,9 @@ describe("hosted tax domain services", () => {
       assignChargeTaxRuleInputSchema.parse({
         chargeId: buyingCharge.id,
         taxRuleId: buyingTaxRuleId,
+        inputVatInvoiceStatus: "available",
+        inputVatInvoiceReference: `${runId}-INV-RECOMPUTE`,
+        inputVatDeductible: true,
       }),
       actors.accountant,
     );
@@ -632,6 +653,9 @@ describe("hosted tax domain services", () => {
       assignChargeTaxRuleInputSchema.parse({
         chargeId: buyingCharge.id,
         taxRuleId: buyingZeroRuleId,
+        inputVatInvoiceStatus: "available",
+        inputVatInvoiceReference: `${runId}-INV-SUMMARY`,
+        inputVatDeductible: false,
       }),
       actors.admin,
     );
@@ -651,5 +675,242 @@ describe("hosted tax domain services", () => {
     await expect(
       getTaxSummaryForNoteForUser(note.id, actors.saleA),
     ).rejects.toBeInstanceOf(AuthorizationError);
+  });
+
+  it("persists an audited manual tax decision for an uncatalogued charge and completes the lifecycle", async () => {
+    const { note, charge: sellingCharge } = await createSubmittedSellingNote(
+      "MANUAL-CLOSE",
+    );
+    const buyingCharge = await createBuyingChargeForNote(
+      note.id,
+      createBuyingChargeInputSchema.parse({
+        ...buyingInput(note.id, "MANUAL-CLOSE"),
+        chargeName: `${runId}-MANUAL-CHARGE-NAME`,
+        description: `${runId} description deliberately differs`,
+      }),
+      actors.accountant,
+    );
+
+    await assignChargeTaxRule(
+      { chargeId: sellingCharge.id, taxRuleId: sellingTaxRuleId },
+      actors.accountant,
+    );
+    const revision = await getFinancialReviewRevisionForNote(note.id);
+    if (!revision) {
+      throw new Error("Expected a financial revision before manual classification.");
+    }
+
+    await expect(classifyChargeTaxManually(
+      manualChargeTaxDecisionInputSchema.parse({
+        chargeId: buyingCharge.id,
+        taxTreatment: "taxable",
+        vatPercent: "8",
+        reason: "Accounting reviewed the supplier invoice and charge purpose.",
+        expectedFinancialRevision: revision,
+        inputVatInvoiceStatus: "available",
+        inputVatInvoiceReference: `${runId}-MANUAL-INVOICE`,
+        inputVatDeductible: true,
+      }),
+      opsActor,
+    )).rejects.toBeInstanceOf(AuthorizationError);
+
+    const classified = await classifyChargeTaxManually(
+      manualChargeTaxDecisionInputSchema.parse({
+        chargeId: buyingCharge.id,
+        taxTreatment: "taxable",
+        vatPercent: "8",
+        reason: "Accounting reviewed the supplier invoice and charge purpose.",
+        expectedFinancialRevision: revision,
+        inputVatInvoiceStatus: "available",
+        inputVatInvoiceReference: `${runId}-MANUAL-INVOICE`,
+        inputVatDeductible: true,
+      }),
+      actors.accountant,
+    );
+
+    expect(classified).toMatchObject({
+      taxRuleId: null,
+      taxDecisionSource: "manual",
+      taxDecisionReason: "Accounting reviewed the supplier invoice and charge purpose.",
+      taxTreatmentSnapshot: "taxable",
+      vatPercent: "8.00",
+      vatAmount: "4.00",
+      inputVatInvoiceStatus: "available",
+      inputVatInvoiceReference: `${runId}-MANUAL-INVOICE`,
+      inputVatDeductible: true,
+      taxComplete: true,
+    });
+    const opsScopedDetail = (await listChargeTaxDetailsForNoteForUser(
+      note.id,
+      opsActor,
+    )).find((row) => row.chargeId === buyingCharge.id);
+    expect(opsScopedDetail).toMatchObject({
+      taxDecisionSource: "manual",
+      taxDecisionReason: null,
+      taxDecisionById: null,
+      taxDecisionAt: null,
+      inputVatInvoiceStatus: "available",
+      inputVatInvoiceReference: null,
+      inputVatDeductible: null,
+    });
+
+    await expect(classifyChargeTaxManually(
+      manualChargeTaxDecisionInputSchema.parse({
+        chargeId: buyingCharge.id,
+        taxTreatment: "taxable",
+        vatPercent: "10",
+        reason: "Stale reclassification attempt.",
+        expectedFinancialRevision: revision,
+        inputVatInvoiceStatus: "available",
+        inputVatInvoiceReference: `${runId}-MANUAL-INVOICE`,
+        inputVatDeductible: true,
+      }),
+      actors.accountant,
+    )).rejects.toThrow(/financial review changed/i);
+
+    expect(await getTaxCompletenessForNoteForUser(note.id, actors.accountant))
+      .toStrictEqual({ taxComplete: true, unclassifiedChargeCount: 0 });
+    expect((await startAccountingReview({ id: note.id }, actors.accountant)).status)
+      .toBe("accounting_reviewing");
+    expect((await markCurrentFinancialStateChecked(note.id, actors.accountant)).status)
+      .toBe("checked");
+    expect((await approveShippingNote({ id: note.id }, actors.admin)).status)
+      .toBe("approved");
+    expect((await lockShippingNote({ id: note.id }, actors.admin)).status)
+      .toBe("locked");
+
+    const reloaded = (await listChargeTaxDetailsForNoteForUser(
+      note.id,
+      actors.accountant,
+    )).find((row) => row.chargeId === buyingCharge.id);
+    expect(reloaded).toMatchObject({
+      taxDecisionSource: "manual",
+      inputVatDeductible: true,
+      taxComplete: true,
+    });
+    expect((await listAuditLogsForEntity(
+      "shipping_note_charge",
+      buyingCharge.id,
+    )).map((row) => row.action)).toContain(
+      "shipping_note_charge.tax_manual_decision",
+    );
+  });
+
+  it("keeps a buying charge with a missing invoice incomplete and records no false deduction", async () => {
+    const { note } = await createSubmittedSellingNote("MISSING-INVOICE");
+    const buyingCharge = await createBuyingChargeForNote(
+      note.id,
+      buyingInput(note.id, "MISSING-INVOICE"),
+      actors.accountant,
+    );
+    const revision = await getFinancialReviewRevisionForNote(note.id);
+    if (!revision) {
+      throw new Error("Expected a financial revision before manual classification.");
+    }
+
+    const classified = await classifyChargeTaxManually(
+      manualChargeTaxDecisionInputSchema.parse({
+        chargeId: buyingCharge.id,
+        taxTreatment: "taxable",
+        vatPercent: "10",
+        reason: "Supplier invoice has not been received.",
+        expectedFinancialRevision: revision,
+        inputVatInvoiceStatus: "missing",
+        inputVatDeductible: false,
+      }),
+      actors.admin,
+    );
+
+    expect(classified).toMatchObject({
+      inputVatInvoiceStatus: "missing",
+      inputVatInvoiceReference: null,
+      inputVatDeductible: false,
+      taxComplete: false,
+    });
+    await startAccountingReview({ id: note.id }, actors.accountant);
+    await expect(markCurrentFinancialStateChecked(note.id, actors.accountant))
+      .rejects.toThrow(/tax classification/);
+  });
+
+  it("persists manual 0%, 8%, 10%, zero-rated, and non-taxable decisions with canonical semantics", async () => {
+    const { note, charge: taxableZeroCharge } = await createSubmittedSellingNote(
+      "MANUAL-RATES-ZERO",
+    );
+    const cases = [
+      { charge: taxableZeroCharge, treatment: "taxable" as const, rate: "0", vat: "0.00" },
+      {
+        charge: await createSellingChargeForNote(
+          sellingInput(note.id, "MANUAL-RATES-EIGHT"),
+          actors.accountant,
+        ),
+        treatment: "taxable" as const,
+        rate: "8",
+        vat: "8.00",
+      },
+      {
+        charge: await createSellingChargeForNote(
+          sellingInput(note.id, "MANUAL-RATES-TEN"),
+          actors.accountant,
+        ),
+        treatment: "taxable" as const,
+        rate: "10",
+        vat: "10.00",
+      },
+      {
+        charge: await createSellingChargeForNote(
+          sellingInput(note.id, "MANUAL-ZERO-RATED"),
+          actors.accountant,
+        ),
+        treatment: "zero_rated" as const,
+        rate: "0",
+        vat: "0.00",
+      },
+      {
+        charge: await createSellingChargeForNote(
+          sellingInput(note.id, "MANUAL-NON-TAXABLE"),
+          actors.accountant,
+        ),
+        treatment: "non_taxable" as const,
+        rate: "0",
+        vat: "0.00",
+      },
+    ];
+
+    for (const item of cases) {
+      const revision = await getFinancialReviewRevisionForNote(note.id);
+      if (!revision) {
+        throw new Error("Expected a financial revision for manual rate coverage.");
+      }
+      const classified = await classifyChargeTaxManually(
+        manualChargeTaxDecisionInputSchema.parse({
+          chargeId: item.charge.id,
+          taxTreatment: item.treatment,
+          vatPercent: item.rate,
+          reason: `Accounting classified ${item.treatment} at ${item.rate}%.`,
+          expectedFinancialRevision: revision,
+        }),
+        actors.admin,
+      );
+      expect(classified).toMatchObject({
+        taxDecisionSource: "manual",
+        taxTreatmentSnapshot: item.treatment,
+        vatAmount: item.vat,
+        taxComplete: true,
+      });
+    }
+
+    const replaced = await assignChargeTaxRule(
+      {
+        chargeId: cases[2]!.charge.id,
+        taxRuleId: sellingTaxRuleId,
+      },
+      actors.accountant,
+    );
+    expect(replaced).toMatchObject({
+      taxDecisionSource: "tax_rule",
+      taxDecisionReason: null,
+      taxRuleId: sellingTaxRuleId,
+      taxComplete: true,
+    });
   });
 });

@@ -35,6 +35,8 @@ describe("financial review revision", () => {
     ["selling value", [{ id: "charge-1", section: "selling", amountVnd: "101.00" }]],
     ["buying value", [{ id: "charge-1", section: "buying", amountVnd: "100.00" }]],
     ["tax classification", [{ id: "charge-1", taxRuleId: "tax-2", vatPercent: "8.00" }]],
+    ["manual decision", [{ id: "charge-1", taxDecisionSource: "manual", taxDecisionReason: "Reviewed" }]],
+    ["invoice evidence", [{ id: "charge-1", inputVatInvoiceStatus: "available", inputVatInvoiceReference: "INV-1", inputVatDeductible: true }]],
   ])("changes when %s changes", (_label, charges) => {
     const baseline = createFinancialReviewRevision(note, [
       { id: "charge-1", section: "selling", amountVnd: "100.00", taxRuleId: "tax-1" },

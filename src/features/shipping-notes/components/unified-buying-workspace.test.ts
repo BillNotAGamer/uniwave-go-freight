@@ -9,6 +9,7 @@ vi.mock("../actions", () => ({
 }));
 vi.mock("../tax/actions", () => ({
   assignChargeTaxRuleAction: vi.fn(),
+  classifyChargeTaxManuallyAction: vi.fn(),
   overrideChargeVatPercentAction: vi.fn(),
 }));
 vi.mock("./charge-catalog-selector", () => ({
@@ -74,6 +75,13 @@ function makeTaxDetail(
     taxRuleCodeSnapshot: "VAT8",
     taxRuleNameSnapshot: "Standard VAT 8%",
     taxTreatmentSnapshot: "taxable",
+    taxDecisionSource: "tax_rule",
+    taxDecisionReason: null,
+    taxDecisionById: "accountant-1",
+    taxDecisionAt: now,
+    inputVatInvoiceStatus: "available",
+    inputVatInvoiceReference: "INV-001",
+    inputVatDeductible: true,
     vatPercent: "8.00",
     vatAmount: "407200.00",
     lineTotalIncludingVatVnd: "5497200.00",
@@ -81,6 +89,7 @@ function makeTaxDetail(
     overrideReason: null,
     vatOverrideRate: null,
     taxComplete: true,
+    incompleteReason: null,
     serviceCatalogItemId: "cat-1",
     catalogCodeSnapshot: "OF-20",
     catalogNameSnapshot: "Ocean Freight 20ft",
@@ -120,6 +129,7 @@ function renderWorkspace(
     activeTaxRules: [makeTaxRule()],
     status: "submitted",
     role: "accountant",
+    financialReviewRevision: "a".repeat(64),
     ...overrides,
   };
 

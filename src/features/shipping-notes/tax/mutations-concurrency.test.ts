@@ -8,7 +8,7 @@ describe("tax mutation concurrency contract", () => {
   const loader = source.slice(start, end);
 
   it("locks the Shipping Note before locking and reloading the charge", () => {
-    const noteLock = loader.indexOf(".select({ status: shippingNotes.status, shippingMode: shippingNotes.shippingMode })");
+    const noteLock = loader.indexOf("status: shippingNotes.status");
     const chargeLock = loader.indexOf(".select(activeChargeColumns)");
 
     expect(noteLock).toBeGreaterThan(-1);

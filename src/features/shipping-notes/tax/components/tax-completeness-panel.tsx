@@ -1,5 +1,7 @@
-import type { ShippingNoteStatus } from "../../constants";
+import type { ShippingMode, ShippingNoteStatus } from "../../constants";
+import type { ChargeTaxDetail } from "../types";
 import {
+  getRequiredAccountingAction,
   getTaxCompletenessMessage,
   getMarkCheckedDisabledReason,
 } from "../ui-policy";
@@ -10,6 +12,9 @@ type TaxCompletenessPanelProps = {
   unclassifiedSellingCount: number;
   unclassifiedBuyingCount: number;
   canMarkChecked: boolean;
+  jobsheetNo: string;
+  shippingMode: ShippingMode;
+  incompleteCharges: ChargeTaxDetail[];
 };
 
 export function TaxCompletenessPanel({
@@ -18,6 +23,9 @@ export function TaxCompletenessPanel({
   unclassifiedSellingCount,
   unclassifiedBuyingCount,
   canMarkChecked,
+  jobsheetNo,
+  shippingMode,
+  incompleteCharges,
 }: TaxCompletenessPanelProps) {
   const totalUnclassifiedCount =
     unclassifiedSellingCount + unclassifiedBuyingCount;
@@ -74,6 +82,43 @@ export function TaxCompletenessPanel({
           </div>
         </dl>
       </div>
+      {!taxComplete && incompleteCharges.length > 0 ? (
+        <div className="mt-4 overflow-x-auto rounded-md border border-amber-200 bg-white dark:border-amber-900/60 dark:bg-slate-900">
+          <table className="min-w-full text-left text-sm">
+            <thead>
+              <tr className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                <th className="border-b border-border px-3 py-2">Shipping Note</th>
+                <th className="border-b border-border px-3 py-2">Mode</th>
+                <th className="border-b border-border px-3 py-2">Section</th>
+                <th className="border-b border-border px-3 py-2">Charge</th>
+                <th className="border-b border-border px-3 py-2">Blocker</th>
+                <th className="border-b border-border px-3 py-2">Required action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {incompleteCharges.map((charge) => (
+                <tr key={charge.chargeId} className="align-top">
+                  <td className="border-b border-border/60 px-3 py-2 font-medium">{jobsheetNo}</td>
+                  <td className="border-b border-border/60 px-3 py-2">{shippingMode}</td>
+                  <td className="border-b border-border/60 px-3 py-2 capitalize">{charge.section}</td>
+                  <td className="border-b border-border/60 px-3 py-2">
+                    <div>{charge.chargeName}</div>
+                    {charge.catalogCodeSnapshot ? (
+                      <div className="text-xs text-muted-foreground">{charge.catalogCodeSnapshot}</div>
+                    ) : null}
+                  </td>
+                  <td className="border-b border-border/60 px-3 py-2 text-amber-900 dark:text-amber-300">
+                    {charge.incompleteReason ?? "Tax classification is incomplete."}
+                  </td>
+                  <td className="border-b border-border/60 px-3 py-2">
+                    {getRequiredAccountingAction(charge)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </div>
   );
 }

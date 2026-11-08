@@ -1084,11 +1084,19 @@ export async function markShippingNoteChecked(
       const checkedAt = new Date();
       const chargeTaxRows = await tx
         .select({
+          section: shippingNoteCharges.section,
           amountVnd: shippingNoteCharges.amountVnd,
           taxRuleId: shippingNoteCharges.taxRuleId,
           taxRuleCodeSnapshot: shippingNoteCharges.taxRuleCodeSnapshot,
           taxRuleNameSnapshot: shippingNoteCharges.taxRuleNameSnapshot,
           taxTreatmentSnapshot: shippingNoteCharges.taxTreatmentSnapshot,
+          taxDecisionSource: shippingNoteCharges.taxDecisionSource,
+          taxDecisionReason: shippingNoteCharges.taxDecisionReason,
+          taxDecisionById: shippingNoteCharges.taxDecisionById,
+          taxDecisionAt: shippingNoteCharges.taxDecisionAt,
+          inputVatInvoiceStatus: shippingNoteCharges.inputVatInvoiceStatus,
+          inputVatInvoiceReference: shippingNoteCharges.inputVatInvoiceReference,
+          inputVatDeductible: shippingNoteCharges.inputVatDeductible,
           vatPercent: shippingNoteCharges.vatPercent,
           vatAmount: shippingNoteCharges.vatAmount,
           isOverride: shippingNoteCharges.isOverride,
@@ -1658,6 +1666,7 @@ async function resolveChargeDefaultTaxPersistence(
     shippingMode: ShippingNoteDetail["shippingMode"];
     section: "selling" | "buying";
     amountVnd: string;
+    actorUserId: string;
   },
 ) {
   if (!input.catalog.catalogCodeSnapshot) {
@@ -1687,13 +1696,14 @@ async function resolveChargeDefaultTaxPersistence(
       ),
     );
 
+  const decisionAt = new Date();
   const rule = resolveDefaultTaxRule({
     catalogCode: input.catalog.catalogCodeSnapshot,
     catalogVatRate: input.catalog.catalogVatRateSnapshot,
     shippingMode: input.shippingMode,
     chargeSection: input.section,
     rules,
-    at: new Date(),
+    at: decisionAt,
   });
 
   if (!rule) {
@@ -1705,6 +1715,10 @@ async function resolveChargeDefaultTaxPersistence(
     taxRuleCodeSnapshot: rule.code,
     taxRuleNameSnapshot: rule.name,
     taxTreatmentSnapshot: rule.taxTreatment,
+    taxDecisionSource: "tax_rule" as const,
+    taxDecisionReason: null,
+    taxDecisionById: input.actorUserId,
+    taxDecisionAt: decisionAt,
     ...buildTaxRuleAccountingVat({
       amountVnd: input.amountVnd,
       taxTreatment: rule.taxTreatment,
@@ -1784,6 +1798,7 @@ export async function createSellingChargeForNote(
         shippingMode: note.shippingMode,
         section: "selling",
         amountVnd: amounts.amountVnd,
+        actorUserId: user.id,
       });
       const [created] = await tx
         .insert(shippingNoteCharges)
@@ -2089,6 +2104,7 @@ export async function createBuyingChargeForNote(
         shippingMode: note.shippingMode,
         section: "buying",
         amountVnd: amounts.amountVnd,
+        actorUserId: user.id,
       });
       const [created] = await tx
         .insert(shippingNoteCharges)

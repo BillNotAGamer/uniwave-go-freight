@@ -10,7 +10,10 @@ import { taxRules } from "@/lib/db/schema";
 import { summarizeFinancialCharges } from "@/lib/calculations/shipping-note";
 
 import { calculateLineTotalIncludingVat } from "./calculations";
-import { isChargeTaxComplete, summarizeTaxCompleteness } from "./completeness";
+import {
+  getChargeTaxIncompleteReason,
+  summarizeTaxCompleteness,
+} from "./completeness";
 import type { ChargeTaxDetail, ChargeTaxRuleOption, TaxCompletenessResult } from "./types";
 import type { FinancialSummary, FinancialSummaryChargeRow } from "../types";
 import { getPersistedChargeAccountingVat } from "../accounting/vat";
@@ -30,6 +33,13 @@ const chargeTaxColumns = {
   taxRuleCodeSnapshot: shippingNoteCharges.taxRuleCodeSnapshot,
   taxRuleNameSnapshot: shippingNoteCharges.taxRuleNameSnapshot,
   taxTreatmentSnapshot: shippingNoteCharges.taxTreatmentSnapshot,
+  taxDecisionSource: shippingNoteCharges.taxDecisionSource,
+  taxDecisionReason: shippingNoteCharges.taxDecisionReason,
+  taxDecisionById: shippingNoteCharges.taxDecisionById,
+  taxDecisionAt: shippingNoteCharges.taxDecisionAt,
+  inputVatInvoiceStatus: shippingNoteCharges.inputVatInvoiceStatus,
+  inputVatInvoiceReference: shippingNoteCharges.inputVatInvoiceReference,
+  inputVatDeductible: shippingNoteCharges.inputVatDeductible,
   vatPercent: shippingNoteCharges.vatPercent,
   vatAmount: shippingNoteCharges.vatAmount,
   isOverride: shippingNoteCharges.isOverride,
@@ -78,14 +88,26 @@ export async function listChargeTaxDetailsForNoteForUser(
 
   return rows.map((row) => {
     const accountingVat = getPersistedChargeAccountingVat(row);
+    const incompleteReason = getChargeTaxIncompleteReason(row);
+    const visibleRow = canReadFullTax
+      ? row
+      : {
+        ...row,
+        taxDecisionReason: null,
+        taxDecisionById: null,
+        taxDecisionAt: null,
+        inputVatInvoiceReference: null,
+        inputVatDeductible: null,
+      };
     return {
-      ...row,
+      ...visibleRow,
       ...accountingVat,
       lineTotalIncludingVatVnd: calculateLineTotalIncludingVat(
         row.amountVnd,
         row.vatAmount,
       ),
-      taxComplete: isChargeTaxComplete(row),
+      taxComplete: incompleteReason === null,
+      incompleteReason,
     };
   });
 }

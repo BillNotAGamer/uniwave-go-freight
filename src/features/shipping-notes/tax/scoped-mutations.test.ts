@@ -14,7 +14,10 @@ vi.mock("@/lib/audit/log", () => ({ logAuditEvent: mocks.logAuditEvent }));
 
 import type { User } from "@/lib/db/schema";
 import { AuthorizationError } from "@/lib/permissions/require-permission";
-import { assignChargeTaxRule } from "./mutations";
+import {
+  assignChargeTaxRule,
+  classifyChargeTaxManually,
+} from "./mutations";
 
 const now = new Date("2026-10-20T00:00:00.000Z");
 
@@ -99,4 +102,21 @@ describe("OPS scoped tax mutation boundary", () => {
     }, actor("sale"))).rejects.toBeInstanceOf(AuthorizationError);
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
+
+  it.each(["ops", "sale"] as const)(
+    "rejects %s manual Accounting decisions before opening a transaction",
+    async (role) => {
+      await expect(classifyChargeTaxManually({
+        chargeId: "buying-1",
+        taxTreatment: "taxable",
+        vatPercent: "8.00",
+        reason: "Accounting justification",
+        expectedFinancialRevision: "a".repeat(64),
+        inputVatInvoiceStatus: "available",
+        inputVatInvoiceReference: "INV-001",
+        inputVatDeductible: true,
+      }, actor(role))).rejects.toBeInstanceOf(AuthorizationError);
+      expect(mocks.transaction).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -47,7 +47,9 @@ import { listShippingNoteExportHistoryForUser } from "@/features/shipping-notes/
 import {
   canShowTaxMutationControls,
   getMarkCheckedDisabledReason,
+  getTaxCapability,
   getTaxCompletenessCounts,
+  isTaxMutableStatus,
 } from "@/features/shipping-notes/tax/ui-policy";
 import {
   canCancelFinalizedShippingNoteStatus,
@@ -254,7 +256,8 @@ export default async function ShippingNoteDetailPage({
     })
     : null;
   const financialReviewRevision =
-    canMarkChecked && note.status === "accounting_reviewing"
+    isTaxMutableStatus(note.status) &&
+      (canMarkChecked || getTaxCapability(user.role).canClassifyManually)
       ? await getFinancialReviewRevisionForNote(note.id)
       : null;
   const sellingTaxDetails = taxDetails.filter(
@@ -586,6 +589,7 @@ export default async function ShippingNoteDetailPage({
               charges={sellingTaxDetails}
               activeTaxRules={activeTaxRules}
               canMutateTax={canMutateTax}
+              financialReviewRevision={financialReviewRevision}
             />
           ) : null}
 
@@ -623,6 +627,9 @@ export default async function ShippingNoteDetailPage({
                 unclassifiedSellingCount={taxCounts.unclassifiedSellingCount}
                 unclassifiedBuyingCount={taxCounts.unclassifiedBuyingCount}
                 canMarkChecked={canMarkChecked}
+                jobsheetNo={note.jobsheetNo}
+                shippingMode={note.shippingMode}
+                incompleteCharges={taxDetails.filter((charge) => !charge.taxComplete)}
               />
             ) : null}
 
@@ -654,6 +661,7 @@ export default async function ShippingNoteDetailPage({
                 activeTaxRules={canReadBuyingChargeTax ? activeTaxRules : []}
                 status={note.status}
                 role={user.role}
+                financialReviewRevision={financialReviewRevision}
               />
             ) : null}
 

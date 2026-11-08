@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   hasActivePostSubmitEditGrant: vi.fn().mockResolvedValue(false),
   listEligibleEditGrantRecipients: vi.fn().mockResolvedValue([]),
   listShippingNoteEditGrantHistory: vi.fn().mockResolvedValue([]),
+  getFinancialReviewRevisionForNote: vi.fn().mockResolvedValue("a".repeat(64)),
 }));
 
 vi.mock("@/lib/auth/session", () => ({
@@ -68,6 +69,10 @@ vi.mock("@/features/shipping-notes/edit-grants", () => ({
   hasActivePostSubmitEditGrant: mocks.hasActivePostSubmitEditGrant,
   listEligibleEditGrantRecipients: mocks.listEligibleEditGrantRecipients,
   listShippingNoteEditGrantHistory: mocks.listShippingNoteEditGrantHistory,
+}));
+
+vi.mock("@/features/shipping-notes/financial-review-revision", () => ({
+  getFinancialReviewRevisionForNote: mocks.getFinancialReviewRevisionForNote,
 }));
 
 import ShippingNoteDetailPage from "./page";

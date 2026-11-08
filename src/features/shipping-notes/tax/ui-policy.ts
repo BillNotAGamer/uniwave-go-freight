@@ -16,6 +16,7 @@ export const TAX_TREATMENT_LABELS: Record<TaxTreatment, string> = {
 export type TaxCapability = {
   canReadTax: boolean;
   canAssignTax: boolean;
+  canClassifyManually: boolean;
   canOverrideTax: boolean;
   canManageTaxRules: boolean;
 };
@@ -30,6 +31,7 @@ export function getTaxCapability(role: Role): TaxCapability {
       hasPermission(role, PERMISSIONS.TAX_SUMMARY_READ) || hasScopedClassification,
     canAssignTax:
       hasPermission(role, PERMISSIONS.CHARGE_TAX_ASSIGN) || hasScopedClassification,
+    canClassifyManually: hasPermission(role, PERMISSIONS.CHARGE_TAX_ASSIGN),
     canOverrideTax:
       hasPermission(role, PERMISSIONS.CHARGE_TAX_OVERRIDE) || hasScopedClassification,
     canManageTaxRules: hasPermission(role, PERMISSIONS.TAX_RULES_MANAGE),
@@ -57,6 +59,12 @@ export function getTaxTreatmentLabel(
 export function getChargeTaxBadges(charge: ChargeTaxDetail): string[] {
   const badges = [getTaxTreatmentLabel(charge.taxTreatmentSnapshot)];
 
+  if (charge.taxDecisionSource === "manual") {
+    badges.push("Manual decision");
+  } else if (charge.taxRuleId) {
+    badges.push("Tax Rule");
+  }
+
   if (charge.isOverride) {
     badges.push("Override");
   }
@@ -66,6 +74,28 @@ export function getChargeTaxBadges(charge: ChargeTaxDetail): string[] {
   }
 
   return badges;
+}
+
+export function getRequiredAccountingAction(
+  charge: ChargeTaxDetail,
+): string {
+  if (charge.taxComplete) {
+    return "No action required";
+  }
+
+  if (charge.inputVatInvoiceStatus === "missing") {
+    return "Obtain and verify the input VAT invoice; no missing-invoice closure exception is configured.";
+  }
+
+  if (!charge.taxRuleId && charge.taxDecisionSource !== "manual") {
+    return "Choose an eligible Tax Rule or record an authorized manual tax decision.";
+  }
+
+  if (charge.section === "buying" && charge.inputVatDeductible === null) {
+    return "Accounting must confirm invoice evidence and input VAT deduction eligibility.";
+  }
+
+  return "Review and complete the persisted tax decision evidence.";
 }
 
 export function canOverrideChargeTax(input: {

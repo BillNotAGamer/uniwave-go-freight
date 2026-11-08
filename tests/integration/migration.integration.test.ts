@@ -200,6 +200,55 @@ describe("hosted database migration verification", () => {
     );
   });
 
+  it("has additive manual tax-decision and input VAT evidence constraints", async () => {
+    await ensureDatabaseReady();
+
+    const columns = await queryRows<{ column_name: string; is_nullable: string }>(sql`
+      select column_name, is_nullable
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'shipping_note_charges'
+        and column_name in (
+          'tax_decision_source',
+          'tax_decision_reason',
+          'tax_decision_by_id',
+          'tax_decision_at',
+          'input_vat_invoice_status',
+          'input_vat_invoice_reference',
+          'input_vat_deductible'
+        )
+    `);
+    expect(new Set(columns.map((row) => row.column_name))).toEqual(new Set([
+      "tax_decision_source",
+      "tax_decision_reason",
+      "tax_decision_by_id",
+      "tax_decision_at",
+      "input_vat_invoice_status",
+      "input_vat_invoice_reference",
+      "input_vat_deductible",
+    ]));
+    expect(columns.every((column) => column.is_nullable === "YES")).toBe(true);
+
+    const constraints = await queryRows<{ constraint_name: string }>(sql`
+      select constraint_name
+      from information_schema.table_constraints
+      where table_schema = 'public'
+        and table_name = 'shipping_note_charges'
+        and constraint_name in (
+          'shipping_note_charges_tax_decision_by_id_users_id_fk',
+          'shipping_note_charges_tax_decision_evidence_check',
+          'shipping_note_charges_input_vat_evidence_check',
+          'shipping_note_charges_input_vat_deduction_check'
+        )
+    `);
+    expect(new Set(constraints.map((row) => row.constraint_name))).toEqual(new Set([
+      "shipping_note_charges_tax_decision_by_id_users_id_fk",
+      "shipping_note_charges_tax_decision_evidence_check",
+      "shipping_note_charges_input_vat_evidence_check",
+      "shipping_note_charges_input_vat_deduction_check",
+    ]));
+  });
+
   it("has Phase 3 edit-grant constraints and selling-rate reopen metadata", async () => {
     await ensureDatabaseReady();
 

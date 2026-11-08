@@ -5,11 +5,13 @@ import { useFormStatus } from "react-dom";
 
 import type {
   ChargeSection,
+  InputVatInvoiceStatus,
   ShippingNoteStatus,
 } from "../../constants";
 import type { ChargeTaxDetail, ChargeTaxRuleOption } from "../types";
 import {
   assignChargeTaxRuleAction,
+  classifyChargeTaxManuallyAction,
   overrideChargeVatPercentAction,
   type ChargeTaxActionResult,
 } from "../actions";
@@ -18,6 +20,7 @@ import {
   canOverrideChargeTax,
   filterTaxRulesForChargeSection,
   formatTaxRuleOption,
+  getTaxCapability,
   getChargeTaxBadges,
   getTaxTreatmentLabel,
 } from "../ui-policy";
@@ -39,9 +42,10 @@ function formatNumber(value: string): string {
   return `${sign}${formattedInteger}.${formattedFraction}`;
 }
 
-function SubmitButton({ label, pendingLabel }: {
+function SubmitButton({ label, pendingLabel, disabled = false }: {
   label: string;
   pendingLabel: string;
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
 
@@ -49,10 +53,199 @@ function SubmitButton({ label, pendingLabel }: {
     <button
       className="inline-flex items-center justify-center rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
       type="submit"
-      disabled={pending}
+      disabled={pending || disabled}
     >
       {pending ? pendingLabel : label}
     </button>
+  );
+}
+
+function InputVatEvidenceFields({
+  charge,
+  canFinalize,
+}: {
+  charge: ChargeTaxDetail;
+  canFinalize: boolean;
+}) {
+  const [status, setStatus] = useState<InputVatInvoiceStatus | "">(
+    charge.inputVatInvoiceStatus ?? "",
+  );
+
+  if (charge.section !== "buying") {
+    return null;
+  }
+
+  return (
+    <fieldset className="grid gap-3 rounded-md border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+      <legend className="px-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+        Input VAT invoice evidence
+      </legend>
+      <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+        Invoice status
+        <select
+          className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+          name="inputVatInvoiceStatus"
+          value={status}
+          onChange={(event) => setStatus(event.target.value as InputVatInvoiceStatus | "")}
+          required
+        >
+          <option value="">Select status</option>
+          <option value="available">Available</option>
+          <option value="missing">Missing</option>
+        </select>
+      </label>
+      {status === "available" ? (
+        <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+          Invoice reference
+          <input
+            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+            name="inputVatInvoiceReference"
+            defaultValue={charge.inputVatInvoiceReference ?? ""}
+            maxLength={200}
+            required
+          />
+        </label>
+      ) : null}
+      {canFinalize ? (
+        <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+          Input VAT deductible
+          <select
+            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+            name="inputVatDeductible"
+            defaultValue={
+              charge.inputVatDeductible === null
+                ? ""
+                : String(charge.inputVatDeductible)
+            }
+            required
+          >
+            <option value="">Select decision</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </label>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Accounting must confirm deduction eligibility before tax review is complete.
+        </p>
+      )}
+      {status === "missing" ? (
+        <p className="text-xs text-amber-800 dark:text-amber-300">
+          A missing invoice remains incomplete because no closure exception is configured.
+        </p>
+      ) : null}
+    </fieldset>
+  );
+}
+
+export function ManualTaxDecisionPanel({
+  charge,
+  role,
+  financialReviewRevision,
+}: {
+  charge: ChargeTaxDetail;
+  role: Role;
+  financialReviewRevision: string | null;
+}) {
+  if (!getTaxCapability(role).canClassifyManually) {
+    return null;
+  }
+
+  return (
+    <ManualTaxDecisionForm
+      charge={charge}
+      financialReviewRevision={financialReviewRevision}
+    />
+  );
+}
+
+function ManualTaxDecisionForm({
+  charge,
+  financialReviewRevision,
+}: {
+  charge: ChargeTaxDetail;
+  financialReviewRevision: string | null;
+}) {
+  const [state, formAction] = useActionState(
+    classifyChargeTaxManuallyAction,
+    initialState,
+  );
+  const [treatment, setTreatment] = useState("taxable");
+
+  return (
+    <details className="rounded-md border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-900/60 dark:bg-indigo-950/30">
+      <summary className="cursor-pointer text-xs font-medium text-indigo-900 dark:text-indigo-300">
+        Record manual tax decision
+      </summary>
+      <form action={formAction} className="mt-3 grid gap-3">
+        <input type="hidden" name="chargeId" value={charge.chargeId} />
+        <input
+          type="hidden"
+          name="expectedFinancialRevision"
+          value={financialReviewRevision ?? ""}
+        />
+        <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+          Tax treatment
+          <select
+            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+            name="taxTreatment"
+            value={treatment}
+            onChange={(event) => setTreatment(event.target.value)}
+            required
+          >
+            <option value="taxable">Taxable</option>
+            <option value="zero_rated">Zero-rated</option>
+            <option value="non_taxable">Non-taxable</option>
+          </select>
+        </label>
+        <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+          VAT rate
+          <select
+            className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+            name="vatPercent"
+            defaultValue={treatment === "taxable" ? "8" : "0"}
+            key={treatment}
+            required
+          >
+            {treatment === "taxable" ? (
+              <>
+                <option value="0">0%</option>
+                <option value="5">5%</option>
+                <option value="8">8%</option>
+                <option value="10">10%</option>
+              </>
+            ) : (
+              <option value="0">0%</option>
+            )}
+          </select>
+        </label>
+        <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+          Business justification
+          <textarea
+            className="mt-1 min-h-20 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950"
+            name="reason"
+            maxLength={500}
+            required
+          />
+        </label>
+        <InputVatEvidenceFields charge={charge} canFinalize />
+        {!financialReviewRevision ? (
+          <p className="text-sm text-amber-800 dark:text-amber-300" role="alert">
+            Refresh the shipping note before recording a manual decision.
+          </p>
+        ) : null}
+        {!state.ok ? (
+          <p className="text-sm text-red-700 dark:text-red-400" role="alert">
+            {state.error}
+          </p>
+        ) : null}
+        <SubmitButton
+          label="Save manual decision"
+          pendingLabel="Saving..."
+          disabled={!financialReviewRevision}
+        />
+      </form>
+    </details>
   );
 }
 
@@ -73,9 +266,11 @@ export function Badge({ children, tone = "slate" }: {
 export function AssignTaxRulePanel({
   charge,
   rules,
+  role,
 }: {
   charge: ChargeTaxDetail;
   rules: ChargeTaxRuleOption[];
+  role: Role;
 }) {
   if (rules.length === 0) {
     return (
@@ -85,15 +280,17 @@ export function AssignTaxRulePanel({
     );
   }
 
-  return <AssignTaxRuleForm charge={charge} rules={rules} />;
+  return <AssignTaxRuleForm charge={charge} rules={rules} role={role} />;
 }
 
 function AssignTaxRuleForm({
   charge,
   rules,
+  role,
 }: {
   charge: ChargeTaxDetail;
   rules: ChargeTaxRuleOption[];
+  role: Role;
 }) {
   const [selectedRuleId, setSelectedRuleId] = useState(rules[0]?.id ?? "");
   const [state, formAction] = useActionState(
@@ -101,6 +298,7 @@ function AssignTaxRuleForm({
     initialState,
   );
   const selectedRule = rules.find((rule) => rule.id === selectedRuleId);
+  const canFinalizeInputVatEvidence = getTaxCapability(role).canClassifyManually;
   const previewVat = selectedRule
     ? calculateVatAmount({
       amountVnd: charge.amountVnd,
@@ -116,6 +314,11 @@ function AssignTaxRuleForm({
       </summary>
       <form action={formAction} className="mt-3 grid gap-3">
         <input type="hidden" name="chargeId" value={charge.chargeId} />
+
+        <InputVatEvidenceFields
+          charge={charge}
+          canFinalize={canFinalizeInputVatEvidence}
+        />
 
         <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
           Tax rule
@@ -252,6 +455,7 @@ type AccountingTaxChargeTableProps = {
   charges: ChargeTaxDetail[];
   activeTaxRules: ChargeTaxRuleOption[];
   canMutateTax: boolean;
+  financialReviewRevision: string | null;
 };
 
 export function AccountingTaxChargeTable({
@@ -262,6 +466,7 @@ export function AccountingTaxChargeTable({
   charges,
   activeTaxRules,
   canMutateTax,
+  financialReviewRevision,
 }: AccountingTaxChargeTableProps) {
   if (charges.length === 0) {
     return (
@@ -340,13 +545,22 @@ export function AccountingTaxChargeTable({
                   </td>
                   <td className="border-b border-border/60 px-3 py-2 text-slate-700 dark:text-slate-300">
                     <div className="max-w-56">
-                      <p>{charge.taxRuleCodeSnapshot ?? "Unclassified"}</p>
+                      <p>
+                        {charge.taxDecisionSource === "manual"
+                          ? "Manual Accounting decision"
+                          : charge.taxRuleCodeSnapshot ?? "Unclassified"}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {charge.taxRuleNameSnapshot ?? "-"}
                       </p>
                       {charge.overrideReason ? (
                         <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
                           Reason: {charge.overrideReason}
+                        </p>
+                      ) : null}
+                      {charge.taxDecisionReason ? (
+                        <p className="mt-1 text-xs text-indigo-800 dark:text-indigo-300">
+                          Decision reason: {charge.taxDecisionReason}
                         </p>
                       ) : null}
                     </div>
@@ -367,11 +581,21 @@ export function AccountingTaxChargeTable({
                     <Badge tone={charge.taxComplete ? "emerald" : "slate"}>
                       {charge.taxComplete ? "Complete" : "Unclassified"}
                     </Badge>
+                    {!charge.taxComplete && charge.incompleteReason ? (
+                      <p className="mt-2 max-w-60 text-xs text-amber-800 dark:text-amber-300">
+                        {charge.incompleteReason}
+                      </p>
+                    ) : null}
                   </td>
                   {canMutateTax ? (
                     <td className="border-b border-border/60 px-3 py-2">
                       <div className="grid min-w-60 gap-2">
-                        <AssignTaxRulePanel charge={charge} rules={applicableRules} />
+                        <AssignTaxRulePanel charge={charge} rules={applicableRules} role={role} />
+                        <ManualTaxDecisionPanel
+                          charge={charge}
+                          role={role}
+                          financialReviewRevision={financialReviewRevision}
+                        />
                         {canOverride ? <OverrideVatPanel charge={charge} /> : null}
                       </div>
                     </td>

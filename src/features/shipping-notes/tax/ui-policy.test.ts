@@ -25,6 +25,13 @@ const taxableCharge: ChargeTaxDetail = {
   taxRuleCodeSnapshot: "SELL-VAT",
   taxRuleNameSnapshot: "Selling VAT",
   taxTreatmentSnapshot: "taxable",
+  taxDecisionSource: "tax_rule",
+  taxDecisionReason: null,
+  taxDecisionById: "accountant-1",
+  taxDecisionAt: new Date("2026-11-09T00:00:00.000Z"),
+  inputVatInvoiceStatus: null,
+  inputVatInvoiceReference: null,
+  inputVatDeductible: null,
   vatPercent: "10.00",
   vatAmount: "10.00",
   isOverride: false,
@@ -39,6 +46,7 @@ const taxableCharge: ChargeTaxDetail = {
   effectiveAccountingVatRate: "10.00",
   lineTotalIncludingVatVnd: "110.00",
   taxComplete: true,
+  incompleteReason: null,
 };
 
 const rule: ChargeTaxRuleOption = {
@@ -57,12 +65,14 @@ describe("tax UI policy helpers", () => {
     expect(getTaxCapability("sale")).toStrictEqual({
       canReadTax: false,
       canAssignTax: false,
+      canClassifyManually: false,
       canOverrideTax: false,
       canManageTaxRules: false,
     });
     expect(getTaxCapability("accountant")).toMatchObject({
       canReadTax: true,
       canAssignTax: true,
+      canClassifyManually: true,
       canOverrideTax: true,
       canManageTaxRules: false,
     });
@@ -97,7 +107,7 @@ describe("tax UI policy helpers", () => {
       ...taxableCharge,
       isOverride: true,
       overrideReason: "Manual rate",
-    })).toStrictEqual(["Taxable", "Override"]);
+    })).toStrictEqual(["Taxable", "Tax Rule", "Override"]);
   });
 
   it("allows override only for classified taxable charges in mutable statuses", () => {

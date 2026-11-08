@@ -96,6 +96,8 @@ export async function ensureDatabaseReady(): Promise<void> {
       "tax_treatment",
       "drive_upload_status",
       "shipping_note_edit_grant_status",
+      "tax_decision_source",
+      "input_vat_invoice_status",
     ]) {
       await assertExists(
         `enum ${enumName}`,
@@ -126,6 +128,13 @@ export async function ensureDatabaseReady(): Promise<void> {
       ["shipping_note_charges", "tax_rule_code_snapshot"],
       ["shipping_note_charges", "tax_rule_name_snapshot"],
       ["shipping_note_charges", "tax_treatment_snapshot"],
+      ["shipping_note_charges", "tax_decision_source"],
+      ["shipping_note_charges", "tax_decision_reason"],
+      ["shipping_note_charges", "tax_decision_by_id"],
+      ["shipping_note_charges", "tax_decision_at"],
+      ["shipping_note_charges", "input_vat_invoice_status"],
+      ["shipping_note_charges", "input_vat_invoice_reference"],
+      ["shipping_note_charges", "input_vat_deductible"],
       ["tax_rules", "code"],
       ["tax_rules", "description"],
       ["tax_rules", "tax_treatment"],

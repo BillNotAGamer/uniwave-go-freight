@@ -17,15 +17,24 @@ import {
   requireAnyPermission,
 } from "@/lib/permissions/require-permission";
 
-import type { ShippingMode, TaxTreatment } from "../constants";
+import type {
+  InputVatInvoiceStatus,
+  ShippingMode,
+  ShippingNoteStatus,
+  TaxDecisionSource,
+  TaxTreatment,
+} from "../constants";
 import type { ChargeTaxDetail, ChargeTaxSnapshot } from "./types";
 import {
   calculateLineTotalIncludingVat,
   calculateVatAmount,
 } from "./calculations";
-import { isChargeTaxComplete } from "./completeness";
+import {
+  getChargeTaxIncompleteReason,
+} from "./completeness";
 import type {
   AssignChargeTaxRuleInput,
+  ManualChargeTaxDecisionInput,
   OverrideChargeVatPercentInput,
 } from "./validators";
 import {
@@ -37,8 +46,12 @@ import {
   doesTaxRulePatternMatch,
   getChargeTaxRuleMatchValue,
 } from "./default-resolution";
+import { deriveFinancialReviewRevision } from "../financial-review-revision";
 
 const TAX_MUTABLE_STATUSES = ["submitted", "accounting_reviewing"] as const;
+
+export const TAX_DECISION_STALE_ERROR =
+  "The financial review changed. Refresh the shipping note and review the current charges before saving this tax decision.";
 
 const chargeTaxReturnColumns = {
   chargeId: shippingNoteCharges.id,
@@ -50,6 +63,13 @@ const chargeTaxReturnColumns = {
   taxRuleCodeSnapshot: shippingNoteCharges.taxRuleCodeSnapshot,
   taxRuleNameSnapshot: shippingNoteCharges.taxRuleNameSnapshot,
   taxTreatmentSnapshot: shippingNoteCharges.taxTreatmentSnapshot,
+  taxDecisionSource: shippingNoteCharges.taxDecisionSource,
+  taxDecisionReason: shippingNoteCharges.taxDecisionReason,
+  taxDecisionById: shippingNoteCharges.taxDecisionById,
+  taxDecisionAt: shippingNoteCharges.taxDecisionAt,
+  inputVatInvoiceStatus: shippingNoteCharges.inputVatInvoiceStatus,
+  inputVatInvoiceReference: shippingNoteCharges.inputVatInvoiceReference,
+  inputVatDeductible: shippingNoteCharges.inputVatDeductible,
   vatPercent: shippingNoteCharges.vatPercent,
   vatAmount: shippingNoteCharges.vatAmount,
   isOverride: shippingNoteCharges.isOverride,
@@ -72,6 +92,13 @@ const activeChargeColumns = {
   taxRuleCodeSnapshot: shippingNoteCharges.taxRuleCodeSnapshot,
   taxRuleNameSnapshot: shippingNoteCharges.taxRuleNameSnapshot,
   taxTreatmentSnapshot: shippingNoteCharges.taxTreatmentSnapshot,
+  taxDecisionSource: shippingNoteCharges.taxDecisionSource,
+  taxDecisionReason: shippingNoteCharges.taxDecisionReason,
+  taxDecisionById: shippingNoteCharges.taxDecisionById,
+  taxDecisionAt: shippingNoteCharges.taxDecisionAt,
+  inputVatInvoiceStatus: shippingNoteCharges.inputVatInvoiceStatus,
+  inputVatInvoiceReference: shippingNoteCharges.inputVatInvoiceReference,
+  inputVatDeductible: shippingNoteCharges.inputVatDeductible,
   vatPercent: shippingNoteCharges.vatPercent,
   vatAmount: shippingNoteCharges.vatAmount,
   isOverride: shippingNoteCharges.isOverride,
@@ -94,6 +121,13 @@ type JoinedCharge = {
   taxRuleCodeSnapshot: string | null;
   taxRuleNameSnapshot: string | null;
   taxTreatmentSnapshot: TaxTreatment | null;
+  taxDecisionSource: TaxDecisionSource | null;
+  taxDecisionReason: string | null;
+  taxDecisionById: string | null;
+  taxDecisionAt: Date | null;
+  inputVatInvoiceStatus: InputVatInvoiceStatus | null;
+  inputVatInvoiceReference: string | null;
+  inputVatDeductible: boolean | null;
   vatPercent: string;
   vatAmount: string;
   isOverride: boolean;
@@ -106,6 +140,8 @@ type JoinedCharge = {
   catalogVatRateSnapshot: string | null;
   noteStatus: string;
   noteShippingMode: ShippingMode;
+  noteExchangeRate: string;
+  noteUpdatedAt: Date;
 };
 
 type TaxMutationTransaction = Parameters<
@@ -122,6 +158,13 @@ type ChargeTaxReturnRow = {
   taxRuleCodeSnapshot: string | null;
   taxRuleNameSnapshot: string | null;
   taxTreatmentSnapshot: TaxTreatment | null;
+  taxDecisionSource: TaxDecisionSource | null;
+  taxDecisionReason: string | null;
+  taxDecisionById: string | null;
+  taxDecisionAt: Date | null;
+  inputVatInvoiceStatus: InputVatInvoiceStatus | null;
+  inputVatInvoiceReference: string | null;
+  inputVatDeductible: boolean | null;
   vatPercent: string;
   vatAmount: string;
   isOverride: boolean;
@@ -152,6 +195,13 @@ function toAuditTaxSnapshot(charge: JoinedCharge): ChargeTaxSnapshot {
     taxRuleCodeSnapshot: charge.taxRuleCodeSnapshot,
     taxRuleNameSnapshot: charge.taxRuleNameSnapshot,
     taxTreatmentSnapshot: charge.taxTreatmentSnapshot,
+    taxDecisionSource: charge.taxDecisionSource,
+    taxDecisionReason: charge.taxDecisionReason,
+    taxDecisionById: charge.taxDecisionById,
+    taxDecisionAt: charge.taxDecisionAt,
+    inputVatInvoiceStatus: charge.inputVatInvoiceStatus,
+    inputVatInvoiceReference: charge.inputVatInvoiceReference,
+    inputVatDeductible: charge.inputVatDeductible,
     vatPercent: charge.vatPercent,
     vatAmount: charge.vatAmount,
     isOverride: charge.isOverride,
@@ -162,6 +212,7 @@ function toAuditTaxSnapshot(charge: JoinedCharge): ChargeTaxSnapshot {
 
 function toChargeTaxDetail(row: ChargeTaxReturnRow): ChargeTaxDetail {
   const accountingVat = getPersistedChargeAccountingVat(row);
+  const incompleteReason = getChargeTaxIncompleteReason(row);
   return {
     ...row,
     ...accountingVat,
@@ -169,7 +220,8 @@ function toChargeTaxDetail(row: ChargeTaxReturnRow): ChargeTaxDetail {
       row.amountVnd,
       row.vatAmount,
     ),
-    taxComplete: isChargeTaxComplete(row),
+    taxComplete: incompleteReason === null,
+    incompleteReason,
   };
 }
 
@@ -193,7 +245,12 @@ async function loadActiveChargeForTax(
   }
 
   const [note] = await tx
-    .select({ status: shippingNotes.status, shippingMode: shippingNotes.shippingMode })
+    .select({
+      status: shippingNotes.status,
+      shippingMode: shippingNotes.shippingMode,
+      exchangeRate: shippingNotes.exchangeRate,
+      updatedAt: shippingNotes.updatedAt,
+    })
     .from(shippingNotes)
     .where(
       and(
@@ -229,6 +286,8 @@ async function loadActiveChargeForTax(
     ...charge,
     noteStatus: note.status,
     noteShippingMode: note.shippingMode,
+    noteExchangeRate: note.exchangeRate,
+    noteUpdatedAt: note.updatedAt,
   } as JoinedCharge;
 }
 
@@ -240,6 +299,101 @@ function assertScopedTaxMutationAccess(charge: JoinedCharge, user: DbUser): void
   ) {
     throw new AuthorizationError();
   }
+}
+
+type InputVatEvidenceInput = {
+  inputVatInvoiceStatus?: InputVatInvoiceStatus | null;
+  inputVatInvoiceReference?: string | null;
+  inputVatDeductible?: boolean | null;
+};
+
+function buildInputVatEvidence(input: {
+  charge: JoinedCharge;
+  evidence: InputVatEvidenceInput;
+  user: DbUser;
+  taxTreatment: TaxTreatment;
+  vatPercent: string;
+}) {
+  const status = input.evidence.inputVatInvoiceStatus ?? null;
+  const deductible = input.evidence.inputVatDeductible ?? null;
+  const reference = input.evidence.inputVatInvoiceReference?.trim() || null;
+
+  if (input.charge.section === "selling") {
+    if (
+      status !== null ||
+      reference !== null ||
+      deductible !== null
+    ) {
+      throw new AuthorizationError();
+    }
+
+    return {
+      inputVatInvoiceStatus: null,
+      inputVatInvoiceReference: null,
+      inputVatDeductible: null,
+    } as const;
+  }
+
+  const canFinalizeEvidence = hasPermission(
+    input.user.role,
+    PERMISSIONS.CHARGE_TAX_ASSIGN,
+  );
+  if (status === null) {
+    if (reference || deductible !== null) {
+      throw new Error("Input VAT invoice status is required for the supplied evidence.");
+    }
+
+    return {
+      inputVatInvoiceStatus: null,
+      inputVatInvoiceReference: null,
+      inputVatDeductible: null,
+    } as const;
+  }
+
+  if (status === "missing") {
+    if (reference || deductible === true) {
+      throw new Error("A missing input VAT invoice cannot have a reference or deductible VAT.");
+    }
+
+    return {
+      inputVatInvoiceStatus: "missing" as const,
+      inputVatInvoiceReference: null,
+      inputVatDeductible: false,
+    };
+  }
+
+  if (!reference) {
+    throw new Error("Input VAT invoice reference is required when an invoice is available.");
+  }
+
+  if (!canFinalizeEvidence) {
+    if (deductible !== null) {
+      throw new AuthorizationError();
+    }
+
+    return {
+      inputVatInvoiceStatus: "available" as const,
+      inputVatInvoiceReference: reference,
+      inputVatDeductible: null,
+    };
+  }
+
+  if (deductible === null) {
+    throw new Error("Accounting must explicitly confirm input VAT deduction eligibility.");
+  }
+
+  if (
+    deductible &&
+    (input.taxTreatment !== "taxable" || Number(input.vatPercent) <= 0)
+  ) {
+    throw new Error("Input VAT is deductible only for a positive taxable VAT amount with invoice evidence.");
+  }
+
+  return {
+    inputVatInvoiceStatus: "available" as const,
+    inputVatInvoiceReference: reference,
+    inputVatDeductible: deductible,
+  };
 }
 
 export async function assignChargeTaxRule(
@@ -294,6 +448,14 @@ export async function assignChargeTaxRule(
       taxTreatment: rule.taxTreatment,
       taxRuleVatRate: rule.vatPercent,
     });
+    const decisionAt = new Date();
+    const inputVatEvidence = buildInputVatEvidence({
+      charge,
+      evidence: input,
+      user,
+      taxTreatment: rule.taxTreatment,
+      vatPercent: accountingVat.vatPercent,
+    });
 
     const [updated] = await tx
       .update(shippingNoteCharges)
@@ -302,6 +464,11 @@ export async function assignChargeTaxRule(
         taxRuleCodeSnapshot: rule.code,
         taxRuleNameSnapshot: rule.name,
         taxTreatmentSnapshot: rule.taxTreatment,
+        taxDecisionSource: "tax_rule",
+        taxDecisionReason: null,
+        taxDecisionById: user.id,
+        taxDecisionAt: decisionAt,
+        ...inputVatEvidence,
         ...accountingVat,
       })
       .where(eq(shippingNoteCharges.id, charge.id))
@@ -322,12 +489,113 @@ export async function assignChargeTaxRule(
         taxRuleCodeSnapshot: updated.taxRuleCodeSnapshot,
         taxRuleNameSnapshot: updated.taxRuleNameSnapshot,
         taxTreatmentSnapshot: updated.taxTreatmentSnapshot,
+        taxDecisionSource: updated.taxDecisionSource,
+        taxDecisionReason: updated.taxDecisionReason,
+        taxDecisionById: updated.taxDecisionById,
+        taxDecisionAt: updated.taxDecisionAt,
+        inputVatInvoiceStatus: updated.inputVatInvoiceStatus,
+        inputVatInvoiceReference: updated.inputVatInvoiceReference,
+        inputVatDeductible: updated.inputVatDeductible,
         vatPercent: updated.vatPercent,
         vatAmount: updated.vatAmount,
         isOverride: updated.isOverride,
         overrideReason: updated.overrideReason,
         vatOverrideRate: updated.vatOverrideRate,
       },
+    });
+
+    return toChargeTaxDetail(updated);
+  });
+}
+
+export async function classifyChargeTaxManually(
+  input: ManualChargeTaxDecisionInput,
+  user: DbUser,
+): Promise<ChargeTaxDetail> {
+  requireActiveActor(user);
+  requireAnyPermission(user.role, [PERMISSIONS.CHARGE_TAX_ASSIGN]);
+
+  return db.transaction(async (tx) => {
+    const charge = await loadActiveChargeForTax(tx, input.chargeId);
+    assertTaxMutableStatus(charge.noteStatus);
+
+    const currentFinancialRevision = await deriveFinancialReviewRevision(tx, {
+      id: charge.shippingNoteId,
+      status: charge.noteStatus as ShippingNoteStatus,
+      shippingMode: charge.noteShippingMode,
+      exchangeRate: charge.noteExchangeRate,
+      updatedAt: charge.noteUpdatedAt,
+    });
+    if (currentFinancialRevision !== input.expectedFinancialRevision) {
+      throw new Error(TAX_DECISION_STALE_ERROR);
+    }
+
+    const accountingVat = buildTaxRuleAccountingVat({
+      amountVnd: charge.amountVnd,
+      taxTreatment: input.taxTreatment,
+      taxRuleVatRate: input.vatPercent,
+    });
+    const inputVatEvidence = buildInputVatEvidence({
+      charge,
+      evidence: input,
+      user,
+      taxTreatment: input.taxTreatment,
+      vatPercent: accountingVat.vatPercent,
+    });
+    const decisionAt = new Date();
+
+    const [updated] = await tx
+      .update(shippingNoteCharges)
+      .set({
+        taxRuleId: null,
+        taxRuleCodeSnapshot: null,
+        taxRuleNameSnapshot: null,
+        taxTreatmentSnapshot: input.taxTreatment,
+        taxDecisionSource: "manual",
+        taxDecisionReason: input.reason,
+        taxDecisionById: user.id,
+        taxDecisionAt: decisionAt,
+        ...inputVatEvidence,
+        ...accountingVat,
+      })
+      .where(
+        and(
+          eq(shippingNoteCharges.id, charge.id),
+          eq(shippingNoteCharges.shippingNoteId, charge.shippingNoteId),
+          isNull(shippingNoteCharges.deletedAt),
+        ),
+      )
+      .returning(chargeTaxReturnColumns);
+
+    if (!updated) {
+      throw new Error("Failed to save the manual tax decision.");
+    }
+
+    await logAuditEvent(tx, {
+      actorUserId: user.id,
+      action: "shipping_note_charge.tax_manual_decision",
+      entityType: "shipping_note_charge",
+      entityId: updated.chargeId,
+      before: toAuditTaxSnapshot(charge),
+      after: {
+        taxRuleId: updated.taxRuleId,
+        taxRuleCodeSnapshot: updated.taxRuleCodeSnapshot,
+        taxRuleNameSnapshot: updated.taxRuleNameSnapshot,
+        taxTreatmentSnapshot: updated.taxTreatmentSnapshot,
+        taxDecisionSource: updated.taxDecisionSource,
+        taxDecisionReason: updated.taxDecisionReason,
+        taxDecisionById: updated.taxDecisionById,
+        taxDecisionAt: updated.taxDecisionAt,
+        inputVatInvoiceStatus: updated.inputVatInvoiceStatus,
+        inputVatInvoiceReference: updated.inputVatInvoiceReference,
+        inputVatDeductible: updated.inputVatDeductible,
+        vatPercent: updated.vatPercent,
+        vatAmount: updated.vatAmount,
+        isOverride: updated.isOverride,
+        overrideReason: updated.overrideReason,
+        vatOverrideRate: updated.vatOverrideRate,
+      },
+      reason: input.reason,
     });
 
     return toChargeTaxDetail(updated);

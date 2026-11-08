@@ -103,6 +103,15 @@ export const TAX_TREATMENTS = [
 
 export type TaxTreatment = (typeof TAX_TREATMENTS)[number];
 
+export const TAX_DECISION_SOURCES = ["tax_rule", "manual"] as const;
+
+export type TaxDecisionSource = (typeof TAX_DECISION_SOURCES)[number];
+
+export const INPUT_VAT_INVOICE_STATUSES = ["available", "missing"] as const;
+
+export type InputVatInvoiceStatus =
+  (typeof INPUT_VAT_INVOICE_STATUSES)[number];
+
 export const CHARGE_SECTIONS = ["selling", "buying"] as const;
 
 export type ChargeSection = (typeof CHARGE_SECTIONS)[number];

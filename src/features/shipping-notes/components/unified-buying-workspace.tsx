@@ -18,6 +18,7 @@ import {
 import {
   AssignTaxRulePanel,
   Badge,
+  ManualTaxDecisionPanel,
   OverrideVatPanel,
 } from "../tax/components/accounting-tax-charge-table";
 import {
@@ -93,6 +94,7 @@ export type UnifiedBuyingWorkspaceProps = {
   activeTaxRules: ChargeTaxRuleOption[];
   status: ShippingNoteStatus;
   role: Role;
+  financialReviewRevision: string | null;
   initialEditingId?: string | null;
 };
 
@@ -105,6 +107,7 @@ export function UnifiedBuyingWorkspace({
   activeTaxRules,
   status,
   role,
+  financialReviewRevision,
   initialEditingId = null,
 }: UnifiedBuyingWorkspaceProps) {
   const [editingId, setEditingId] = useState<string | null>(initialEditingId);
@@ -403,7 +406,18 @@ export function UnifiedBuyingWorkspace({
                                   : "Unclassified"}
                               </Badge>
                             </div>
-                            {taxDetail.taxRuleCodeSnapshot ? (
+                            {taxDetail.taxDecisionSource === "manual" ? (
+                              <div>
+                                <div className="font-medium text-foreground">
+                                  Manual Accounting decision
+                                </div>
+                                {taxDetail.taxDecisionReason ? (
+                                  <div className="text-xs text-muted-foreground">
+                                    {taxDetail.taxDecisionReason}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : taxDetail.taxRuleCodeSnapshot ? (
                               <div>
                                 <div className="flex items-center gap-1 font-medium text-foreground">
                                   <span>{taxDetail.taxRuleCodeSnapshot}</span>
@@ -427,6 +441,11 @@ export function UnifiedBuyingWorkspace({
                             {taxDetail.overrideReason ? (
                               <p className="text-xs text-amber-800 dark:text-amber-300">
                                 Reason: {taxDetail.overrideReason}
+                              </p>
+                            ) : null}
+                            {!taxDetail.taxComplete && taxDetail.incompleteReason ? (
+                              <p className="text-xs text-amber-800 dark:text-amber-300">
+                                {taxDetail.incompleteReason}
                               </p>
                             ) : null}
                           </div>
@@ -505,11 +524,17 @@ export function UnifiedBuyingWorkspace({
                           <div className="grid min-w-60 gap-2 text-left">
                             <AssignTaxRulePanel
                               charge={taxDetail}
+                              role={role}
                               rules={filterTaxRulesForChargeSection(
                                 activeTaxRules,
                                 "buying",
                                 charge.id,
                               )}
+                            />
+                            <ManualTaxDecisionPanel
+                              charge={taxDetail}
+                              role={role}
+                              financialReviewRevision={financialReviewRevision}
                             />
                             {canOverride ? (
                               <OverrideVatPanel charge={taxDetail} />

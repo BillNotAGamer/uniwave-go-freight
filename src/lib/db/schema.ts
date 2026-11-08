@@ -71,6 +71,16 @@ export const taxTreatmentEnum = pgEnum("tax_treatment", [
   "non_taxable",
 ]);
 
+export const taxDecisionSourceEnum = pgEnum("tax_decision_source", [
+  "tax_rule",
+  "manual",
+]);
+
+export const inputVatInvoiceStatusEnum = pgEnum(
+  "input_vat_invoice_status",
+  ["available", "missing"],
+);
+
 export const currencyCodeEnum = pgEnum("currency_code", ["VND", "USD", "EUR"]);
 
 export const shippingNoteEditGrantStatusEnum = pgEnum(
@@ -396,6 +406,20 @@ export const shippingNoteCharges = pgTable(
     taxRuleCodeSnapshot: text("tax_rule_code_snapshot"),
     taxRuleNameSnapshot: text("tax_rule_name_snapshot"),
     taxTreatmentSnapshot: taxTreatmentEnum("tax_treatment_snapshot"),
+    taxDecisionSource: taxDecisionSourceEnum("tax_decision_source"),
+    taxDecisionReason: text("tax_decision_reason"),
+    taxDecisionById: text("tax_decision_by_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    taxDecisionAt: timestamp("tax_decision_at", {
+      mode: "date",
+      precision: 3,
+    }),
+    inputVatInvoiceStatus: inputVatInvoiceStatusEnum(
+      "input_vat_invoice_status",
+    ),
+    inputVatInvoiceReference: text("input_vat_invoice_reference"),
+    inputVatDeductible: boolean("input_vat_deductible"),
     serviceCatalogItemId: text("service_catalog_item_id").references(
       () => serviceCatalogItems.id,
       { onDelete: "set null" },
@@ -438,6 +462,18 @@ export const shippingNoteCharges = pgTable(
     check(
       "shipping_note_charges_vat_override_rate_check",
       sql`${table.vatOverrideRate} is null or ${table.vatOverrideRate} in (0, 5, 8, 10)`,
+    ),
+    check(
+      "shipping_note_charges_tax_decision_evidence_check",
+      sql`${table.taxDecisionSource} is null or (${table.taxDecisionSource} = 'tax_rule' and ${table.taxRuleId} is not null and ${table.taxRuleCodeSnapshot} is not null and ${table.taxRuleNameSnapshot} is not null and ${table.taxTreatmentSnapshot} is not null and ${table.taxDecisionReason} is null and ${table.taxDecisionById} is not null and ${table.taxDecisionAt} is not null) or (${table.taxDecisionSource} = 'manual' and ${table.taxRuleId} is null and ${table.taxRuleCodeSnapshot} is null and ${table.taxRuleNameSnapshot} is null and ${table.taxTreatmentSnapshot} is not null and length(trim(${table.taxDecisionReason})) > 0 and ${table.taxDecisionById} is not null and ${table.taxDecisionAt} is not null and ${table.isOverride} = false and ${table.vatOverrideRate} is null)`,
+    ),
+    check(
+      "shipping_note_charges_input_vat_evidence_check",
+      sql`(${table.section} = 'selling' and ${table.inputVatInvoiceStatus} is null and ${table.inputVatInvoiceReference} is null and ${table.inputVatDeductible} is null) or (${table.section} = 'buying' and ((${table.inputVatInvoiceStatus} is null and ${table.inputVatInvoiceReference} is null and ${table.inputVatDeductible} is null) or (${table.inputVatInvoiceStatus} = 'missing' and ${table.inputVatInvoiceReference} is null and ${table.inputVatDeductible} = false) or (${table.inputVatInvoiceStatus} = 'available' and length(trim(${table.inputVatInvoiceReference})) > 0 and ${table.inputVatDeductible} is not null)))`,
+    ),
+    check(
+      "shipping_note_charges_input_vat_deduction_check",
+      sql`${table.inputVatDeductible} is distinct from true or (${table.inputVatInvoiceStatus} = 'available' and ${table.taxTreatmentSnapshot} = 'taxable' and ${table.vatPercent} > 0)`,
     ),
   ],
 );

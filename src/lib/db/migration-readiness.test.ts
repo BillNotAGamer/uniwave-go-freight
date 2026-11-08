@@ -11,7 +11,7 @@ function readMigration(name: string): string {
 }
 
 describe("static migration readiness", () => {
-  it("has migration files through 0020", () => {
+  it("has migration files through 0021", () => {
     expect(readdirSync(drizzleDir).filter((file) => file.endsWith(".sql"))).toEqual([
       "0000_new_nick_fury.sql",
       "0001_dazzling_saracen.sql",
@@ -34,10 +34,11 @@ describe("static migration readiness", () => {
       "0018_lethal_living_mummy.sql",
       "0019_add_eur_currency.sql",
       "0020_phase3_edit_grants_selling_reopen.sql",
+      "0021_manual_tax_decisions.sql",
     ]);
   });
 
-  it("has journal entries through 0020 in order", () => {
+  it("has journal entries through 0021 in order", () => {
     const journal = JSON.parse(
       readFileSync(path.join(drizzleDir, "meta", "_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
@@ -64,7 +65,38 @@ describe("static migration readiness", () => {
       "18:0018_lethal_living_mummy",
       "19:0019_add_eur_currency",
       "20:0020_phase3_edit_grants_selling_reopen",
+      "21:0021_manual_tax_decisions",
     ]);
+  });
+
+  it("0021 additively records manual tax decisions and input VAT evidence", () => {
+    const migration = readMigration("0021_manual_tax_decisions.sql");
+
+    expect(migration).not.toContain("DROP ");
+    expect(migration).not.toContain("TRUNCATE ");
+    expect(migration).not.toContain("DELETE FROM");
+    expect(migration).toContain(
+      "CREATE TYPE \"public\".\"tax_decision_source\" AS ENUM('tax_rule', 'manual')",
+    );
+    expect(migration).toContain(
+      "CREATE TYPE \"public\".\"input_vat_invoice_status\" AS ENUM('available', 'missing')",
+    );
+    for (const column of [
+      "tax_decision_source",
+      "tax_decision_reason",
+      "tax_decision_by_id",
+      "tax_decision_at",
+      "input_vat_invoice_status",
+      "input_vat_invoice_reference",
+      "input_vat_deductible",
+    ]) {
+      expect(migration).toContain(
+        `ALTER TABLE \"shipping_note_charges\" ADD COLUMN \"${column}\"`,
+      );
+    }
+    expect(migration).toContain("shipping_note_charges_tax_decision_evidence_check");
+    expect(migration).toContain("shipping_note_charges_input_vat_evidence_check");
+    expect(migration).toContain("shipping_note_charges_input_vat_deduction_check");
   });
 
   it("0016 removes only retired Location eligibility metadata", () => {

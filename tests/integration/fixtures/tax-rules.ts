@@ -73,6 +73,13 @@ export async function classifyNoteCharges(input: {
       assignChargeTaxRuleInputSchema.parse({
         chargeId: charge.id,
         taxRuleId,
+        ...(charge.section === "buying"
+          ? {
+            inputVatInvoiceStatus: "available" as const,
+            inputVatInvoiceReference: `${charge.id}-INVOICE`,
+            inputVatDeductible: false,
+          }
+          : {}),
       }),
       input.actor,
     );

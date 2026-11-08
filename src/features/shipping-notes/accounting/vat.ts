@@ -45,6 +45,7 @@ export function getEffectiveAccountingVatRate(input: {
 
 export function getPersistedChargeAccountingVat(input: {
   taxRuleId: string | null;
+  taxDecisionSource?: "tax_rule" | "manual" | null;
   vatPercent: string | number;
   vatOverrideRate: string | number | null;
   isOverride: boolean;
@@ -52,7 +53,7 @@ export function getPersistedChargeAccountingVat(input: {
   accountingBaselineVatRate: string | null;
   effectiveAccountingVatRate: string | null;
 } {
-  if (!input.taxRuleId) {
+  if (!input.taxRuleId && input.taxDecisionSource !== "manual") {
     return {
       accountingBaselineVatRate: null,
       effectiveAccountingVatRate: null,
