@@ -11,7 +11,7 @@ function readMigration(name: string): string {
 }
 
 describe("static migration readiness", () => {
-  it("has migration files through 0021", () => {
+  it("has migration files through 0022", () => {
     expect(readdirSync(drizzleDir).filter((file) => file.endsWith(".sql"))).toEqual([
       "0000_new_nick_fury.sql",
       "0001_dazzling_saracen.sql",
@@ -35,10 +35,11 @@ describe("static migration readiness", () => {
       "0019_add_eur_currency.sql",
       "0020_phase3_edit_grants_selling_reopen.sql",
       "0021_manual_tax_decisions.sql",
+      "0022_missing_invoice_closure_exception.sql",
     ]);
   });
 
-  it("has journal entries through 0021 in order", () => {
+  it("has journal entries through 0022 in order", () => {
     const journal = JSON.parse(
       readFileSync(path.join(drizzleDir, "meta", "_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
@@ -66,6 +67,7 @@ describe("static migration readiness", () => {
       "19:0019_add_eur_currency",
       "20:0020_phase3_edit_grants_selling_reopen",
       "21:0021_manual_tax_decisions",
+      "22:0022_missing_invoice_closure_exception",
     ]);
   });
 
@@ -97,6 +99,27 @@ describe("static migration readiness", () => {
     expect(migration).toContain("shipping_note_charges_tax_decision_evidence_check");
     expect(migration).toContain("shipping_note_charges_input_vat_evidence_check");
     expect(migration).toContain("shipping_note_charges_input_vat_deduction_check");
+  });
+
+  it("0022 additively records missing-invoice closure exception evidence", () => {
+    const migration = readMigration(
+      "0022_missing_invoice_closure_exception.sql",
+    );
+
+    expect(migration).not.toMatch(
+      /(?:^|\n)(?:DROP|TRUNCATE|DELETE|UPDATE|INSERT)\s/im,
+    );
+    for (const expected of [
+      'CREATE TYPE "public"."missing_invoice_exception_status"',
+      'CREATE TABLE "shipping_note_missing_invoice_exceptions"',
+      '"missing_invoice_exceptions_active_charge_uidx"',
+      '"missing_invoice_exceptions_request_evidence_check"',
+      '"missing_invoice_exceptions_lifecycle_check"',
+      '"shipping_note_missing_invoice_exceptions_shipping_note_id_shipping_notes_id_fk"',
+      '"shipping_note_missing_invoice_exceptions_buying_charge_id_shipping_note_charges_id_fk"',
+    ]) {
+      expect(migration).toContain(expected);
+    }
   });
 
   it("0016 removes only retired Location eligibility metadata", () => {

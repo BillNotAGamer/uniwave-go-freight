@@ -11,9 +11,17 @@ import {
   overrideChargeVatPercent,
 } from "./mutations";
 import {
+  decideMissingInvoiceException,
+  requestMissingInvoiceException,
+  revokeMissingInvoiceException,
+} from "./missing-invoice-exceptions";
+import {
   assignChargeTaxRuleInputSchema,
+  decideMissingInvoiceExceptionInputSchema,
   manualChargeTaxDecisionInputSchema,
   overrideChargeVatPercentInputSchema,
+  requestMissingInvoiceExceptionInputSchema,
+  revokeMissingInvoiceExceptionInputSchema,
 } from "./validators";
 
 export type ChargeTaxActionResult =
@@ -133,6 +141,100 @@ export async function overrideChargeVatPercentAction(
   try {
     const updated = await overrideChargeVatPercent(parsed.data, user);
     revalidatePath(`/shipping-notes/${updated.shippingNoteId}`);
+  } catch (error) {
+    return { ok: false, error: parseActionError(error) };
+  }
+
+  return { ok: true };
+}
+
+export async function requestMissingInvoiceExceptionAction(
+  _state: ChargeTaxActionResult,
+  formData: FormData,
+): Promise<ChargeTaxActionResult> {
+  const { user } = await requireAuthenticatedUser();
+  const parsed = requestMissingInvoiceExceptionInputSchema.safeParse({
+    chargeId: readFormString(formData, "chargeId"),
+    reason: readFormString(formData, "reason"),
+    expectedFinancialRevision: readFormString(
+      formData,
+      "expectedFinancialRevision",
+    ),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid exception request.",
+    };
+  }
+
+  try {
+    const exception = await requestMissingInvoiceException(parsed.data, user);
+    revalidatePath(`/shipping-notes/${exception.shippingNoteId}`);
+  } catch (error) {
+    return { ok: false, error: parseActionError(error) };
+  }
+
+  return { ok: true };
+}
+
+export async function decideMissingInvoiceExceptionAction(
+  _state: ChargeTaxActionResult,
+  formData: FormData,
+): Promise<ChargeTaxActionResult> {
+  const { user } = await requireAuthenticatedUser();
+  const parsed = decideMissingInvoiceExceptionInputSchema.safeParse({
+    exceptionId: readFormString(formData, "exceptionId"),
+    decision: readFormString(formData, "decision"),
+    reason: readFormString(formData, "reason"),
+    expectedFinancialRevision: readFormString(
+      formData,
+      "expectedFinancialRevision",
+    ),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid exception decision.",
+    };
+  }
+
+  try {
+    const exception = await decideMissingInvoiceException(parsed.data, user);
+    revalidatePath(`/shipping-notes/${exception.shippingNoteId}`);
+  } catch (error) {
+    return { ok: false, error: parseActionError(error) };
+  }
+
+  return { ok: true };
+}
+
+export async function revokeMissingInvoiceExceptionAction(
+  _state: ChargeTaxActionResult,
+  formData: FormData,
+): Promise<ChargeTaxActionResult> {
+  const { user } = await requireAuthenticatedUser();
+  const parsed = revokeMissingInvoiceExceptionInputSchema.safeParse({
+    exceptionId: readFormString(formData, "exceptionId"),
+    reason: readFormString(formData, "reason"),
+    expectedFinancialRevision: readFormString(
+      formData,
+      "expectedFinancialRevision",
+    ),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid exception revocation.",
+    };
+  }
+
+  try {
+    const exception = await revokeMissingInvoiceException(parsed.data, user);
+    revalidatePath(`/shipping-notes/${exception.shippingNoteId}`);
   } catch (error) {
     return { ok: false, error: parseActionError(error) };
   }

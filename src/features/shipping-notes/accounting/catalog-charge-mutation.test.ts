@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   getShippingNoteById: vi.fn(),
   logAuditEvent: vi.fn(),
+  invalidateMissingInvoiceExceptionsForNote: vi.fn(),
 }));
 
 vi.mock("@/lib/db/client", () => ({
@@ -14,6 +15,9 @@ vi.mock("@/lib/db/client", () => ({
   },
 }));
 vi.mock("@/lib/audit/log", () => ({ logAuditEvent: mocks.logAuditEvent }));
+vi.mock("../tax/missing-invoice-exceptions", () => ({
+  invalidateMissingInvoiceExceptionsForNote: mocks.invalidateMissingInvoiceExceptionsForNote,
+}));
 vi.mock("../queries", () => ({
   getShippingNoteById: mocks.getShippingNoteById,
   getShippingNoteForUser: vi.fn(),

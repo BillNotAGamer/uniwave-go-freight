@@ -112,6 +112,27 @@ export const overrideChargeVatPercentInputSchema = z
     }
   });
 
+const financialRevisionSchema = z.string().regex(/^[a-f0-9]{64}$/u);
+
+export const requestMissingInvoiceExceptionInputSchema = z.object({
+  chargeId: z.string().trim().min(1),
+  reason: z.string().trim().min(1).max(500),
+  expectedFinancialRevision: financialRevisionSchema,
+});
+
+export const decideMissingInvoiceExceptionInputSchema = z.object({
+  exceptionId: z.string().trim().min(1),
+  decision: z.enum(["approved", "rejected"]),
+  reason: z.string().trim().min(1).max(500),
+  expectedFinancialRevision: financialRevisionSchema,
+});
+
+export const revokeMissingInvoiceExceptionInputSchema = z.object({
+  exceptionId: z.string().trim().min(1),
+  reason: z.string().trim().min(1).max(500),
+  expectedFinancialRevision: financialRevisionSchema,
+});
+
 export type AssignChargeTaxRuleInput = {
   chargeId: string;
   taxRuleId: string;
@@ -126,4 +147,16 @@ export type ManualChargeTaxDecisionInput = z.infer<
 
 export type OverrideChargeVatPercentInput = z.infer<
   typeof overrideChargeVatPercentInputSchema
+>;
+
+export type RequestMissingInvoiceExceptionInput = z.infer<
+  typeof requestMissingInvoiceExceptionInputSchema
+>;
+
+export type DecideMissingInvoiceExceptionInput = z.infer<
+  typeof decideMissingInvoiceExceptionInputSchema
+>;
+
+export type RevokeMissingInvoiceExceptionInput = z.infer<
+  typeof revokeMissingInvoiceExceptionInputSchema
 >;

@@ -49,6 +49,13 @@ async function cleanupIntegrationRunAfterAuthorization(runId: string): Promise<v
   `);
 
   await db.execute(sql`
+    delete from shipping_note_missing_invoice_exceptions
+    where shipping_note_id in (
+      select id from shipping_notes where jobsheet_no like ${markerPattern}
+    )
+  `);
+
+  await db.execute(sql`
     delete from shipping_note_charges
     where shipping_note_id in (
       select id from shipping_notes where jobsheet_no like ${markerPattern}

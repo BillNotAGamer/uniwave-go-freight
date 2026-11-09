@@ -19,6 +19,8 @@ export type TaxCapability = {
   canClassifyManually: boolean;
   canOverrideTax: boolean;
   canManageTaxRules: boolean;
+  canRequestMissingInvoiceException: boolean;
+  canDecideMissingInvoiceException: boolean;
 };
 
 export function getTaxCapability(role: Role): TaxCapability {
@@ -35,6 +37,9 @@ export function getTaxCapability(role: Role): TaxCapability {
     canOverrideTax:
       hasPermission(role, PERMISSIONS.CHARGE_TAX_OVERRIDE) || hasScopedClassification,
     canManageTaxRules: hasPermission(role, PERMISSIONS.TAX_RULES_MANAGE),
+    canRequestMissingInvoiceException:
+      role === "accountant" || role === "admin",
+    canDecideMissingInvoiceException: role === "admin",
   };
 }
 
@@ -69,6 +74,10 @@ export function getChargeTaxBadges(charge: ChargeTaxDetail): string[] {
     badges.push("Override");
   }
 
+  if (charge.missingInvoiceException?.status === "approved") {
+    badges.push("Closure exception approved");
+  }
+
   if (!charge.taxComplete && !charge.taxTreatmentSnapshot) {
     return ["Unclassified"];
   }
@@ -83,12 +92,27 @@ export function getRequiredAccountingAction(
     return "No action required";
   }
 
-  if (charge.inputVatInvoiceStatus === "missing") {
-    return "Obtain and verify the input VAT invoice; no missing-invoice closure exception is configured.";
-  }
-
   if (!charge.taxRuleId && charge.taxDecisionSource !== "manual") {
     return "Choose an eligible Tax Rule or record an authorized manual tax decision.";
+  }
+
+  if (charge.inputVatInvoiceStatus === "missing") {
+    const status = charge.missingInvoiceException?.status;
+    if (status === "pending") {
+      return "Admin must approve or reject the pending operational closure exception.";
+    }
+    if (status === "approved") {
+      return charge.taxTreatmentSnapshot
+        ? "Review the remaining tax evidence; the missing-invoice exception is approved."
+        : "Persist a valid tax classification; the invoice exception does not waive tax review.";
+    }
+    if (status === "rejected") {
+      return "The exception was rejected. Obtain invoice evidence or submit a new justified request.";
+    }
+    if (status === "revoked" || status === "invalidated") {
+      return "The prior exception is no longer effective. Review current evidence and submit a new request if appropriate.";
+    }
+    return "Obtain and verify the input VAT invoice or request an authorized non-deductible operational closure exception.";
   }
 
   if (charge.section === "buying" && charge.inputVatDeductible === null) {

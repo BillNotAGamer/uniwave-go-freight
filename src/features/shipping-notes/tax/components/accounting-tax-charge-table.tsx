@@ -12,7 +12,10 @@ import type { ChargeTaxDetail, ChargeTaxRuleOption } from "../types";
 import {
   assignChargeTaxRuleAction,
   classifyChargeTaxManuallyAction,
+  decideMissingInvoiceExceptionAction,
   overrideChargeVatPercentAction,
+  requestMissingInvoiceExceptionAction,
+  revokeMissingInvoiceExceptionAction,
   type ChargeTaxActionResult,
 } from "../actions";
 import { calculateVatAmount } from "../calculations";
@@ -135,6 +138,164 @@ function InputVatEvidenceFields({
         </p>
       ) : null}
     </fieldset>
+  );
+}
+
+function formatEvidenceTimestamp(value: Date | null): string {
+  return value ? new Date(value).toLocaleString() : "-";
+}
+
+function MissingInvoiceExceptionPanel({
+  charge,
+  role,
+  financialReviewRevision,
+}: {
+  charge: ChargeTaxDetail;
+  role: Role;
+  financialReviewRevision: string | null;
+}) {
+  const capability = getTaxCapability(role);
+  const exception = charge.missingInvoiceException;
+
+  if (
+    charge.section !== "buying" ||
+    charge.inputVatInvoiceStatus !== "missing" ||
+    (!capability.canRequestMissingInvoiceException &&
+      !capability.canDecideMissingInvoiceException)
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-900/70 dark:bg-amber-950/30">
+      <div className="text-xs text-amber-950 dark:text-amber-200">
+        <p className="font-semibold">Input invoice: Missing</p>
+        <p>Input VAT deductible: No</p>
+        <p>
+          Closure exception: {exception
+            ? exception.status === "approved"
+              ? "Approved operational closure exception"
+              : exception.status
+            : "None"}
+        </p>
+        {exception ? (
+          <div className="mt-2 grid gap-1 border-t border-amber-200 pt-2 dark:border-amber-900/60">
+            <p>Requested by: {exception.requestedById}</p>
+            <p>Requested at: {formatEvidenceTimestamp(exception.requestedAt)}</p>
+            <p>Request reason: {exception.requestReason}</p>
+            {exception.decisionById ? <p>Decided by: {exception.decisionById}</p> : null}
+            {exception.decidedAt ? <p>Decided at: {formatEvidenceTimestamp(exception.decidedAt)}</p> : null}
+            {exception.decisionReason ? <p>Decision reason: {exception.decisionReason}</p> : null}
+            {exception.selfApproved ? <p className="font-semibold">Admin self-approval recorded</p> : null}
+            {exception.invalidationReason ? <p>End reason: {exception.invalidationReason}</p> : null}
+          </div>
+        ) : null}
+      </div>
+
+      {(!exception || ["rejected", "revoked", "invalidated"].includes(exception.status)) &&
+      capability.canRequestMissingInvoiceException ? (
+        <MissingInvoiceExceptionRequestForm
+          chargeId={charge.chargeId}
+          financialReviewRevision={financialReviewRevision}
+        />
+      ) : null}
+
+      {exception?.status === "pending" && capability.canDecideMissingInvoiceException ? (
+        <MissingInvoiceExceptionDecisionForm
+          exceptionId={exception.id}
+          financialReviewRevision={financialReviewRevision}
+        />
+      ) : null}
+
+      {exception?.status === "approved" && capability.canDecideMissingInvoiceException ? (
+        <MissingInvoiceExceptionRevokeForm
+          exceptionId={exception.id}
+          financialReviewRevision={financialReviewRevision}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function MissingInvoiceExceptionRequestForm({
+  chargeId,
+  financialReviewRevision,
+}: {
+  chargeId: string;
+  financialReviewRevision: string | null;
+}) {
+  const [state, formAction] = useActionState(
+    requestMissingInvoiceExceptionAction,
+    initialState,
+  );
+  return (
+    <form action={formAction} className="grid gap-2">
+      <input type="hidden" name="chargeId" value={chargeId} />
+      <input type="hidden" name="expectedFinancialRevision" value={financialReviewRevision ?? ""} />
+      <label className="text-xs font-medium">
+        Mandatory business justification
+        <textarea className="mt-1 min-h-20 w-full rounded-md border bg-white px-2 py-1.5 dark:bg-slate-950" name="reason" maxLength={500} required />
+      </label>
+      {!state.ok ? <p className="text-xs text-red-700" role="alert">{state.error}</p> : null}
+      <SubmitButton label="Request closure exception" pendingLabel="Requesting..." disabled={!financialReviewRevision} />
+    </form>
+  );
+}
+
+function MissingInvoiceExceptionDecisionForm({
+  exceptionId,
+  financialReviewRevision,
+}: {
+  exceptionId: string;
+  financialReviewRevision: string | null;
+}) {
+  const [state, formAction] = useActionState(
+    decideMissingInvoiceExceptionAction,
+    initialState,
+  );
+  return (
+    <form action={formAction} className="grid gap-2 border-t border-amber-200 pt-2 dark:border-amber-900/60">
+      <input type="hidden" name="exceptionId" value={exceptionId} />
+      <input type="hidden" name="expectedFinancialRevision" value={financialReviewRevision ?? ""} />
+      <label className="text-xs font-medium">
+        Admin decision
+        <select className="mt-1 w-full rounded-md border bg-white px-2 py-1.5 dark:bg-slate-950" name="decision" required>
+          <option value="approved">Approve</option>
+          <option value="rejected">Reject</option>
+        </select>
+      </label>
+      <label className="text-xs font-medium">
+        Decision reason
+        <textarea className="mt-1 min-h-20 w-full rounded-md border bg-white px-2 py-1.5 dark:bg-slate-950" name="reason" maxLength={500} required />
+      </label>
+      {!state.ok ? <p className="text-xs text-red-700" role="alert">{state.error}</p> : null}
+      <SubmitButton label="Record Admin decision" pendingLabel="Saving..." disabled={!financialReviewRevision} />
+    </form>
+  );
+}
+
+function MissingInvoiceExceptionRevokeForm({
+  exceptionId,
+  financialReviewRevision,
+}: {
+  exceptionId: string;
+  financialReviewRevision: string | null;
+}) {
+  const [state, formAction] = useActionState(
+    revokeMissingInvoiceExceptionAction,
+    initialState,
+  );
+  return (
+    <form action={formAction} className="grid gap-2 border-t border-amber-200 pt-2 dark:border-amber-900/60">
+      <input type="hidden" name="exceptionId" value={exceptionId} />
+      <input type="hidden" name="expectedFinancialRevision" value={financialReviewRevision ?? ""} />
+      <label className="text-xs font-medium">
+        Revocation reason
+        <textarea className="mt-1 min-h-20 w-full rounded-md border bg-white px-2 py-1.5 dark:bg-slate-950" name="reason" maxLength={500} required />
+      </label>
+      {!state.ok ? <p className="text-xs text-red-700" role="alert">{state.error}</p> : null}
+      <SubmitButton label="Revoke exception" pendingLabel="Revoking..." disabled={!financialReviewRevision} />
+    </form>
   );
 }
 
@@ -579,7 +740,7 @@ export function AccountingTaxChargeTable({
                   </td>
                   <td className="border-b border-border/60 px-3 py-2">
                     <Badge tone={charge.taxComplete ? "emerald" : "slate"}>
-                      {charge.taxComplete ? "Complete" : "Unclassified"}
+                      {charge.taxComplete ? "Complete" : "Review required"}
                     </Badge>
                     {!charge.taxComplete && charge.incompleteReason ? (
                       <p className="mt-2 max-w-60 text-xs text-amber-800 dark:text-amber-300">
@@ -592,6 +753,11 @@ export function AccountingTaxChargeTable({
                       <div className="grid min-w-60 gap-2">
                         <AssignTaxRulePanel charge={charge} rules={applicableRules} role={role} />
                         <ManualTaxDecisionPanel
+                          charge={charge}
+                          role={role}
+                          financialReviewRevision={financialReviewRevision}
+                        />
+                        <MissingInvoiceExceptionPanel
                           charge={charge}
                           role={role}
                           financialReviewRevision={financialReviewRevision}

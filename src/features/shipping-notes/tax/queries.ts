@@ -22,6 +22,7 @@ import {
   doesTaxRulePatternMatch,
   getChargeTaxRuleMatchValue,
 } from "./default-resolution";
+import { listLatestMissingInvoiceExceptionsByCharge } from "./missing-invoice-exceptions";
 
 const chargeTaxColumns = {
   chargeId: shippingNoteCharges.id,
@@ -86,18 +87,28 @@ export async function listChargeTaxDetailsForNoteForUser(
     )
     .orderBy(asc(shippingNoteCharges.createdAt), asc(shippingNoteCharges.id));
 
+  const latestExceptions = canReadFullTax
+    ? await listLatestMissingInvoiceExceptionsByCharge(db, noteId)
+    : new Map();
+
   return rows.map((row) => {
+    const rowWithException = {
+      ...row,
+      missingInvoiceException:
+        latestExceptions.get(row.chargeId) ?? null,
+    };
     const accountingVat = getPersistedChargeAccountingVat(row);
-    const incompleteReason = getChargeTaxIncompleteReason(row);
+    const incompleteReason = getChargeTaxIncompleteReason(rowWithException);
     const visibleRow = canReadFullTax
-      ? row
+      ? rowWithException
       : {
-        ...row,
+        ...rowWithException,
         taxDecisionReason: null,
         taxDecisionById: null,
         taxDecisionAt: null,
         inputVatInvoiceReference: null,
         inputVatDeductible: null,
+        missingInvoiceException: null,
       };
     return {
       ...visibleRow,

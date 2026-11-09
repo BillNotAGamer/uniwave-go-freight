@@ -1,9 +1,30 @@
 import type {
   ChargeSection,
   InputVatInvoiceStatus,
+  MissingInvoiceExceptionStatus,
   TaxDecisionSource,
   TaxTreatment,
 } from "../constants";
+
+export type MissingInvoiceExceptionEvidence = {
+  id: string;
+  shippingNoteId: string;
+  buyingChargeId: string;
+  status: MissingInvoiceExceptionStatus;
+  requestedById: string;
+  requestedAt: Date;
+  requestReason: string;
+  invoiceStatusSnapshot: "missing";
+  inputVatDeductibleSnapshot: false;
+  requestedFinancialRevision: string;
+  decisionById: string | null;
+  decidedAt: Date | null;
+  decisionReason: string | null;
+  selfApproved: boolean;
+  invalidatedById: string | null;
+  invalidatedAt: Date | null;
+  invalidationReason: string | null;
+};
 
 export type ChargeTaxRuleOption = {
   id: string;
@@ -33,6 +54,7 @@ export type ChargeTaxSnapshot = {
   isOverride: boolean;
   overrideReason: string | null;
   vatOverrideRate?: string | null;
+  missingInvoiceException?: MissingInvoiceExceptionEvidence | null;
 };
 
 export type ChargeTaxDetail = ChargeTaxSnapshot & {

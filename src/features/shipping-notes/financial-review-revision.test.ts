@@ -53,4 +53,23 @@ describe("financial review revision", () => {
       updatedAt: new Date("2026-11-04T00:00:01.000Z"),
     }, [])).not.toBe(baseline);
   });
+
+  it("changes when missing-invoice exception evidence changes", () => {
+    const charges = [{ id: "charge-1", section: "buying", amountVnd: "100.00" }];
+    const pending = [{
+      id: "exception-1",
+      buyingChargeId: "charge-1",
+      status: "pending",
+      requestReason: "Invoice unavailable",
+    }];
+    const approved = [{
+      ...pending[0],
+      status: "approved",
+      decisionById: "admin-1",
+    }];
+
+    expect(createFinancialReviewRevision(note, charges, pending)).not.toBe(
+      createFinancialReviewRevision(note, charges, approved),
+    );
+  });
 });

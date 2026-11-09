@@ -68,6 +68,8 @@ describe("tax UI policy helpers", () => {
       canClassifyManually: false,
       canOverrideTax: false,
       canManageTaxRules: false,
+      canRequestMissingInvoiceException: false,
+      canDecideMissingInvoiceException: false,
     });
     expect(getTaxCapability("accountant")).toMatchObject({
       canReadTax: true,
@@ -75,8 +77,14 @@ describe("tax UI policy helpers", () => {
       canClassifyManually: true,
       canOverrideTax: true,
       canManageTaxRules: false,
+      canRequestMissingInvoiceException: true,
+      canDecideMissingInvoiceException: false,
     });
-    expect(getTaxCapability("admin").canManageTaxRules).toBe(true);
+    expect(getTaxCapability("admin")).toMatchObject({
+      canManageTaxRules: true,
+      canRequestMissingInvoiceException: true,
+      canDecideMissingInvoiceException: true,
+    });
   });
 
   it("allows tax mutation controls only for submitted and accounting-reviewing statuses", () => {

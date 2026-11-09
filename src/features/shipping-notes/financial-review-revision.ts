@@ -5,7 +5,11 @@ import { createHash } from "node:crypto";
 import { and, asc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
-import { shippingNoteCharges, shippingNotes } from "@/lib/db/schema";
+import {
+  shippingNoteCharges,
+  shippingNoteMissingInvoiceExceptions,
+  shippingNotes,
+} from "@/lib/db/schema";
 
 import type { ShippingNoteStatus } from "./constants";
 
@@ -43,6 +47,28 @@ const financialReviewChargeColumns = {
   vatOverrideRate: shippingNoteCharges.vatOverrideRate,
   isOverride: shippingNoteCharges.isOverride,
   overrideReason: shippingNoteCharges.overrideReason,
+} as const;
+
+const financialReviewMissingInvoiceExceptionColumns = {
+  id: shippingNoteMissingInvoiceExceptions.id,
+  buyingChargeId: shippingNoteMissingInvoiceExceptions.buyingChargeId,
+  status: shippingNoteMissingInvoiceExceptions.status,
+  requestedById: shippingNoteMissingInvoiceExceptions.requestedById,
+  requestedAt: shippingNoteMissingInvoiceExceptions.requestedAt,
+  requestReason: shippingNoteMissingInvoiceExceptions.requestReason,
+  invoiceStatusSnapshot:
+    shippingNoteMissingInvoiceExceptions.invoiceStatusSnapshot,
+  inputVatDeductibleSnapshot:
+    shippingNoteMissingInvoiceExceptions.inputVatDeductibleSnapshot,
+  requestedFinancialRevision:
+    shippingNoteMissingInvoiceExceptions.requestedFinancialRevision,
+  decisionById: shippingNoteMissingInvoiceExceptions.decisionById,
+  decidedAt: shippingNoteMissingInvoiceExceptions.decidedAt,
+  decisionReason: shippingNoteMissingInvoiceExceptions.decisionReason,
+  selfApproved: shippingNoteMissingInvoiceExceptions.selfApproved,
+  invalidatedById: shippingNoteMissingInvoiceExceptions.invalidatedById,
+  invalidatedAt: shippingNoteMissingInvoiceExceptions.invalidatedAt,
+  invalidationReason: shippingNoteMissingInvoiceExceptions.invalidationReason,
 } as const;
 
 export const financialReviewNoteColumns = {
@@ -89,6 +115,7 @@ function canonicalSerialize(value: unknown): string {
 export function createFinancialReviewRevision(
   note: FinancialReviewNoteState,
   charges: readonly unknown[],
+  missingInvoiceExceptions: readonly unknown[] = [],
 ): string {
   const canonicalState = {
     note: {
@@ -99,6 +126,7 @@ export function createFinancialReviewRevision(
       updatedAt: note.updatedAt,
     },
     charges,
+    missingInvoiceExceptions,
   };
 
   return createHash("sha256")
@@ -121,7 +149,22 @@ export async function deriveFinancialReviewRevision(
     )
     .orderBy(asc(shippingNoteCharges.id));
 
-  return createFinancialReviewRevision(note, charges);
+  const missingInvoiceExceptions = await executor
+    .select(financialReviewMissingInvoiceExceptionColumns)
+    .from(shippingNoteMissingInvoiceExceptions)
+    .where(
+      eq(shippingNoteMissingInvoiceExceptions.shippingNoteId, note.id),
+    )
+    .orderBy(
+      asc(shippingNoteMissingInvoiceExceptions.buyingChargeId),
+      asc(shippingNoteMissingInvoiceExceptions.id),
+    );
+
+  return createFinancialReviewRevision(
+    note,
+    charges,
+    missingInvoiceExceptions,
+  );
 }
 
 export async function getFinancialReviewRevisionForNote(

@@ -112,6 +112,17 @@ export const INPUT_VAT_INVOICE_STATUSES = ["available", "missing"] as const;
 export type InputVatInvoiceStatus =
   (typeof INPUT_VAT_INVOICE_STATUSES)[number];
 
+export const MISSING_INVOICE_EXCEPTION_STATUSES = [
+  "pending",
+  "approved",
+  "rejected",
+  "revoked",
+  "invalidated",
+] as const;
+
+export type MissingInvoiceExceptionStatus =
+  (typeof MISSING_INVOICE_EXCEPTION_STATUSES)[number];
+
 export const CHARGE_SECTIONS = ["selling", "buying"] as const;
 
 export type ChargeSection = (typeof CHARGE_SECTIONS)[number];

@@ -155,6 +155,13 @@
       "when": 1794171267084,
       "tag": "0021_manual_tax_decisions",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1794179393416,
+      "tag": "0022_missing_invoice_closure_exception",
+      "breakpoints": true
     }
   ]
 }

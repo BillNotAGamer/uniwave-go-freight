@@ -249,6 +249,44 @@ describe("hosted database migration verification", () => {
     ]));
   });
 
+  it("has additive missing-invoice exception lifecycle constraints", async () => {
+    await ensureDatabaseReady();
+
+    const constraints = await queryRows<{ constraint_name: string }>(sql`
+      select constraint_name
+      from information_schema.table_constraints
+      where table_schema = 'public'
+        and table_name = 'shipping_note_missing_invoice_exceptions'
+    `);
+    const names = new Set(constraints.map((row) => row.constraint_name));
+    for (const expected of [
+      "missing_invoice_exceptions_request_evidence_check",
+      "missing_invoice_exceptions_lifecycle_check",
+      "shipping_note_missing_invoice_exceptions_shipping_note_id_shipping_notes_id_fk",
+      "shipping_note_missing_invoice_exceptions_buying_charge_id_shipping_note_charges_id_fk",
+      "shipping_note_missing_invoice_exceptions_requested_by_id_users_id_fk",
+      "shipping_note_missing_invoice_exceptions_decision_by_id_users_id_fk",
+      "shipping_note_missing_invoice_exceptions_invalidated_by_id_users_id_fk",
+    ]) {
+      // PostgreSQL limits identifiers to 63 bytes and deterministically
+      // truncates Drizzle's long generated FK names.
+      expect(
+        [...names].some((name) => name === expected ||
+          name === expected.slice(0, 63)),
+      ).toBe(true);
+    }
+
+    const indexes = await queryRows<{ indexname: string }>(sql`
+      select indexname
+      from pg_indexes
+      where schemaname = 'public'
+        and tablename = 'shipping_note_missing_invoice_exceptions'
+    `);
+    expect(indexes.map((row) => row.indexname)).toContain(
+      "missing_invoice_exceptions_active_charge_uidx",
+    );
+  });
+
   it("has Phase 3 edit-grant constraints and selling-rate reopen metadata", async () => {
     await ensureDatabaseReady();
 

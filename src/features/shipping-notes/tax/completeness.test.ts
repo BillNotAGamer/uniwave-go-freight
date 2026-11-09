@@ -127,6 +127,56 @@ describe("charge tax completeness", () => {
       inputVatInvoiceReference: null,
       inputVatDeductible: false,
     })).toBe(false);
+    const approvedException = {
+      id: "exception-1",
+      shippingNoteId: "note-1",
+      buyingChargeId: "charge-1",
+      status: "approved" as const,
+      requestedById: "accountant-1",
+      requestedAt: new Date("2026-11-09T01:00:00.000Z"),
+      requestReason: "Supplier invoice is unavailable after documented follow-up.",
+      invoiceStatusSnapshot: "missing" as const,
+      inputVatDeductibleSnapshot: false as const,
+      requestedFinancialRevision: "a".repeat(64),
+      decisionById: "admin-1",
+      decidedAt: new Date("2026-11-09T02:00:00.000Z"),
+      decisionReason: "Approved for operational closure without input VAT deduction.",
+      selfApproved: false,
+      invalidatedById: null,
+      invalidatedAt: null,
+      invalidationReason: null,
+    };
+    expect(isChargeTaxComplete({
+      ...buying,
+      inputVatInvoiceStatus: "missing",
+      inputVatInvoiceReference: null,
+      inputVatDeductible: false,
+      missingInvoiceException: approvedException,
+    })).toBe(true);
+    expect(isChargeTaxComplete({
+      ...buying,
+      inputVatInvoiceStatus: "missing",
+      inputVatInvoiceReference: null,
+      inputVatDeductible: false,
+      missingInvoiceException: {
+        ...approvedException,
+        status: "pending" as const,
+        decisionById: null,
+        decidedAt: null,
+        decisionReason: null,
+      },
+    })).toBe(false);
+    expect(isChargeTaxComplete({
+      ...buying,
+      taxTreatmentSnapshot: null,
+      taxRuleId: null,
+      taxRuleCodeSnapshot: null,
+      taxRuleNameSnapshot: null,
+      inputVatInvoiceStatus: "missing",
+      inputVatInvoiceReference: null,
+      inputVatDeductible: false,
+      missingInvoiceException: approvedException,
+    })).toBe(false);
     expect(isChargeTaxComplete({
       ...buying,
       taxTreatmentSnapshot: "non_taxable",

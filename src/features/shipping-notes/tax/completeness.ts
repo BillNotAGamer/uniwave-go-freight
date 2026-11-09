@@ -122,7 +122,46 @@ export function getChargeTaxIncompleteReason(
   }
 
   if (charge.inputVatInvoiceStatus === "missing") {
-    return "The input VAT invoice is missing; no closure exception is configured.";
+    const exception = charge.missingInvoiceException;
+    if (!exception) {
+      return "The input VAT invoice is missing; no closure exception is configured.";
+    }
+
+    if (exception.status !== "approved") {
+      if (exception.status === "pending") {
+        return "The missing-invoice closure exception is pending Admin approval.";
+      }
+      if (exception.status === "rejected") {
+        return "The missing-invoice closure exception was rejected.";
+      }
+      if (exception.status === "revoked") {
+        return "The missing-invoice closure exception was revoked.";
+      }
+      return "The missing-invoice closure exception was invalidated by a later change.";
+    }
+
+    if (
+      exception.invoiceStatusSnapshot !== "missing" ||
+      exception.inputVatDeductibleSnapshot !== false ||
+      !exception.requestReason.trim() ||
+      !/^[a-f0-9]{64}$/u.test(exception.requestedFinancialRevision) ||
+      !exception.decisionById ||
+      !exception.decidedAt ||
+      !exception.decisionReason?.trim() ||
+      exception.invalidatedById ||
+      exception.invalidatedAt ||
+      exception.invalidationReason ||
+      exception.selfApproved !==
+        (exception.requestedById === exception.decisionById)
+    ) {
+      return "The approved missing-invoice exception evidence is incomplete or inconsistent.";
+    }
+
+    if (charge.inputVatDeductible !== false) {
+      return "A missing-invoice exception cannot authorize deductible input VAT.";
+    }
+
+    return null;
   }
 
   if (charge.inputVatInvoiceStatus !== "available") {

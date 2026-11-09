@@ -81,6 +81,11 @@ export const inputVatInvoiceStatusEnum = pgEnum(
   ["available", "missing"],
 );
 
+export const missingInvoiceExceptionStatusEnum = pgEnum(
+  "missing_invoice_exception_status",
+  ["pending", "approved", "rejected", "revoked", "invalidated"],
+);
+
 export const currencyCodeEnum = pgEnum("currency_code", ["VND", "USD", "EUR"]);
 
 export const shippingNoteEditGrantStatusEnum = pgEnum(
@@ -478,6 +483,71 @@ export const shippingNoteCharges = pgTable(
   ],
 );
 
+export const shippingNoteMissingInvoiceExceptions = pgTable(
+  "shipping_note_missing_invoice_exceptions",
+  {
+    id: idColumn(),
+    shippingNoteId: text("shipping_note_id")
+      .notNull()
+      .references(() => shippingNotes.id, { onDelete: "restrict" }),
+    buyingChargeId: text("buying_charge_id")
+      .notNull()
+      .references(() => shippingNoteCharges.id, { onDelete: "restrict" }),
+    status: missingInvoiceExceptionStatusEnum("status")
+      .notNull()
+      .default("pending"),
+    requestedById: text("requested_by_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    requestedAt: timestamp("requested_at", {
+      mode: "date",
+      precision: 3,
+    }).notNull(),
+    requestReason: text("request_reason").notNull(),
+    invoiceStatusSnapshot: inputVatInvoiceStatusEnum(
+      "invoice_status_snapshot",
+    ).notNull(),
+    inputVatDeductibleSnapshot: boolean(
+      "input_vat_deductible_snapshot",
+    ).notNull(),
+    requestedFinancialRevision: text(
+      "requested_financial_revision",
+    ).notNull(),
+    decisionById: text("decision_by_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    decidedAt: timestamp("decided_at", { mode: "date", precision: 3 }),
+    decisionReason: text("decision_reason"),
+    selfApproved: boolean("self_approved").notNull().default(false),
+    invalidatedById: text("invalidated_by_id").references(() => users.id, {
+      onDelete: "restrict",
+    }),
+    invalidatedAt: timestamp("invalidated_at", {
+      mode: "date",
+      precision: 3,
+    }),
+    invalidationReason: text("invalidation_reason"),
+    createdAt,
+    updatedAt,
+  },
+  (table) => [
+    index("missing_invoice_exceptions_note_idx").on(table.shippingNoteId),
+    index("missing_invoice_exceptions_charge_idx").on(table.buyingChargeId),
+    index("missing_invoice_exceptions_status_idx").on(table.status),
+    uniqueIndex("missing_invoice_exceptions_active_charge_uidx")
+      .on(table.buyingChargeId)
+      .where(sql`${table.status} in ('pending', 'approved')`),
+    check(
+      "missing_invoice_exceptions_request_evidence_check",
+      sql`${table.invoiceStatusSnapshot} = 'missing' and ${table.inputVatDeductibleSnapshot} = false and length(trim(${table.requestReason})) > 0 and length(${table.requestedFinancialRevision}) = 64`,
+    ),
+    check(
+      "missing_invoice_exceptions_lifecycle_check",
+      sql`(${table.status} = 'pending' and ${table.decisionById} is null and ${table.decidedAt} is null and ${table.decisionReason} is null and ${table.selfApproved} = false and ${table.invalidatedById} is null and ${table.invalidatedAt} is null and ${table.invalidationReason} is null) or (${table.status} = 'approved' and ${table.decisionById} is not null and ${table.decidedAt} is not null and length(trim(${table.decisionReason})) > 0 and ${table.selfApproved} = (${table.requestedById} = ${table.decisionById}) and ${table.invalidatedById} is null and ${table.invalidatedAt} is null and ${table.invalidationReason} is null) or (${table.status} = 'rejected' and ${table.decisionById} is not null and ${table.decidedAt} is not null and length(trim(${table.decisionReason})) > 0 and ${table.selfApproved} = false and ${table.invalidatedById} is null and ${table.invalidatedAt} is null and ${table.invalidationReason} is null) or (${table.status} in ('revoked', 'invalidated') and ${table.invalidatedById} is not null and ${table.invalidatedAt} is not null and length(trim(${table.invalidationReason})) > 0)`,
+    ),
+  ],
+);
+
 export const shippingNoteCustomsDeclarations = pgTable(
   "shipping_note_customs_declarations",
   {
@@ -661,6 +731,11 @@ export type NewShippingNoteEditGrant = typeof shippingNoteEditGrants.$inferInser
 
 export type ShippingNoteCharge = typeof shippingNoteCharges.$inferSelect;
 export type NewShippingNoteCharge = typeof shippingNoteCharges.$inferInsert;
+
+export type ShippingNoteMissingInvoiceException =
+  typeof shippingNoteMissingInvoiceExceptions.$inferSelect;
+export type NewShippingNoteMissingInvoiceException =
+  typeof shippingNoteMissingInvoiceExceptions.$inferInsert;
 
 export type ShippingNoteCustomsDeclaration =
   typeof shippingNoteCustomsDeclarations.$inferSelect;

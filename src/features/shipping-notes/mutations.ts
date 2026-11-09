@@ -84,6 +84,10 @@ import {
   summarizeTaxCompleteness,
   TAX_COMPLETENESS_ERROR,
 } from "./tax/completeness";
+import {
+  invalidateMissingInvoiceExceptionsForNote,
+  listLatestMissingInvoiceExceptionsByCharge,
+} from "./tax/missing-invoice-exceptions";
 import { recomputeVatForCommercialChange } from "./tax/mutations";
 import { buildTaxRuleAccountingVat } from "./accounting/vat";
 import { resolveDefaultTaxRule } from "./tax/default-resolution";
@@ -1084,6 +1088,7 @@ export async function markShippingNoteChecked(
       const checkedAt = new Date();
       const chargeTaxRows = await tx
         .select({
+          id: shippingNoteCharges.id,
           section: shippingNoteCharges.section,
           amountVnd: shippingNoteCharges.amountVnd,
           taxRuleId: shippingNoteCharges.taxRuleId,
@@ -1111,7 +1116,15 @@ export async function markShippingNoteChecked(
           ),
         );
 
-      if (!summarizeTaxCompleteness(chargeTaxRows).taxComplete) {
+      const latestMissingInvoiceExceptions =
+        await listLatestMissingInvoiceExceptionsByCharge(tx, parsedInput.id);
+      const chargeTaxRowsWithExceptions = chargeTaxRows.map((charge) => ({
+        ...charge,
+        missingInvoiceException:
+          latestMissingInvoiceExceptions.get(charge.id) ?? null,
+      }));
+
+      if (!summarizeTaxCompleteness(chargeTaxRowsWithExceptions).taxComplete) {
         throw new Error(TAX_COMPLETENESS_ERROR);
       }
 
@@ -1554,6 +1567,12 @@ export async function reopenShippingNoteForCorrection(
         throw new AuthorizationError();
       }
 
+      await invalidateMissingInvoiceExceptionsForNote(tx, {
+        shippingNoteId: updated.id,
+        actorUserId: user.id,
+        reason: "Shipping Note was reopened for financial or operational correction.",
+      });
+
       await logAuditEvent(tx, {
         actorUserId: user.id,
         action: "shipping_note.selling_rate_reopened",
@@ -1827,6 +1846,12 @@ export async function createSellingChargeForNote(
         throw new Error("Failed to create selling charge.");
       }
 
+      await invalidateMissingInvoiceExceptionsForNote(tx, {
+        shippingNoteId: note.id,
+        actorUserId: user.id,
+        reason: "Selling Charge was created.",
+      });
+
       await logAuditEvent(tx, {
         actorUserId: user.id,
         action: "shipping_note_charge.create",
@@ -1977,6 +2002,12 @@ export async function updateSellingCharge(
         throw new AuthorizationError();
       }
 
+      await invalidateMissingInvoiceExceptionsForNote(tx, {
+        shippingNoteId: updated.shippingNoteId,
+        actorUserId: user.id,
+        reason: "Selling Charge financial values changed.",
+      });
+
       await logAuditEvent(tx, {
         actorUserId: user.id,
         action: "shipping_note_charge.update",
@@ -2055,6 +2086,12 @@ export async function softDeleteSellingCharge(
         throw new AuthorizationError();
       }
 
+      await invalidateMissingInvoiceExceptionsForNote(tx, {
+        shippingNoteId: existingCharge.shippingNoteId,
+        actorUserId: user.id,
+        reason: "Selling Charge was deleted.",
+      });
+
       await logAuditEvent(tx, {
         actorUserId: user.id,
         action: "shipping_note_charge.delete",
@@ -2132,6 +2169,12 @@ export async function createBuyingChargeForNote(
       if (!created) {
         throw new Error("Failed to create buying charge.");
       }
+
+      await invalidateMissingInvoiceExceptionsForNote(tx, {
+        shippingNoteId: note.id,
+        actorUserId: user.id,
+        reason: "Buying Charge was created.",
+      });
 
       await logAuditEvent(tx, {
         actorUserId: user.id,
@@ -2291,6 +2334,12 @@ export async function updateBuyingCharge(
         throw new AuthorizationError();
       }
 
+      await invalidateMissingInvoiceExceptionsForNote(tx, {
+        shippingNoteId: updated.shippingNoteId,
+        actorUserId: user.id,
+        reason: "Buying Charge financial values changed.",
+      });
+
       await logAuditEvent(tx, {
         actorUserId: user.id,
         action: "shipping_note_charge.buying.update",
@@ -2371,6 +2420,12 @@ export async function softDeleteBuyingCharge(
       if (!deleted) {
         throw new AuthorizationError();
       }
+
+      await invalidateMissingInvoiceExceptionsForNote(tx, {
+        shippingNoteId: existingCharge.shippingNoteId,
+        actorUserId: user.id,
+        reason: "Buying Charge was deleted.",
+      });
 
       await logAuditEvent(tx, {
         actorUserId: user.id,

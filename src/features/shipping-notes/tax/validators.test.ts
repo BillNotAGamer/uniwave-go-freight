@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  decideMissingInvoiceExceptionInputSchema,
   manualChargeTaxDecisionInputSchema,
   overrideChargeVatPercentInputSchema,
+  requestMissingInvoiceExceptionInputSchema,
+  revokeMissingInvoiceExceptionInputSchema,
 } from "./validators";
 
 describe("Accounting VAT override validation", () => {
@@ -94,5 +97,47 @@ describe("manual Accounting tax decision validation", () => {
       taxTreatment: "taxable",
       vatPercent: "8",
     })).toThrow();
+  });
+});
+
+describe("missing-invoice exception validation", () => {
+  const revision = "b".repeat(64);
+
+  it("requires a reason and current financial revision for a request", () => {
+    expect(requestMissingInvoiceExceptionInputSchema.parse({
+      chargeId: "buying-1",
+      reason: "Supplier has not provided an input VAT invoice.",
+      expectedFinancialRevision: revision,
+    }).reason).toMatch(/Supplier/);
+    expect(() => requestMissingInvoiceExceptionInputSchema.parse({
+      chargeId: "buying-1",
+      reason: " ",
+      expectedFinancialRevision: revision,
+    })).toThrow();
+  });
+
+  it("accepts only approve/reject decisions with evidence", () => {
+    for (const decision of ["approved", "rejected"] as const) {
+      expect(decideMissingInvoiceExceptionInputSchema.parse({
+        exceptionId: "exception-1",
+        decision,
+        reason: "Reviewed by Admin.",
+        expectedFinancialRevision: revision,
+      }).decision).toBe(decision);
+    }
+    expect(() => decideMissingInvoiceExceptionInputSchema.parse({
+      exceptionId: "exception-1",
+      decision: "pending",
+      reason: "Invalid decision",
+      expectedFinancialRevision: revision,
+    })).toThrow();
+  });
+
+  it("requires reason and revision when revoking approval", () => {
+    expect(revokeMissingInvoiceExceptionInputSchema.parse({
+      exceptionId: "exception-1",
+      reason: "New evidence requires review.",
+      expectedFinancialRevision: revision,
+    }).reason).toMatch(/evidence/);
   });
 });

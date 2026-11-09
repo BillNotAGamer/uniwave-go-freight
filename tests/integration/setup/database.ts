@@ -67,6 +67,7 @@ export async function ensureDatabaseReady(): Promise<void> {
       "shipping_notes",
       "shipping_note_charges",
       "shipping_note_edit_grants",
+      "shipping_note_missing_invoice_exceptions",
       "shipping_note_exports",
       "audit_logs",
       "tax_rules",
@@ -98,6 +99,7 @@ export async function ensureDatabaseReady(): Promise<void> {
       "shipping_note_edit_grant_status",
       "tax_decision_source",
       "input_vat_invoice_status",
+      "missing_invoice_exception_status",
     ]) {
       await assertExists(
         `enum ${enumName}`,

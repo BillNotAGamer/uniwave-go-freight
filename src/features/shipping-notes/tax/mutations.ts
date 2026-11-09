@@ -47,6 +47,7 @@ import {
   getChargeTaxRuleMatchValue,
 } from "./default-resolution";
 import { deriveFinancialReviewRevision } from "../financial-review-revision";
+import { invalidateMissingInvoiceExceptionsForNote } from "./missing-invoice-exceptions";
 
 const TAX_MUTABLE_STATUSES = ["submitted", "accounting_reviewing"] as const;
 
@@ -478,6 +479,12 @@ export async function assignChargeTaxRule(
       throw new Error("Failed to assign charge tax rule.");
     }
 
+    await invalidateMissingInvoiceExceptionsForNote(tx, {
+      shippingNoteId: charge.shippingNoteId,
+      actorUserId: user.id,
+      reason: "Tax classification or input VAT invoice evidence changed.",
+    });
+
     await logAuditEvent(tx, {
       actorUserId: user.id,
       action: "shipping_note_charge.tax_assign",
@@ -571,6 +578,12 @@ export async function classifyChargeTaxManually(
       throw new Error("Failed to save the manual tax decision.");
     }
 
+    await invalidateMissingInvoiceExceptionsForNote(tx, {
+      shippingNoteId: charge.shippingNoteId,
+      actorUserId: user.id,
+      reason: "Manual tax classification or input VAT invoice evidence changed.",
+    });
+
     await logAuditEvent(tx, {
       actorUserId: user.id,
       action: "shipping_note_charge.tax_manual_decision",
@@ -658,6 +671,12 @@ export async function overrideChargeVatPercent(
         throw new Error("Failed to clear charge VAT override.");
       }
 
+      await invalidateMissingInvoiceExceptionsForNote(tx, {
+        shippingNoteId: charge.shippingNoteId,
+        actorUserId: user.id,
+        reason: "VAT override evidence changed.",
+      });
+
       await logAuditEvent(tx, {
         actorUserId: user.id,
         action: "shipping_note_charge.tax_override_clear",
@@ -703,6 +722,12 @@ export async function overrideChargeVatPercent(
     if (!updated) {
       throw new Error("Failed to override charge VAT percentage.");
     }
+
+    await invalidateMissingInvoiceExceptionsForNote(tx, {
+      shippingNoteId: charge.shippingNoteId,
+      actorUserId: user.id,
+      reason: "VAT override evidence changed.",
+    });
 
     await logAuditEvent(tx, {
       actorUserId: user.id,

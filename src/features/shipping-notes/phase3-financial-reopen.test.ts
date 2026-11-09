@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   logAuditEvent: vi.fn(),
   getShippingNoteForUser: vi.fn(),
   deriveFinancialReviewRevision: vi.fn(),
+  invalidateMissingInvoiceExceptionsForNote: vi.fn(),
+  listLatestMissingInvoiceExceptionsByCharge: vi.fn(),
 }));
 
 vi.mock("@/lib/db/client", () => ({
@@ -16,6 +18,10 @@ vi.mock("@/lib/db/client", () => ({
 vi.mock("@/lib/audit/log", () => ({ logAuditEvent: mocks.logAuditEvent }));
 vi.mock("./financial-review-revision", () => ({
   deriveFinancialReviewRevision: mocks.deriveFinancialReviewRevision,
+}));
+vi.mock("./tax/missing-invoice-exceptions", () => ({
+  invalidateMissingInvoiceExceptionsForNote: mocks.invalidateMissingInvoiceExceptionsForNote,
+  listLatestMissingInvoiceExceptionsByCharge: mocks.listLatestMissingInvoiceExceptionsByCharge,
 }));
 vi.mock("./queries", () => ({
   getShippingNoteById: vi.fn(),
@@ -74,6 +80,8 @@ describe("Phase 3 selling-rate reopen", () => {
     vi.clearAllMocks();
     mocks.logAuditEvent.mockResolvedValue(undefined);
     mocks.deriveFinancialReviewRevision.mockResolvedValue(financialRevision);
+    mocks.invalidateMissingInvoiceExceptionsForNote.mockResolvedValue(0);
+    mocks.listLatestMissingInvoiceExceptionsByCharge.mockResolvedValue(new Map());
   });
 
   it.each(["admin", "accountant"] as const)("allows %s to reopen and atomically supersede current signoff", async (role) => {
