@@ -11,7 +11,7 @@ function readMigration(name: string): string {
 }
 
 describe("static migration readiness", () => {
-  it("has migration files through 0022", () => {
+  it("has migration files through 0023", () => {
     expect(readdirSync(drizzleDir).filter((file) => file.endsWith(".sql"))).toEqual([
       "0000_new_nick_fury.sql",
       "0001_dazzling_saracen.sql",
@@ -36,10 +36,11 @@ describe("static migration readiness", () => {
       "0020_phase3_edit_grants_selling_reopen.sql",
       "0021_manual_tax_decisions.sql",
       "0022_missing_invoice_closure_exception.sql",
+      "0023_expand_volume_units.sql",
     ]);
   });
 
-  it("has journal entries through 0022 in order", () => {
+  it("has journal entries through 0023 in order", () => {
     const journal = JSON.parse(
       readFileSync(path.join(drizzleDir, "meta", "_journal.json"), "utf8"),
     ) as { entries: Array<{ idx: number; tag: string }> };
@@ -68,6 +69,50 @@ describe("static migration readiness", () => {
       "20:0020_phase3_edit_grants_selling_reopen",
       "21:0021_manual_tax_decisions",
       "22:0022_missing_invoice_closure_exception",
+      "23:0023_expand_volume_units",
+    ]);
+  });
+
+  it("0023 additively expands Volume Units without changing tables", () => {
+    const migration = readMigration("0023_expand_volume_units.sql").trim();
+
+    expect(migration).toBe(
+      [
+        'ALTER TYPE "public"."volume_unit" ADD VALUE \'carton\';--> statement-breakpoint',
+        'ALTER TYPE "public"."volume_unit" ADD VALUE \'pallet\';--> statement-breakpoint',
+        'ALTER TYPE "public"."volume_unit" ADD VALUE \'packages\';--> statement-breakpoint',
+        'ALTER TYPE "public"."volume_unit" ADD VALUE \'bales\';--> statement-breakpoint',
+        'ALTER TYPE "public"."volume_unit" ADD VALUE \'rolls\';',
+      ].join("\n"),
+    );
+    expect(migration).not.toMatch(/(?:DROP|DELETE|UPDATE|INSERT|TRUNCATE)/i);
+
+    const before = JSON.parse(
+      readFileSync(path.join(drizzleDir, "meta", "0022_snapshot.json"), "utf8"),
+    ) as { tables: unknown; enums: Record<string, { values: string[] }> };
+    const after = JSON.parse(
+      readFileSync(path.join(drizzleDir, "meta", "0023_snapshot.json"), "utf8"),
+    ) as { tables: unknown; enums: Record<string, { values: string[] }> };
+
+    expect(after.tables).toEqual(before.tables);
+    expect(before.enums["public.volume_unit"]?.values).toEqual([
+      "kgs",
+      "cbm",
+      "cont_20",
+      "cont_40",
+      "rt",
+    ]);
+    expect(after.enums["public.volume_unit"]?.values).toEqual([
+      "kgs",
+      "cbm",
+      "cont_20",
+      "cont_40",
+      "rt",
+      "carton",
+      "pallet",
+      "packages",
+      "bales",
+      "rolls",
     ]);
   });
 
