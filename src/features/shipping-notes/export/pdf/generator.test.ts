@@ -202,6 +202,18 @@ describe("internal PDF generator", () => {
     expect(text).not.toContain("COMMODITY / HS CODE");
   });
 
+  it("exports the customer-facing label for an expanded Volume Unit", async () => {
+    const data = buildExportData();
+    data.note.volumeUnit = "rolls";
+    const generated = await generateInternalShippingNotePdf(
+      data,
+      new Date("2026-08-21T12:00:00.000Z"),
+    );
+    const parsed = await pdfParse(generated.buffer);
+
+    expect(normalizeText(parsed.text)).toContain("1.000 Rolls");
+  });
+
   it("renders EUR labels and signed base, VAT, total, and summary values", async () => {
     const exportData = buildExportData();
     const sections = buildInternalExportSections([

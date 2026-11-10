@@ -150,6 +150,19 @@ describe("Shipping Note duplication field mapping", () => {
     }
   });
 
+  it("preserves an expanded Volume Unit when copying a Shipping Note", () => {
+    const source = makeSource("air_export");
+    source.volumeUnit = "rolls";
+
+    const { input } = buildShippingNoteDuplicationDraft(
+      source,
+      "COPY-ROLLS-001",
+      partners,
+    );
+
+    expect(input.volumeUnit).toBe("rolls");
+  });
+
   it("keeps active Partner references and falls back to frozen text for stale references", () => {
     const { partyPersistence } = buildShippingNoteDuplicationDraft(
       makeSource(),

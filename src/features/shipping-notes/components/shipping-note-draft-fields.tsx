@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { VOLUME_UNITS } from "../constants";
+import { VOLUME_UNIT_OPTIONS } from "../constants";
 import {
   getEditShipmentModePresentation,
   getShippingModeFromEditSelection,
@@ -175,7 +175,9 @@ export function ShippingNoteDraftFields({
       <label className="text-sm font-medium text-foreground" htmlFor="volumeUnit">Volume Unit
         <select className={controlClassName} defaultValue={values?.volumeUnit ?? ""} id="volumeUnit" name="volumeUnit">
           <option value="">Select volume unit</option>
-          {VOLUME_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+          {VOLUME_UNIT_OPTIONS.map(({ value, label }) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
         </select>
       </label>
       {includeExchangeRate ? <label className="text-sm font-medium text-foreground" htmlFor="exchangeRate">Exchange Rate

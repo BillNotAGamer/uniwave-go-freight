@@ -23,6 +23,7 @@ import type {
   InternalShippingNoteExportDto,
 } from "../types";
 import { getShippingModePresentation } from "../../mode-rules";
+import { getVolumeUnitLabel } from "../../constants";
 
 type InternalShippingNotePdfDocumentProps = {
   exportData: InternalShippingNoteExportDto;
@@ -217,7 +218,7 @@ function formatDecimalString(value: string): string {
 }
 
 function formatVolume(note: InternalShippingNoteExportDto["note"]): string {
-  return [note.volumeValue, note.volumeUnit]
+  return [note.volumeValue, getVolumeUnitLabel(note.volumeUnit)]
     .filter((part): part is string => Boolean(part && part.trim()))
     .join(" ") || "-";
 }

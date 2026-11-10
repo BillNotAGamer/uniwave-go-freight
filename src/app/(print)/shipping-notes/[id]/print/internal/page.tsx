@@ -7,6 +7,7 @@ import { InternalPrintActions } from "@/components/shipping-notes/internal-print
 import { INTERNAL_XLSX_PROFIT_CELL } from "@/features/shipping-notes/export/constants";
 import { getInternalShippingNoteExportDataForUser } from "@/features/shipping-notes/export/queries";
 import { formatMawbHawb } from "@/features/shipping-notes/presentation";
+import { getVolumeUnitLabel } from "@/features/shipping-notes/constants";
 import {
   formatTaxRuleSnapshotForExport,
   formatTaxTreatmentForExport,
@@ -79,7 +80,7 @@ function renderValue(value: string): string {
 }
 
 function formatVolume(note: InternalShippingNoteExportDto["note"]): string {
-  return [note.volumeValue, note.volumeUnit]
+  return [note.volumeValue, getVolumeUnitLabel(note.volumeUnit)]
     .filter((part): part is string => Boolean(part && part.trim()))
     .join(" ");
 }

@@ -8,7 +8,7 @@ import { Plane, Ship, SlidersHorizontal, Truck } from "lucide-react";
 import type { ShippingNoteActionResult } from "../actions";
 import {
   type ShippingMode,
-  VOLUME_UNITS,
+  VOLUME_UNIT_OPTIONS,
 } from "../constants";
 import {
   SHIPMENT_TYPE_CARDS,
@@ -199,7 +199,9 @@ export function ShippingNoteCreateForm({ action }: { action: CreateFormAction })
           Volume Unit
           <select className={controlClassName} id="volumeUnit" name="volumeUnit" defaultValue="">
             <option value="">Select volume unit</option>
-            {VOLUME_UNITS.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+            {VOLUME_UNIT_OPTIONS.map(({ value, label }) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
           </select>
         </label>
         {shipmentType === "ocean" ? (

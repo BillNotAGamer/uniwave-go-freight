@@ -44,6 +44,8 @@ function render(mode: "sea_export" | "air_export" | "domestic_truck" | "custom")
       licensePlate: "29A-12345",
       driverInformation: "Nguyen Van A\nCCCD: 012345678901",
       vehiclePayloadCapacity: "5 TONS",
+      volumeValue: "12.5",
+      volumeUnit: "pallet",
     },
   }));
 }
@@ -95,6 +97,24 @@ describe("Shipping Note Draft field presentation", () => {
     expect(html).not.toContain("License Plate");
     expect(html).not.toContain("Driver Information");
   });
+
+  it.each(["air_export", "sea_export"] as const)(
+    "renders every supported Volume Unit with business labels for %s",
+    (mode) => {
+      const html = render(mode);
+
+      expect(html).toContain('<option value="kgs">kgs</option>');
+      expect(html).toContain('<option value="cbm">cbm</option>');
+      expect(html).toContain('<option value="cont_20">cont_20</option>');
+      expect(html).toContain('<option value="cont_40">cont_40</option>');
+      expect(html).toContain('<option value="rt">rt</option>');
+      expect(html).toContain('<option value="carton">Carton</option>');
+      expect(html).toContain('<option value="pallet" selected="">Pallet</option>');
+      expect(html).toContain('<option value="packages">Packages</option>');
+      expect(html).toContain('<option value="bales">Bales</option>');
+      expect(html).toContain('<option value="rolls">Rolls</option>');
+    },
+  );
 
   it("renders Ocean Container Type options without CBM or RT", () => {
     const html = render("sea_export");

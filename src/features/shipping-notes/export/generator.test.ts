@@ -219,6 +219,23 @@ describe("internal XLSX generator tax-complete v2", () => {
     expect(worksheet?.getCell("A7").value).not.toBe("MAWB / HAWB");
   });
 
+  it("exports the customer-facing label for an expanded Volume Unit", async () => {
+    const data = buildExportData();
+    data.note.volumeUnit = "pallet";
+    const { generateInternalShippingNoteXlsx } = await import("./generator");
+    const generated = await generateInternalShippingNoteXlsx(
+      data,
+      new Date("2026-08-09T12:00:00.000Z"),
+    );
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(generated.buffer);
+    const worksheet = workbook.getWorksheet("AK");
+
+    expect(worksheet?.getCell(INTERNAL_XLSX_HEADER_CELLS.volume).value).toBe(
+      "1.000 Pallet",
+    );
+  });
+
   it("writes the canonical Air header, VND amounts, blank no-override cells, and no stale identities", async () => {
     const { generateInternalShippingNoteXlsx } = await import("./generator");
     const generated = await generateInternalShippingNoteXlsx(

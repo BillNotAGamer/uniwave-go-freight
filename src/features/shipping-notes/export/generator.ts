@@ -40,6 +40,7 @@ import {
   getExportHsCodeValue,
 } from "./presentation";
 import { formatAccountName } from "../presentation";
+import { getVolumeUnitLabel } from "../constants";
 import { getShippingModePresentation } from "../mode-rules";
 import type {
   InternalExportBuyingCharge,
@@ -431,7 +432,10 @@ function formatDestinationWithFinalDestination(
 }
 
 function formatVolume(exportData: InternalShippingNoteExportDto): string {
-  return [exportData.note.volumeValue, exportData.note.volumeUnit]
+  return [
+    exportData.note.volumeValue,
+    getVolumeUnitLabel(exportData.note.volumeUnit),
+  ]
     .filter((part): part is string => Boolean(part))
     .join(" ");
 }

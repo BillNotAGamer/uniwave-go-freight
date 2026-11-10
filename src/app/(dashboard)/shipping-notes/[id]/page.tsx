@@ -52,6 +52,9 @@ import {
   isTaxMutableStatus,
 } from "@/features/shipping-notes/tax/ui-policy";
 import {
+  getVolumeUnitLabel,
+} from "@/features/shipping-notes/constants";
+import {
   canCancelFinalizedShippingNoteStatus,
   canCancelShippingNoteStatus,
   canMutateBuyingChargeForActor,
@@ -555,7 +558,9 @@ export default async function ShippingNoteDetailPage({
                 <div>
                   <dt className="font-medium text-foreground">Volume</dt>
                   <dd className="break-words">
-                    {note.volumeValue ? `${note.volumeValue} ${note.volumeUnit ?? ""}`.trim() : "-"}
+                    {note.volumeValue
+                      ? `${note.volumeValue} ${getVolumeUnitLabel(note.volumeUnit) ?? ""}`.trim()
+                      : "-"}
                   </dd>
                 </div>
               </dl>

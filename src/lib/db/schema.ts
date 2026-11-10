@@ -47,6 +47,11 @@ export const volumeUnitEnum = pgEnum("volume_unit", [
   "cont_20",
   "cont_40",
   "rt",
+  "carton",
+  "pallet",
+  "packages",
+  "bales",
+  "rolls",
 ]);
 
 export const shippingNoteStatusEnum = pgEnum("shipping_note_status", [

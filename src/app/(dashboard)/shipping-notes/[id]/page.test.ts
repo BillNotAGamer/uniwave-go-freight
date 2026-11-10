@@ -952,6 +952,22 @@ describe("ShippingNoteDetailPage presentation and null field preservation", () =
     expect(collectText(jsx)).not.toContain("RT");
   });
 
+  it("displays an expanded Volume Unit using its customer-facing label", async () => {
+    const saleUser = makeUser("sale");
+    const note = makeNote("draft");
+    note.shippingMode = "air_export";
+    note.volumeValue = "10.00";
+    note.volumeUnit = "bales";
+    mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
+    mocks.getShippingNoteDetailForUser.mockResolvedValue(note);
+
+    const jsx = await ShippingNoteDetailPage({
+      params: Promise.resolve({ id: "note-1" }),
+    });
+
+    expect(findDefinitionValue(jsx, "Volume")).toBe("10.00 Bales");
+  });
+
   it("7: preserves multiline Driver Information with whitespace-pre-wrap and break-words", async () => {
     const saleUser = makeUser("sale");
     const note = makeNote("draft");

@@ -9,9 +9,41 @@ export const SHIPPING_MODES = [
 
 export type ShippingMode = (typeof SHIPPING_MODES)[number];
 
-export const VOLUME_UNITS = ["kgs", "cbm", "cont_20", "cont_40", "rt"] as const;
+export const VOLUME_UNITS = [
+  "kgs",
+  "cbm",
+  "cont_20",
+  "cont_40",
+  "rt",
+  "carton",
+  "pallet",
+  "packages",
+  "bales",
+  "rolls",
+] as const;
 
 export type VolumeUnit = (typeof VOLUME_UNITS)[number];
+
+export const VOLUME_UNIT_OPTIONS = [
+  { value: "kgs", label: "kgs" },
+  { value: "cbm", label: "cbm" },
+  { value: "cont_20", label: "cont_20" },
+  { value: "cont_40", label: "cont_40" },
+  { value: "rt", label: "rt" },
+  { value: "carton", label: "Carton" },
+  { value: "pallet", label: "Pallet" },
+  { value: "packages", label: "Packages" },
+  { value: "bales", label: "Bales" },
+  { value: "rolls", label: "Rolls" },
+] as const satisfies ReadonlyArray<{ value: VolumeUnit; label: string }>;
+
+export function getVolumeUnitLabel(
+  value: VolumeUnit | null | undefined,
+): string | null | undefined {
+  if (!value) return value;
+
+  return VOLUME_UNIT_OPTIONS.find((option) => option.value === value)?.label ?? value;
+}
 
 export const CONTAINER_TYPE_VALUES = [
   "20_dry_standard",

@@ -191,13 +191,35 @@ describe("shipping note validation schemas", () => {
     expect(() => shippingNoteDraftInputSchema.parse({
       ...validSeaInput,
       jobsheetNo: "JS-1",
-      volumeUnit: "pallet",
+      volumeUnit: "crate",
     })).toThrow();
     expect(() => shippingNoteDraftInputSchema.parse({
       ...validSeaInput,
       jobsheetNo: "JS-1",
       exchangeRate: 0,
     })).toThrow();
+  });
+
+  it.each([
+    "carton",
+    "pallet",
+    "packages",
+    "bales",
+    "rolls",
+  ] as const)("accepts the new %s volume unit for Sea and Air notes", (volumeUnit) => {
+    const sea = shippingNoteDraftInputSchema.parse({
+      ...validSeaInput,
+      jobsheetNo: `SEA-${volumeUnit}`,
+      volumeUnit,
+    });
+    const air = shippingNoteDraftInputSchema.parse({
+      ...validAirInput,
+      jobsheetNo: `AIR-${volumeUnit}`,
+      volumeUnit,
+    });
+
+    expect(sea.volumeUnit).toBe(volumeUnit);
+    expect(air.volumeUnit).toBe(volumeUnit);
   });
 
   it("normalizes optional C4 party, routing, document, and transport fields", () => {
