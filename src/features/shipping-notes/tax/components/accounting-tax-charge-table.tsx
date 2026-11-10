@@ -145,7 +145,7 @@ function formatEvidenceTimestamp(value: Date | null): string {
   return value ? new Date(value).toLocaleString() : "-";
 }
 
-function MissingInvoiceExceptionPanel({
+export function MissingInvoiceExceptionPanel({
   charge,
   role,
   financialReviewRevision,

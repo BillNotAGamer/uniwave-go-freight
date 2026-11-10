@@ -10,7 +10,10 @@ vi.mock("../actions", () => ({
 vi.mock("../tax/actions", () => ({
   assignChargeTaxRuleAction: vi.fn(),
   classifyChargeTaxManuallyAction: vi.fn(),
+  decideMissingInvoiceExceptionAction: vi.fn(),
   overrideChargeVatPercentAction: vi.fn(),
+  requestMissingInvoiceExceptionAction: vi.fn(),
+  revokeMissingInvoiceExceptionAction: vi.fn(),
 }));
 vi.mock("./charge-catalog-selector", () => ({
   ChargeCatalogSelector: ({
@@ -256,6 +259,94 @@ describe("UnifiedBuyingWorkspace genuine component rendering & financial safety 
     expect(html).toContain("509,000 VND");
     expect(html).toContain("7,099,000 VND");
     expect(html).toContain("1/2 tax-classified");
+    expect(html).not.toContain("Request closure exception");
+  });
+
+  it("renders the existing missing-invoice exception workflow with the exact charge and financial revision", () => {
+    const financialReviewRevision = "b".repeat(64);
+    const html = renderWorkspace({
+      taxDetails: [
+        makeTaxDetail({
+          taxRuleId: null,
+          taxRuleCodeSnapshot: null,
+          taxRuleNameSnapshot: null,
+          taxTreatmentSnapshot: "taxable",
+          taxDecisionSource: "manual",
+          taxDecisionReason: "Verified operational expense",
+          inputVatInvoiceStatus: "missing",
+          inputVatInvoiceReference: null,
+          inputVatDeductible: false,
+          taxComplete: false,
+          incompleteReason:
+            "The input VAT invoice is missing; no closure exception is configured.",
+          missingInvoiceException: null,
+        }),
+      ],
+      financialReviewRevision,
+      role: "accountant",
+    });
+
+    expect(html).toContain("Input invoice: Missing");
+    expect(html).toContain("Input VAT deductible: No");
+    expect(html).toContain("Closure exception: None");
+    expect(html).toContain("Request closure exception");
+    expect(html).toContain('name="chargeId" value="chg-1"');
+    expect(html).toContain(
+      `name="expectedFinancialRevision" value="${financialReviewRevision}"`,
+    );
+    expect(html).toContain("Save manual decision");
+    expect(html).not.toContain("Record Admin decision");
+  });
+
+  it("renders pending exception evidence and Admin decision controls without changing invoice semantics", () => {
+    const financialReviewRevision = "c".repeat(64);
+    const html = renderWorkspace({
+      taxDetails: [
+        makeTaxDetail({
+          taxTreatmentSnapshot: "taxable",
+          taxDecisionSource: "manual",
+          taxDecisionReason: "Accounting classification retained",
+          inputVatInvoiceStatus: "missing",
+          inputVatInvoiceReference: null,
+          inputVatDeductible: false,
+          taxComplete: false,
+          incompleteReason:
+            "The missing-invoice closure exception is pending Admin approval.",
+          missingInvoiceException: {
+            id: "exception-1",
+            shippingNoteId: "sn-1",
+            buyingChargeId: "chg-1",
+            status: "pending",
+            requestedById: "accountant-1",
+            requestedAt: now,
+            requestReason: "Carrier has not issued the input VAT invoice",
+            invoiceStatusSnapshot: "missing",
+            inputVatDeductibleSnapshot: false,
+            requestedFinancialRevision: "a".repeat(64),
+            decisionById: null,
+            decidedAt: null,
+            decisionReason: null,
+            selfApproved: false,
+            invalidatedById: null,
+            invalidatedAt: null,
+            invalidationReason: null,
+          },
+        }),
+      ],
+      financialReviewRevision,
+      role: "admin",
+    });
+
+    expect(html).toContain("Closure exception: pending");
+    expect(html).toContain("Carrier has not issued the input VAT invoice");
+    expect(html).toContain("Record Admin decision");
+    expect(html).toContain('name="exceptionId" value="exception-1"');
+    expect(html).toContain(
+      `name="expectedFinancialRevision" value="${financialReviewRevision}"`,
+    );
+    expect(html).toContain("Input invoice: Missing");
+    expect(html).toContain("Input VAT deductible: No");
+    expect(html).not.toContain("Request closure exception");
   });
 
   it("strictly redacts all tax columns, VAT amounts, Catalog VAT, and tax controls for OPS even if tax props are supplied", () => {

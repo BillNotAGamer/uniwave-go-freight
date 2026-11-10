@@ -19,6 +19,7 @@ import {
   AssignTaxRulePanel,
   Badge,
   ManualTaxDecisionPanel,
+  MissingInvoiceExceptionPanel,
   OverrideVatPanel,
 } from "../tax/components/accounting-tax-charge-table";
 import {
@@ -532,6 +533,11 @@ export function UnifiedBuyingWorkspace({
                               )}
                             />
                             <ManualTaxDecisionPanel
+                              charge={taxDetail}
+                              role={role}
+                              financialReviewRevision={financialReviewRevision}
+                            />
+                            <MissingInvoiceExceptionPanel
                               charge={taxDetail}
                               role={role}
                               financialReviewRevision={financialReviewRevision}
