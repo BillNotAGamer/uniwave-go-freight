@@ -22,6 +22,7 @@ import { ShippingNoteSubmitForm } from "@/features/shipping-notes/components/shi
 import { SellingChargesList } from "@/features/shipping-notes/components/selling-charges-list";
 import { SellingChargeForm } from "@/features/shipping-notes/components/selling-charge-form";
 import { SellingChargeSummaryView } from "@/features/shipping-notes/components/selling-charge-summary";
+import { SaleOwnNoteFinancialView } from "@/features/shipping-notes/components/sale-own-note-financial-view";
 import { AccountingReviewControls } from "@/features/shipping-notes/components/accounting-review-controls";
 import { CancellationControls } from "@/features/shipping-notes/components/cancellation-controls";
 import { ShippingNoteHardDeleteControls } from "@/features/shipping-notes/components/shipping-note-hard-delete-controls";
@@ -89,6 +90,7 @@ import {
 } from "@/features/shipping-notes/presentation";
 import { canDuplicateShippingNote } from "@/features/shipping-notes/duplication";
 import { getFinancialReviewRevisionForNote } from "@/features/shipping-notes/financial-review-revision";
+import { getSaleOwnNoteFinancialViewForUser } from "@/features/shipping-notes/sale-own-note-financial";
 
 function formatCreator(createdBy: { name: string; email: string } | null): string {
   return createdBy?.name.trim() || createdBy?.email || "Unknown user";
@@ -127,6 +129,12 @@ export default async function ShippingNoteDetailPage({
     user.role,
     PERMISSIONS.FINANCIAL_SUMMARY_READ,
   );
+  const canReadSaleOwnNoteFinancials =
+    user.role === "sale" &&
+    hasPermission(
+      user.role,
+      PERMISSIONS.SHIPPING_NOTES_READ_OWN_FINANCIALS,
+    );
   const canReadTaxSummary = hasPermission(
     user.role,
     PERMISSIONS.TAX_SUMMARY_READ,
@@ -271,6 +279,9 @@ export default async function ShippingNoteDetailPage({
   );
   const financialSummary = shouldFetchFinancialSummary
     ? await getFinancialSummaryForNoteForUser(id, user)
+    : null;
+  const saleOwnNoteFinancials = canReadSaleOwnNoteFinancials
+    ? await getSaleOwnNoteFinancialViewForUser(id, user)
     : null;
   const cancellationMetadata =
     note.status === "cancelled" &&
@@ -602,6 +613,10 @@ export default async function ShippingNoteDetailPage({
             <SellingChargeForm shippingNoteId={note.id} />
           ) : null}
         </section>
+
+        {saleOwnNoteFinancials ? (
+          <SaleOwnNoteFinancialView data={saleOwnNoteFinancials} />
+        ) : null}
 
         {canViewFinancialArea ? (
           <section className="grid gap-4 border-t border-border pt-6">

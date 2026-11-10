@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   listShippingNoteExportHistoryForUser: vi.fn(),
   listCustomsDeclarationsForNoteForUser: vi.fn(),
   getFinancialSummaryForNoteForUser: vi.fn(),
+  getSaleOwnNoteFinancialViewForUser: vi.fn(),
   getCancellationMetadataForNoteForUser: vi.fn(),
   listShippingNoteDocumentsForUser: vi.fn(),
   hasActivePostSubmitEditGrant: vi.fn().mockResolvedValue(false),
@@ -75,6 +76,11 @@ vi.mock("@/features/shipping-notes/financial-review-revision", () => ({
   getFinancialReviewRevisionForNote: mocks.getFinancialReviewRevisionForNote,
 }));
 
+vi.mock("@/features/shipping-notes/sale-own-note-financial", () => ({
+  getSaleOwnNoteFinancialViewForUser:
+    mocks.getSaleOwnNoteFinancialViewForUser,
+}));
+
 import ShippingNoteDetailPage from "./page";
 import { ShippingNoteDocumentsPanel } from "@/features/shipping-notes/documents/components/shipping-note-documents-panel";
 import { ShippingNoteDraftForm } from "@/features/shipping-notes/components/shipping-note-draft-form";
@@ -83,6 +89,7 @@ import { ShippingNoteHardDeleteControls } from "@/features/shipping-notes/compon
 import { DuplicateShippingNoteControls } from "@/features/shipping-notes/components/duplicate-shipping-note-controls";
 import { BuyingChargeForm } from "@/features/shipping-notes/components/buying-charge-form";
 import { UnifiedBuyingWorkspace } from "@/features/shipping-notes/components/unified-buying-workspace";
+import { SaleOwnNoteFinancialView } from "@/features/shipping-notes/components/sale-own-note-financial-view";
 
 // Exercise the real Drizzle mapping without trusting its generic unknown return type.
 function readTimestamp(
@@ -185,6 +192,7 @@ type TargetElement = React.ReactElement<{
   activeTaxRules?: unknown[];
   sourceId?: string;
   sourceJobsheetNo?: string;
+  data?: unknown;
   children?: unknown;
 }>;
 
@@ -1201,10 +1209,25 @@ describe("ShippingNoteDetailPage UnifiedBuyingWorkspace server-to-client confide
     expect(workspace?.props.activeTaxRules?.[0]).not.toHaveProperty("description");
   });
 
-  it("never queries buying charges, tax details, or financial summary or renders UnifiedBuyingWorkspace for Sale", async () => {
+  it("renders only the narrow own-note financial DTO for Sale", async () => {
     const saleUser = makeUser("sale");
     mocks.requireAuthenticatedUser.mockResolvedValue({ user: saleUser });
     mocks.getShippingNoteDetailForUser.mockResolvedValue(makeNote("submitted"));
+    mocks.getSaleOwnNoteFinancialViewForUser.mockResolvedValue({
+      buyingRates: [
+        {
+          id: "buy-sale-1",
+          chargeName: "Ocean Freight",
+          description: "Carrier cost",
+          quantity: "1.000",
+          unit: "shipment",
+          unitPrice: "100.0000",
+          currency: "USD",
+          amountOriginal: "100.0000",
+        },
+      ],
+      grossProfitVnd: "500000.00",
+    });
 
     const jsx = await ShippingNoteDetailPage({
       params: Promise.resolve({ id: "note-1" }),
@@ -1214,7 +1237,32 @@ describe("ShippingNoteDetailPage UnifiedBuyingWorkspace server-to-client confide
     expect(mocks.listChargeTaxDetailsForNoteForUser).not.toHaveBeenCalled();
     expect(mocks.listTaxRulesForUser).not.toHaveBeenCalled();
     expect(mocks.getFinancialSummaryForNoteForUser).not.toHaveBeenCalled();
+    expect(mocks.getSaleOwnNoteFinancialViewForUser).toHaveBeenCalledExactlyOnceWith(
+      "note-1",
+      saleUser,
+    );
     expect(findComponentInTree(jsx, UnifiedBuyingWorkspace)).toBeNull();
+    const saleView = findComponentInTree(jsx, SaleOwnNoteFinancialView);
+    expect(saleView).not.toBeNull();
+    expect(saleView?.props.data).toEqual({
+      buyingRates: [
+        {
+          id: "buy-sale-1",
+          chargeName: "Ocean Freight",
+          description: "Carrier cost",
+          quantity: "1.000",
+          unit: "shipment",
+          unitPrice: "100.0000",
+          currency: "USD",
+          amountOriginal: "100.0000",
+        },
+      ],
+      grossProfitVnd: "500000.00",
+    });
+    const serialized = JSON.stringify(saleView?.props.data);
+    expect(serialized).not.toContain("vendorOrAgentText");
+    expect(serialized).not.toContain("taxRule");
+    expect(serialized).not.toContain("exchangeRate");
   });
 
   it("passes populated buyingTaxDetails and activeTaxRules to UnifiedBuyingWorkspace for Accountant and Admin", async () => {

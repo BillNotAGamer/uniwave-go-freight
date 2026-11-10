@@ -6,6 +6,7 @@ export const PERMISSIONS = {
   SHIPPING_NOTES_CREATE_OWN: "shipping-notes:create-own",
   SHIPPING_NOTES_EDIT_OWN: "shipping-notes:edit-own",
   SHIPPING_NOTES_READ_ALL: "shipping-notes:read-all",
+  SHIPPING_NOTES_READ_OWN_FINANCIALS: "shipping-notes:read-own-financials",
   SHIPPING_NOTES_ACCOUNTING_REVIEW: "shipping-notes:accounting-review",
   SHIPPING_NOTES_MARK_CHECKED: "shipping-notes:mark-checked",
   SHIPPING_NOTES_APPROVE: "shipping-notes:approve",
@@ -45,6 +46,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     PERMISSIONS.DASHBOARD_SALE_ACCESS,
     PERMISSIONS.SHIPPING_NOTES_CREATE_OWN,
     PERMISSIONS.SHIPPING_NOTES_EDIT_OWN,
+    PERMISSIONS.SHIPPING_NOTES_READ_OWN_FINANCIALS,
     PERMISSIONS.SHIPPING_NOTES_CANCEL,
   ],
   ops: [

@@ -6,6 +6,7 @@ import {
   getSellingChargesAndSummaryForNoteForUser,
   listBuyingChargesForNoteForUser,
 } from "@/features/shipping-notes/queries";
+import { getSaleOwnNoteFinancialViewForUser } from "@/features/shipping-notes/sale-own-note-financial";
 import {
   createBuyingChargeForNote,
   createSellingChargeForNote,
@@ -232,6 +233,68 @@ describe("persisted charges and financial summaries", () => {
       buyingInput(draft.id, "DRAFT"),
       actors.accountant,
     )).resolves.toMatchObject({ shippingNoteId: draft.id });
+  });
+
+  it("exposes only own-note Buying Rates and Gross Profit to Sale", async () => {
+    const note = await createDraftFor(actors.saleA, runId, "SALE-OWN-FINANCIAL");
+    await createSellingChargeForNote(
+      sellingInput(note.id, "SALE-OWN-SELL", "100.0000"),
+      actors.saleA,
+    );
+    await submitShippingNote({ id: note.id }, actors.saleA);
+    const buying = await createBuyingChargeForNote(
+      note.id,
+      buyingInput(note.id, "SALE-OWN-BUY", "60.0000"),
+      actors.accountant,
+    );
+
+    const ownView = await getSaleOwnNoteFinancialViewForUser(
+      note.id,
+      actors.saleA,
+    );
+    expect(ownView).toEqual({
+      buyingRates: [
+        {
+          id: buying.id,
+          chargeName: `${runId}-BUY-SALE-OWN-BUY`,
+          description: `${runId} buying charge SALE-OWN-BUY`,
+          quantity: "2.000",
+          unit: "shipment",
+          unitPrice: "60.0000",
+          currency: "VND",
+          amountOriginal: "120.0000",
+        },
+      ],
+      grossProfitVnd: "80.00",
+    });
+    await expect(
+      getSaleOwnNoteFinancialViewForUser(note.id, actors.saleB),
+    ).resolves.toBeNull();
+    await expect(
+      listBuyingChargesForNoteForUser(note.id, actors.saleA),
+    ).rejects.toBeInstanceOf(AuthorizationError);
+
+    await updateBuyingCharge(
+      buying.id,
+      updateBuyingChargeInputSchema.parse({
+        id: buying.id,
+        chargeName: `${runId}-BUY-SALE-OWN-BUY-UPDATED`,
+        description: `${runId} updated own-note buying charge`,
+        quantity: "2.000",
+        unit: "shipment",
+        unitPrice: "75.0000",
+        currency: "VND",
+        vendorOrAgentText: `${runId} confidential vendor`,
+      }),
+      actors.accountant,
+    );
+
+    const refreshed = await getSaleOwnNoteFinancialViewForUser(
+      note.id,
+      actors.saleA,
+    );
+    expect(refreshed?.grossProfitVnd).toBe("50.00");
+    expect(JSON.stringify(refreshed)).not.toContain("confidential vendor");
   });
 
   it("computes zero and negative profit from active persisted rows exactly", async () => {

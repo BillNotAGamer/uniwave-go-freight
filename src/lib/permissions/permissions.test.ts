@@ -37,6 +37,9 @@ describe("role and permission matrix", () => {
   it("allows sale users to create and edit their own notes only", () => {
     expect(hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_CREATE_OWN)).toBe(true);
     expect(hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_EDIT_OWN)).toBe(true);
+    expect(
+      hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_READ_OWN_FINANCIALS),
+    ).toBe(true);
     expect(hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_CANCEL)).toBe(true);
     expect(hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_READ_ALL)).toBe(false);
     expect(hasPermission("sale", PERMISSIONS.SHIPPING_NOTES_APPROVE)).toBe(false);
@@ -82,6 +85,9 @@ describe("role and permission matrix", () => {
     expect(hasPermission("accountant", PERMISSIONS.SHIPPING_NOTES_EXPORT_INTERNAL)).toBe(true);
     expect(hasPermission("accountant", PERMISSIONS.SHIPPING_NOTES_CREATE_OWN)).toBe(false);
     expect(hasPermission("accountant", PERMISSIONS.SHIPPING_NOTES_EDIT_OWN)).toBe(false);
+    expect(
+      hasPermission("accountant", PERMISSIONS.SHIPPING_NOTES_READ_OWN_FINANCIALS),
+    ).toBe(false);
     expect(hasPermission("accountant", PERMISSIONS.USERS_MANAGE)).toBe(false);
     expect(hasPermission("accountant", PERMISSIONS.ADMIN_DESTRUCTIVE_ACTIONS)).toBe(false);
     expect(hasPermission("accountant", PERMISSIONS.EXPORTS_UPLOAD)).toBe(false);
@@ -90,6 +96,9 @@ describe("role and permission matrix", () => {
   it("gives OPS note-scoped buying and tax-classification operations without global accounting powers", () => {
     expect(hasPermission("ops", PERMISSIONS.SHIPPING_NOTES_CREATE_OWN)).toBe(true);
     expect(hasPermission("ops", PERMISSIONS.SHIPPING_NOTES_EDIT_OWN)).toBe(true);
+    expect(
+      hasPermission("ops", PERMISSIONS.SHIPPING_NOTES_READ_OWN_FINANCIALS),
+    ).toBe(false);
     expect(hasPermission("ops", PERMISSIONS.SHIPPING_NOTES_CANCEL)).toBe(true);
     expect(hasPermission("ops", PERMISSIONS.BUYING_CHARGES_READ)).toBe(true);
     expect(hasPermission("ops", PERMISSIONS.BUYING_CHARGES_OPS_INPUT)).toBe(true);
